@@ -100,12 +100,17 @@ const Hub = (function () {
   const NAV = [
     { grp:'实例' },
     { id:'index',     label:'Milvus Instances',       icon:I.grid,   href:'index.html' },
-    { id:'upgrade',   label:'Dependencies Instances', icon:I.layers, href:'upgrade.html' },
+    { id:'upgrade',   label:'Dependencies', icon:I.layers, href:'upgrade.html' },
     { grp:'其他' },
     { id:'install',   label:'安装向导',       icon:I.install,  href:'install.html' },
     { id:'configmap', label:'ConfigMap 管理', icon:I.sliders,  href:'configmap.html' },
     { id:'tools',     label:'工具箱',         icon:I.tool,     href:'tools.html' },
     { id:'help',      label:'帮助 · 架构',    icon:I.info,     href:'help.html' },
+    { grp:'方案讨论' },
+    { id:'plan-compare', label:'方案对比',     icon:I.layers,  href:'plan-compare.html' },
+    { id:'plan-1',       label:'方案一 · 扩展 helm/operator（过渡）', icon:I.sliders, href:'plan-1.html' },
+    { id:'plan-2',       label:'方案二 · 维持现状 · k8s hack',        icon:I.swap,   href:'plan-2.html' },
+    { id:'plan-3',       label:'方案三 · WebUI（终态）',              icon:I.cube,   href:'plan-3.html' },
   ];
 
   /* ---------- shell render ---------- */

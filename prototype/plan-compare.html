@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案对比 · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  /* problem diagram — scoped to this page */
+  .pnl{ border-radius:11px; padding:14px 16px; margin-top:14px; border:1px solid var(--line); }
+  .pnl-h{ font-family:var(--font-mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.7px; margin-bottom:12px; font-weight:600; }
+  .pnl.bad{ background:linear-gradient(180deg,#fff,var(--err-soft)); border-color:#f0b6c0; }
+  .pnl.bad .pnl-h{ color:var(--err); }
+  .pnl.good{ background:linear-gradient(180deg,#fff,var(--ok-soft)); border-color:#a8dcc4; }
+  .pnl.good .pnl-h{ color:#0b6043; }
+  .cpl{ display:flex; align-items:center; gap:15px; flex-wrap:wrap; }
+  .swbox{ border:1.5px solid var(--err); background:#fff; border-radius:10px; padding:10px 14px; text-align:center; flex:none; }
+  .swbox b{ color:#a31f37; font-size:13px; } .swbox .m{ font-family:var(--font-mono); font-size:11px; color:var(--fg-2); margin-top:4px; line-height:1.5; }
+  .drv{ font-size:25px; color:var(--err); font-weight:700; line-height:1; }
+  .jobs{ display:flex; flex-direction:column; gap:8px; border:1.5px solid #f0b6c0; border-radius:10px; padding:9px 10px; background:rgba(255,255,255,.55); }
+  .job{ background:#fff; border:1px solid var(--line-2); border-radius:8px; padding:7px 12px; font-size:12.5px; white-space:nowrap; }
+  .ins{ color:var(--accent-ink); font-weight:700; } .run{ color:var(--indigo); font-weight:700; }
+  .tie{ color:#a31f37; font-weight:700; font-size:12.5px; line-height:1.45; }
+  .cons{ font-size:12.5px; margin-top:12px; }
+  .pnl.bad .cons{ color:#9e1f34; } .pnl.good .cons{ color:#0b6043; }
+  .note{ font-size:11.5px; color:var(--fg-3); margin-top:7px; }
+  .track{ display:flex; align-items:baseline; gap:11px; font-size:13px; padding:5px 0; flex-wrap:wrap; }
+  .track .tg{ font-weight:700; flex:none; }
+  .track .ex{ font-family:var(--font-mono); color:var(--fg); }
+  .track .an{ color:var(--fg-3); font-size:12px; margin-left:auto; }
+  /* ideal-architecture diagram (operator stacks, from help.html) */
+  .ops{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:13px; margin-top:6px; }
+  .opstack{ display:flex; flex-direction:column; align-items:stretch; }
+  .opbox{ border:1px solid var(--line-2); border-radius:11px; background:var(--surface); padding:12px 11px 11px; text-align:center; box-shadow:var(--shadow-sm); }
+  .opbox .lo{ width:34px;height:34px;border-radius:9px; display:grid;place-items:center; font-size:17px; background:var(--surface-3); border:1px solid var(--line); margin:0 auto 8px; }
+  .opbox .lo.mv{ background:linear-gradient(150deg,var(--accent),var(--indigo)); border:none; color:#fff; font-family:var(--font-display); font-weight:700; }
+  .opbox .t{ font-weight:650; font-size:13px; }
+  .opbox .mgr{ font-size:10px; font-family:var(--font-mono); color:var(--accent-ink); background:var(--accent-soft); border-radius:20px; padding:2px 7px; display:inline-block; margin-top:6px; }
+  .opdown{ height:24px; width:2px; background:var(--line-strong); margin:0 auto; position:relative; }
+  .opdown::after{ content:''; position:absolute; bottom:-1px; left:-4px; border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--line-strong); }
+  .podbox{ border:1px dashed var(--line-2); border-radius:11px; background:var(--surface-2); padding:9px 10px; text-align:center; font-size:12px; font-weight:600; }
+  .podbox span{ display:block; font-weight:400; font-size:10.5px; color:var(--fg-3); font-family:var(--font-mono); margin-top:2px; }
+  .opstack.ext .opbox{ border-style:dashed; opacity:.92; } .opstack.ext .opbox .mgr{ color:var(--fg-3); background:var(--surface-3); }
+  .opstack.ext .opdown{ background:transparent; } .opstack.ext .opdown::after{ display:none; }
+  .opstack.ext .podbox{ border-style:dotted; color:var(--fg-3); }
+  .iso-note{ display:flex; gap:11px; align-items:center; justify-content:center; margin-top:16px; padding:12px 16px; border:1px dashed var(--line-2); border-radius:10px; background:var(--surface); font-size:12.5px; color:var(--fg-2); text-align:center; }
+  .grp-l{ font-family:var(--font-mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--fg-3); margin:16px 0 9px; display:flex; align-items:center; gap:9px; }
+  .grp-l::after{ content:''; flex:1; height:1px; background:var(--line); }
+  /* three-ideas card */
+  .idea{ padding:13px 0; border-bottom:1px solid var(--line); }
+  .idea:first-child{ padding-top:2px; } .idea:last-child{ border-bottom:none; padding-bottom:2px; }
+  .idea-h{ font-weight:650; font-size:13.5px; display:flex; align-items:center; gap:10px; margin-bottom:7px; flex-wrap:wrap; }
+  .idea p{ margin:0; color:var(--fg-2); font-size:12.5px; line-height:1.74; }
+  /* install-sequence flow */
+  .flow4{ display:flex; align-items:stretch; gap:0; flex-wrap:wrap; margin-top:22px; }
+  .fstep{ flex:1 1 160px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); padding:15px 13px 13px; text-align:center; box-shadow:var(--shadow-sm); position:relative; }
+  .fstep .n{ position:absolute; top:-11px; left:50%; transform:translateX(-50%); width:24px; height:24px; border-radius:50%; background:linear-gradient(150deg,var(--accent),var(--indigo)); color:#fff; font-family:var(--font-display); font-weight:700; font-size:12px; display:grid; place-items:center; box-shadow:0 3px 9px rgba(8,180,200,.35); }
+  .fstep .lo{ width:38px;height:38px;border-radius:10px; display:grid;place-items:center; font-size:19px; background:var(--surface-3); border:1px solid var(--line); margin:6px auto 9px; }
+  .fstep .lo.mv{ background:linear-gradient(150deg,var(--accent),var(--indigo)); border:none; color:#fff; font-family:var(--font-display); font-weight:700; }
+  .fstep .t{ font-weight:650; font-size:14px; }
+  .fstep .mgr{ font-size:10px; font-family:var(--font-mono); color:var(--accent-ink); background:var(--accent-soft); border-radius:20px; padding:2px 8px; display:inline-block; margin-top:8px; }
+  .fstep .d{ font-size:11px; color:var(--fg-3); margin-top:8px; line-height:1.5; }
+  .farrow{ flex:none; display:flex; align-items:center; justify-content:center; width:30px; color:var(--accent); font-size:17px; font-weight:700; }
+  @media(max-width:760px){ .flow4{ flex-direction:column; } .farrow{ width:auto; height:26px; transform:rotate(90deg); } }
+  /* current-state (milvus-helm) diagram */
+  .cur{ border:1.5px dashed var(--warn); background:linear-gradient(180deg,#fff,var(--warn-soft)); border-radius:13px; padding:13px 15px 15px; margin-top:14px; }
+  .cur-h{ display:flex; align-items:center; gap:10px; margin-bottom:13px; flex-wrap:wrap; }
+  .cur-h .tg{ font-family:var(--font-mono); font-size:11.5px; color:#8a5c04; background:#fff; border:1px solid #eccf8f; border-radius:20px; padding:3px 11px; font-weight:600; }
+  .cur-h .x{ font-size:11.5px; color:#8a5c04; }
+  .cur-pods{ display:flex; gap:11px; flex-wrap:wrap; align-items:stretch; }
+  .cur-pod{ flex:1 1 120px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface); padding:11px 12px; text-align:center; display:flex; flex-direction:column; justify-content:center; }
+  .cur-pod .t{ font-weight:650; font-size:12.5px; } .cur-pod .s{ font-size:10px; color:var(--fg-3); font-family:var(--font-mono); margin-top:4px; }
+  .cur-pod.mqx{ flex:1 1 240px; border:1.5px solid var(--err); background:var(--err-soft); }
+  .cur-pod.mqx .t{ color:#a31f37; }
+  .mqopts{ display:flex; gap:6px; justify-content:center; margin-top:8px; flex-wrap:wrap; }
+  .mqo{ font-size:10.5px; font-family:var(--font-mono); padding:2px 8px; border-radius:6px; border:1px solid var(--line-2); background:#fff; }
+  .mqo.on{ background:var(--accent-soft); color:var(--accent-ink); border-color:#bfeef4; font-weight:600; }
+  .mqo.off{ background:var(--surface-3); color:var(--fg-faint); text-decoration:line-through; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>方案对比 · 为什么 switch MQ 这么难</h1>
+          <p>为满足 Milvus 3.0 的 <strong>switch MQ</strong>，需要解耦"底层资源的安装"与"Milvus 的运行连线"。三种方案分别从<strong>改工具 / 手工操作 / 做产品</strong>三个方向解。</p>
+        </div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i1"></span>
+        <div><b>一句话：</b>「装哪个中间件」（<code class="c2">provision</code>）与「milvus 连哪个 MQ」（<code class="c2">active</code>）本是两件事，却被 helm/operator 用<strong>同一个开关</strong>绑死。三方案的区别，只是<strong>在哪一层、由谁来把它拆开</strong>。</div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>问题本质 · 一个开关，被迫干两件事</h3></div>
+        <div class="card-pad doc">
+          <p>Milvus 3.0 内核已把 MQ 收敛到统一的 <code class="c2">WALImpls</code> 接口之后，「连哪个 MQ」本该只是一个 <code class="c2">mq.type</code> 开关 —— <strong>内核早就准备好了</strong>。卡点在部署工具：它用<strong>同一个开关</strong>，同时决定了「装哪个中间件」和「milvus 连哪个 MQ」。</p>
+
+          <div class="pnl bad">
+            <div class="pnl-h">今天 · 耦合</div>
+            <div class="cpl">
+              <div class="swbox"><b>一个开关</b><div class="m">pulsar.enabled<br>MsgStreamType</div></div>
+              <div class="drv">⇒</div>
+              <div class="jobs">
+                <div class="job"><span class="ins">装</span>&nbsp;&nbsp;装不装 pulsar 子 chart？<span class="muted">· 安装编排</span></div>
+                <div class="job"><span class="run">连</span>&nbsp;&nbsp;milvus 连不连 pulsar？<span class="muted">· 运行连线</span></div>
+              </div>
+              <div class="tie">⟵ 两件本应独立的事<br>被同一开关绑死</div>
+            </div>
+            <div class="cons">⇒ 表达不出「kafka 已装好 · milvus 还连着 woodpecker」这种切换中间态，也就没法「先装新 MQ → 校验 → 切流 → 下线旧 MQ」。</div>
+            <div class="note">现状代码：helm 是一条 <code class="c2">if externalPulsar → … else if woodpecker → … else if pulsarv3</code> 优先级链；operator 是 <code class="c2">switch MsgStreamType</code> 互斥枚举。其中 kafka 在 helm 里还是<b>另起的独立 if 块</b>，会盖掉前面的链 —— 这正是"越改越绕"的活样本。</div>
+          </div>
+
+          <div class="pnl good">
+            <div class="pnl-h">解法 · 装连分离（三方案共同的内核）</div>
+            <div class="track"><span class="tg ins">装 provision</span> <span class="ex">= { woodpecker, kafka }</span> <span class="an">集合 · 可多选（切换窗口里并存）</span></div>
+            <div class="track"><span class="tg run">连 active</span> <span class="ex">= woodpecker → kafka</span> <span class="an">单值 · 单选（同一刻只连一个）</span></div>
+            <div class="cons">⇒ 先装新 MQ、校验通过再切流、最后下线旧 MQ —— 每步可控、可回滚。<strong>三方案的区别，只是在哪一层、由谁来做这件拆分。</strong></div>
+          </div>
+
+          <div class="why" style="margin-top:14px"><div><b>硬约束（三方案都绕不开）：</b>不同 MQ 后端的 WAL / checkpoint 格式互不相通，<code class="c2">mq.type</code> 选定后即固定，跨后端<b>不可无损迁移</b> —— 所以 switch MQ ≈ <b>先备份 / 清空，再换后端</b>，不是带存量数据热迁移。任何方案都必须把这条显式告知用户。</div></div>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>理想终态 · k8s 原生方式，各组件各用官方 operator</h3><span class="sub">常规安装一套 Milvus 的 4 步 · 每步都是 k8s 操作该组件的官方 operator</span></div>
+        <div class="card-pad">
+          <p style="margin:0;font-size:13px;color:var(--fg-2);line-height:1.7">Milvus 部署本该有的样子：不靠一个大工具把所有依赖一把装齐，而是<b>按依赖顺序、用 k8s 原生方式一步步装</b> —— 每一步都调起该组件<b>自己的官方 operator</b> 来安装。下面是常规装一套 Milvus 的 4 步：</p>
+
+          <div class="flow4">
+            <div class="fstep"><div class="n">1</div><div class="lo">🗄️</div><div class="t">etcd</div><div class="mgr">etcd-operator</div><div class="d">元数据 · 先装 operator，再由它拉起 etcd 集群</div></div>
+            <div class="farrow">→</div>
+            <div class="fstep"><div class="n">2</div><div class="lo">🪣</div><div class="t">对象存储</div><div class="mgr">MinIO Operator</div><div class="d">或直接用外部 S3 / OSS</div></div>
+            <div class="farrow">→</div>
+            <div class="fstep"><div class="n">3</div><div class="lo">📨</div><div class="t">消息队列</div><div class="mgr">各自官方 operator</div><div class="d">Pulsar / Kafka / Woodpecker 三选一（切换时可并存）</div></div>
+            <div class="farrow">→</div>
+            <div class="fstep"><div class="n">4</div><div class="lo mv">M</div><div class="t">Milvus</div><div class="mgr">Milvus Operator</div><div class="d">连上前三者，连哪个由 ConfigMap 指定</div></div>
+          </div>
+
+          <div class="iso-note">每一步都是同一个动作：<b>用 k8s 把该组件的官方 operator 装上，再由 operator 拉起它自己的集群</b> —— 没有哪个工具越界代管别人。装好后，Milvus 连哪个 MQ / 存储，是它自己 <code class="c2">ConfigMap</code> 的事（<b>装与连分离</b>）。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>当前 milvus-helm 现状 · 一套工具越界代管所有依赖</h3><span class="sub">把依赖 pod 全自己装了，还假设 MQ 互斥、不能并存</span></div>
+        <div class="card-pad">
+          <p style="margin:0;font-size:13px;color:var(--fg-2);line-height:1.7">和上图正相反：现在不是各组件各用官方 operator，而是 <b>milvus-helm / milvus-operator 一把把所有依赖的 pod 都自己装了</b>（越界代管），并且在模板里<b>假设了 MQ 互斥</b> —— 同一时刻只能有一个 MQ，装不了多个。</p>
+
+          <div class="cur">
+            <div class="cur-h"><span class="tg">milvus-helm / milvus-operator</span><span class="x">一套 chart / operator，越界代管下面所有 pod ↓</span></div>
+            <div class="cur-pods">
+              <div class="cur-pod"><div class="t">etcd pods</div><div class="s">子 chart 代管</div></div>
+              <div class="cur-pod"><div class="t">minio pods</div><div class="s">子 chart 代管</div></div>
+              <div class="cur-pod mqx"><div class="t">消息队列 · 互斥单选</div><div class="mqopts"><span class="mqo on">Pulsar ✓</span><span class="mqo off">Kafka</span><span class="mqo off">Woodpecker</span></div><div class="s">同一时刻只能一个，不能并存</div></div>
+              <div class="cur-pod"><div class="t">Milvus pods</div><div class="s">operator 代管</div></div>
+            </div>
+          </div>
+
+          <div class="iso-note" style="border-color:#eccf8f;color:#8a5c04;background:var(--warn-soft);margin-top:14px"><b>两个病根：</b>① <b>越界</b> —— 一个工具把 etcd / minio / MQ 全代管，组件没有各自的官方 operator；② <b>互斥</b> —— MQ 假设只能有一个、不能并存，做不到"先装新 MQ → 校验 → 再切"。<b>switch MQ 难，就难在这里。</b></div>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>三方案对比</h3></div>
+        <table class="tbl">
+          <thead><tr><th>维度</th><th>方案一 · 扩展 helm/operator</th><th>方案二 · K8s 原生操作</th><th>方案三 · Admin WebUI</th></tr></thead>
+          <tbody>
+            <tr><td>做法</td><td>趁 3.0 改 helm/operator：拆开安装与配置</td><td>不改工具，helm upgrade + kubectl 把切换 hack 成几步</td><td>无状态 WebUI，经 k8s 操作 milvus/pulsar/kafka/wp 各自的原生 operator &amp; ConfigMap</td></tr>
+            <tr><td>实现成本</td><td><span class="badge b-warn"><span class="d"></span>中</span></td><td><span class="badge b-ok"><span class="d"></span>低</span></td><td><span class="badge b-err"><span class="d"></span>高</span></td></tr>
+            <tr><td>解耦 / 纯粹度</td><td><span class="badge b-err"><span class="d"></span>低</span> 越改越绕</td><td><span class="badge b-warn"><span class="d"></span>中</span> 靠人</td><td><span class="badge b-ok"><span class="d"></span>高</span></td></tr>
+            <tr><td>多 MQ 并存 / 灰度<br><span class="muted" style="font-size:11px">← 耦合卡住的就是这个</span></td><td><span class="badge b-warn"><span class="d"></span>中</span> 改造后可，模板复杂</td><td><span class="badge b-err"><span class="d"></span>差</span> 全手工，几乎不可控</td><td><span class="badge b-ok"><span class="d"></span>好</span> 天然支持</td></tr>
+            <tr><td>用户体验</td><td>中</td><td><span class="badge b-err"><span class="d"></span>差</span> 无护栏</td><td><span class="badge b-ok"><span class="d"></span>好</span> 向导式</td></tr>
+            <tr><td>对其它组件侵入</td><td>继续越界代管</td><td>直面原生资源</td><td>不越界，各 operator 各管各</td></tr>
+            <tr><td>定位</td><td><span class="chip">过渡</span></td><td><span class="chip">止血</span></td><td><span class="chip">终态</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>三方案基本思路</h3><span class="sub">同一个"装/连分离"，三种力度</span></div>
+        <div class="card-pad">
+          <div class="idea">
+            <div class="idea-h"><span class="chip">方案一 · 过渡</span> 趁 3.0 改造 helm/operator，把安装与配置解耦</div>
+            <p>保持现在 helm/operator "一把装齐所有依赖" 的形态，但做一处关键改造：<b>把【安装】和【配置】彻底拆开</b>。安装工具不再假设依赖之间互斥，只负责一波 <code class="c2">install / uninstall / update</code>；至于 Milvus 连哪个 MQ、连哪个存储，是 <code class="c2">configmap.*.*</code> 模板渲染的事，与"装了哪些组件"无关。<b>两个问题互相独立</b>。这种结构性改动趁 3.0 一起改，越往后越改不动。<a href="plan-1.html" style="color:var(--accent-ink);font-weight:600">方案一详情 →</a></p>
+          </div>
+          <div class="idea">
+            <div class="idea-h"><span class="chip">方案二 · 止血</span> 不改工具，用 helm + kubectl hack 出切换步骤</div>
+            <p>完全维持 milvus-helm/operator 现状，把切换 hack 成几步（以 pulsar → woodpecker 为例）：① 一次 <code class="c2">helm upgrade --set woodpecker.enabled=true</code> 装上 woodpecker service，并用 <code class="c2">user.yaml</code> 把<b>旧 pulsar 钉死</b>（盖过 chart 渲染，两套 MQ 并存）；② 调 milvus 管理 API <code class="c2">wal/alter</code> 在线切到 woodpecker；③ 切换确认后，用 <b>k8s 原生命令删掉旧 pulsar 资源</b>。当天可用，但顺序敏感、无护栏。<a href="plan-2.html" style="color:var(--accent-ink);font-weight:600">方案二详情 →</a></p>
+          </div>
+          <div class="idea">
+            <div class="idea-h"><span class="chip">方案三 · 终态</span> 无状态 WebUI，通过 k8s 操作各 service 的原生 operator &amp; ConfigMap</div>
+            <p>把上面这些操作收进一个<b>无状态 WebUI</b>：它不自带状态，<b>通过 k8s 操作 milvus / pulsar / kafka / wp 各 service 各自的原生 operator 与 ConfigMap</b>，落地上面那张"各管各"的架构，并把方案二的人肉步骤变成<b>有护栏的向导</b>。就是你正在用的这个原型。<a href="plan-3.html" style="color:var(--accent-ink);font-weight:600">方案三详情 →</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>推荐路线</h3><span class="sub">三者不是单选，是一条时间线</span></div>
+        <div class="card-pad">
+          <div class="timeline">
+            <div class="ev"><div class="t">T0 · 随 3.0</div><div class="m"><b>方案二打底</b>：把手工拆 MQ 的步骤写成可执行手册，零代码、当天可用。</div></div>
+            <div class="ev"><div class="t">T1 · 3.0.x</div><div class="m"><b>方案一补工具</b>：把手册步骤工具化，降低翻车率 —— 但每加一种组合就更不纯粹一分。</div></div>
+            <div class="ev"><div class="t">T2 · 3.x</div><div class="m"><b>方案三定方向</b>：把安装从 milvus 工具彻底剥离，各组件交还自己的官方 operator。终态。</div></div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <a class="btn btn-ghost btn-sm" href="plan-1.html">方案一详情 →</a>
+            <a class="btn btn-ghost btn-sm" href="plan-2.html">方案二详情 →</a>
+            <a class="btn btn-primary btn-sm" href="plan-3.html">方案三详情 →</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'plan-compare', crumbs:['方案讨论','方案对比'] });
+  document.getElementById('i1').innerHTML = Hub.svg(Hub.I.info,18);
+</script>
+</body>
+</html>

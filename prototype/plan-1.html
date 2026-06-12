@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案一 · 扩展 helm/operator · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>方案一 · 扩展 helm / operator</h1>
+          <p>在<strong>不另起炉灶</strong>的前提下改造现有 helm/operator：<strong>把"安装"和"配置"彻底拆开</strong> —— 安装工具不再假设依赖互斥，配置交回 ConfigMap 模板渲染。<strong>趁 3.0 一起改，越往后越改不动</strong>。过渡方案。</p>
+        </div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i1"></span>
+        <div><b>核心改动一句话：</b>把 <code class="c2">*.enabled</code>（装+连共用一个开关）拆成两件独立的事 —— <b>安装</b> <code class="c2">provision</code>（装哪些组件，可多选、不假设互斥）+ <b>配置</b> <code class="c2">active</code>（Milvus 连哪个，由 configmap 模板渲染、单选）。</div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>要改什么 · 直接对着源码</h3><span class="sub">milvus-helm 解互斥 + 方便删旧 MQ；milvus-operator 待补两点</span></div>
+        <div class="card-pad doc">
+          <p style="margin:0 0 10px">两件事拆开：<b>安装</b>（装哪些，各看各的 <code class="c2">*.enabled</code>，互不互斥）与 <b>配置</b>（连哪个，读一个显式开关）。下面是实际要动的位置。</p>
+
+          <h3 class="dh">① milvus-helm 解互斥 · <code class="c2">charts/milvus/templates/config.tpl</code></h3>
+          <pre class="codeblock"><span class="c"># 现状：一条 else-if 优先级链，只有一个分支能渲染 mq.type —— 这就是互斥根源</span>
+{{- <span class="k">if</span> .Values.externalPulsar.enabled }}   mq.type: pulsar
+{{- <span class="k">else if</span> .Values.pulsar.enabled }}     mq.type: pulsar
+{{- <span class="k">else if</span> .Values.woodpecker.enabled }} mq.type: woodpecker
+{{- <span class="k">else if</span> .Values.pulsarv3.enabled }}   mq.type: pulsar
+{{- end }}
+
+<span class="c"># 改成：连——只读一个显式开关；装——交给各自 *.enabled，不再 else-if 串成互斥</span>
+mq:
+  type: {{ .Values.<span class="k">messageQueue.active</span> }}   <span class="c"># 显式单选 pulsar|kafka|woodpecker</span></pre>
+
+          <h3 class="dh" style="margin-top:16px">② milvus-helm 让 helm 能删旧 MQ</h3>
+          <ul class="list-clean" style="margin-top:4px">
+            <li>子 chart（<code class="c2">requirements.yaml</code>）已带 <code class="c2">condition: pulsar.enabled / kafka.enabled</code> —— 关掉即 <code class="c2">helm upgrade</code> 自动删它，<b>天然可删</b></li>
+            <li>唯独 <b>woodpecker 是手写 STS</b>（<code class="c2">templates/woodpecker-statefulset.yaml · -svc.yaml</code>），要补 <code class="c2">{{- if .Values.woodpecker.enabled }} … {{- end }}</code> 包裹，才能被 <code class="c2">helm upgrade</code> 一并下线</li>
+          </ul>
+
+          <h3 class="dh" style="margin-top:16px">③ milvus-operator · 待补两点（当前还没实现）</h3>
+          <div class="muted" style="font-size:12px;margin-bottom:7px">operator 的 <code class="c2">ReconcileMsgStream</code>（<code class="c2">pkg/controllers/dependencies.go</code>）现在只装 kafka / pulsar，woodpecker 走 <code class="c2">default: do nothing</code>。要跟上 helm，需补：</div>
+          <ul class="list-clean" style="margin-top:4px">
+            <li><b>支持安装 woodpecker</b>：woodpecker 已是独立 service，不能再当"内置 MQ 不装"，要像 kafka/pulsar 一样真正把它装起来</li>
+            <li><b>支持多个 built-in MQ 服务的安装与删除</b>：切换窗口里能同时装新旧两个 MQ，切完后能干净删掉被换下的旧 MQ（不只是现在的单选 switch）</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>为什么能生效</h3></div>
+        <div class="card-pad">
+          <div class="why" style="margin-bottom:11px"><div><b>装与连解耦后，"切换窗口"才表达得出来：</b>先装好新 MQ（仍连旧的）→ 校验就绪 → 把 <code class="c2">messageQueue.active</code> 切到新 MQ（触发 milvus 重建）→ 再关掉旧 MQ 的 <code class="c2">enabled</code>。每步一次 <code class="c2">helm upgrade</code>。</div></div>
+          <div class="why"><div><b>删除靠现成机制：</b><code class="c2">helm upgrade</code> 会把 <code class="c2">condition</code> 变 false 的子 chart 删掉（PVC 默认保留）；woodpecker STS 加 <code class="c2">if</code> 包裹后同样能被 upgrade 一并下线 —— 不需要另造删除逻辑。</div></div>
+        </div>
+      </div>
+
+      <div class="callout co-warn" data-rise style="margin-top:18px">
+        <span class="ic" id="i2"></span>
+        <div><b>代价：越改越不纯粹。</b><code class="c2">active × provision × standalone/cluster × internal/external</code> 测试矩阵指数膨胀；我们仍在用自己维护的 pulsar/kafka 子 chart 代管别人的中间件。它买的是时间，不是终局 —— 见 <a href="plan-3.html" style="color:var(--accent-ink);font-weight:600">方案三</a>。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'plan-1', crumbs:['方案讨论','方案一 · 扩展 helm/operator'] });
+  document.getElementById('i1').innerHTML = Hub.svg(Hub.I.info,18);
+  document.getElementById('i2').innerHTML = Hub.svg(Hub.I.warn,18);
+</script>
+</body>
+</html>

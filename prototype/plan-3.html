@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案三 · Admin WebUI · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  /* —— ported from help.html: terminal / layered architecture / principles —— */
+  .term { background:var(--ink-850); border:1px solid #0a1120; border-radius:11px; overflow:hidden; box-shadow:var(--shadow); }
+  .term .bar { display:flex; align-items:center; gap:7px; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.07); }
+  .term .bar i { width:11px;height:11px;border-radius:50%; display:inline-block; }
+  .term .bar .t { margin-left:8px; color:#8a94ac; font-family:var(--font-mono); font-size:11.5px; }
+  .term pre { margin:0; padding:15px 18px; font-family:var(--font-mono); font-size:13px; line-height:1.85; color:#cdd6ea; overflow-x:auto; }
+  .term .p { color:#74e0ec; } .term .c { color:#6a7790; } .term .ok { color:#5fd0a6; } .term .v { color:#f2c98b; }
+
+  /* layered architecture */
+  .arch { display:flex; flex-direction:column; align-items:center; }
+  .layer { width:100%; border:1px solid var(--line); border-radius:13px; background:var(--surface); box-shadow:var(--shadow-sm); padding:17px 20px; }
+  .layer .lh { display:flex; align-items:center; gap:12px; }
+  .layer .lh .lo { width:40px;height:40px;border-radius:10px; display:grid;place-items:center; font-size:20px; background:var(--surface-3); border:1px solid var(--line); flex:none; }
+  .layer .lh .tt { font-family:var(--font-display); font-weight:700; font-size:15.5px; }
+  .layer .lh .ds { font-size:12px; color:var(--fg-3); margin-top:2px; }
+  .layer .lh .tag { margin-left:auto; }
+  .layer.accent { border:1.5px solid var(--accent); background:linear-gradient(180deg,#fff,var(--accent-soft)); }
+  .layer.accent .lh .lo { background:linear-gradient(150deg,var(--accent),var(--indigo)); border:none; color:#fff; font-family:var(--font-display); font-weight:700; }
+  .layer.k8s { background:var(--surface-2); }
+  .caps { display:flex; gap:9px; flex-wrap:wrap; margin-top:13px; }
+  .cap-chip { display:flex; align-items:center; gap:7px; padding:7px 11px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); font-size:12px; }
+  .cap-chip b { font-weight:600; } .cap-chip span { color:var(--fg-3); }
+
+  .vstep { display:flex; flex-direction:column; align-items:center; padding:7px 0; }
+  .vstep .ln { width:2px; height:16px; background:var(--accent); }
+  .vstep .lbl { font-family:var(--font-mono); font-size:10.5px; color:var(--accent-ink); background:var(--accent-soft); border:1px solid #bfeef4; padding:2px 9px; border-radius:20px; margin:3px 0; }
+  .vstep .ar { width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid var(--accent); }
+
+  .ops { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:13px; margin-top:6px; }
+  .opstack { display:flex; flex-direction:column; align-items:stretch; }
+  .opbox { border:1px solid var(--line-2); border-radius:11px; background:var(--surface); padding:12px 11px 11px; text-align:center; box-shadow:var(--shadow-sm); }
+  .opbox .lo { width:34px;height:34px;border-radius:9px; display:grid;place-items:center; font-size:17px; background:var(--surface-3); border:1px solid var(--line); margin:0 auto 8px; }
+  .opbox .lo.mv { background:linear-gradient(150deg,var(--accent),var(--indigo)); border:none; color:#fff; font-family:var(--font-display); font-weight:700; }
+  .opbox .t { font-weight:650; font-size:13px; }
+  .opbox .mgr { font-size:10px; font-family:var(--font-mono); color:var(--accent-ink); background:var(--accent-soft); border-radius:20px; padding:2px 7px; display:inline-block; margin-top:6px; }
+  .opdown { height:24px; width:2px; background:var(--line-strong); margin:0 auto; position:relative; }
+  .opdown::after { content:''; position:absolute; bottom:-1px; left:-4px; border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--line-strong); }
+  .podbox { border:1px dashed var(--line-2); border-radius:11px; background:var(--surface-2); padding:9px 10px; text-align:center; font-size:12px; font-weight:600; }
+  .podbox span { display:block; font-weight:400; font-size:10.5px; color:var(--fg-3); font-family:var(--font-mono); margin-top:2px; }
+  .opstack.ext .opbox { border-style:dashed; opacity:.92; } .opstack.ext .opbox .mgr { color:var(--fg-3); background:var(--surface-3); }
+  .opstack.ext .opdown { background:transparent; } .opstack.ext .opdown::after { display:none; }
+  .opstack.ext .podbox { border-style:dotted; color:var(--fg-3); }
+
+  .iso-note { display:flex; gap:11px; align-items:center; justify-content:center; margin-top:16px; padding:12px 16px; border:1px dashed var(--line-2); border-radius:10px; background:var(--surface); font-size:12.5px; color:var(--fg-2); text-align:center; }
+  .princ { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .princ .p { display:flex; gap:13px; }
+  .princ .p .n { width:34px;height:34px;border-radius:9px; flex:none; display:grid;place-items:center; font-family:var(--font-display); font-weight:700; color:#fff;
+    background:linear-gradient(150deg,var(--accent),var(--indigo)); }
+  .princ .p h4 { margin:0 0 4px; font-size:14px; } .princ .p p { margin:0; font-size:12.5px; color:var(--fg-2); line-height:1.6; }
+  @media(max-width:760px){ .princ{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>方案三 · Milvus Enterprise Admin WebUI</h1>
+          <p>从根上解耦：做一个<strong>无状态的 Python WebUI</strong>（就是你正在用的这个原型），把安装从 milvus 工具里彻底剥离，各组件交还自己的<strong>官方 operator</strong>。终态。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-primary" href="index.html">打开原型 →</a></div>
+      </div>
+
+      <div class="callout co-ok" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i1"></span>
+        <div><b>它就是这个工具本身。</b>下面的"修改工作"不是改 milvus-helm/operator，而是<strong>新增一个独立产品</strong>：pip 安装、连 kubeconfig 即用，对各组件做<strong>官方方式</strong>的可视化安装与配置。</div>
+      </div>
+
+      <!-- install & start -->
+      <div class="section-title" data-rise>安装与启动<span class="ln"></span><span class="muted mono" style="font-size:11px">Python module · pip</span></div>
+      <div class="grid g-2-1" data-rise style="align-items:start">
+        <div class="term">
+          <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="t">bash — milvus-admin-webui</span></div>
+<pre><span class="c"># 1) 直接 pip 安装（纯 Python module）</span>
+<span class="p">$</span> pip install milvus-enterprise-admin-webui
+
+<span class="c"># 2) 连上你的 kubeconfig 启动 WebUI</span>
+<span class="p">$</span> milvus-admin-webui --kubeconfig ~/.kube/config --port <span class="v">8080</span>
+<span class="ok">✔</span> connected to cluster: <span class="v">prod-cluster</span>
+<span class="ok">✔</span> discovered operators: milvus, strimzi, pulsar, etcd, minio
+<span class="ok">✔</span> serving UI at <span class="v">http://localhost:8080</span>
+
+<span class="c"># 无需数据库、无需后端存储 —— 状态实时读自 k8s</span></pre>
+        </div>
+        <div class="card card-pad">
+          <h3 style="margin:0 0 10px;font-family:var(--font-display);font-size:15px">运行形态</h3>
+          <ul class="list-clean" style="font-size:12.5px">
+            <li>📦 单一 Python 包，<b>pip 一键安装</b></li>
+            <li>🔌 启动只需一个 <b>kubeconfig</b></li>
+            <li>🗄️ <b>无自带数据库</b>，不落任何业务状态</li>
+            <li>🔭 自动发现集群里已装的各官方 operator</li>
+            <li>🧰 内置常用运维工具入口（Attu / Birdwatcher / Log Export）</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- architecture diagram -->
+      <div class="section-title" data-rise style="margin-top:30px">层次架构图<span class="ln"></span><span class="muted" style="font-size:12px;font-weight:400">WebUI 只是无状态管理者，每个 operator 各管各</span></div>
+      <div class="card card-pad" data-rise>
+        <div class="arch">
+          <!-- L1 browser -->
+          <div class="layer">
+            <div class="lh">
+              <span class="lo">🖥️</span>
+              <div><div class="tt">浏览器 · 企业控制台 UI</div><div class="ds">你正在看的这些页面：实例拓扑 / 安装向导 / 切换 MQ / ConfigMap / 升级</div></div>
+              <span class="tag"><span class="chip">前端</span></span>
+            </div>
+          </div>
+
+          <div class="vstep"><div class="ln"></div><div class="lbl">HTTP</div><div class="ar"></div></div>
+
+          <!-- L2 webui -->
+          <div class="layer accent">
+            <div class="lh">
+              <span class="lo">A</span>
+              <div><div class="tt">Milvus Enterprise Admin WebUI</div><div class="ds">Python module · pip 安装 · <b>无状态管理者</b>：只做官方安装/配置 + 常用运维工具</div></div>
+              <span class="tag"><span class="badge b-accent"><span class="d"></span>STATELESS</span></span>
+            </div>
+            <div class="caps">
+              <div class="cap-chip"><b>Executors</b><span>kubectl / helm / 下发 CR</span></div>
+              <div class="cap-chip"><b>只读状态聚合</b><span>watch CR / pod，不落库</span></div>
+              <div class="cap-chip"><b>ConfigMap 管理</b><span>改配置并触发重启</span></div>
+              <div class="cap-chip"><b>运维工具</b><span>Attu / Birdwatcher / Log Export</span></div>
+            </div>
+          </div>
+
+          <div class="vstep"><div class="ln"></div><div class="lbl">Kubernetes API · 读状态 + apply CR</div><div class="ar"></div></div>
+
+          <!-- L3 k8s + operators + pods -->
+          <div class="layer k8s">
+            <div class="lh" style="margin-bottom:14px">
+              <span class="lo">☸️</span>
+              <div><div class="tt">Kubernetes</div><div class="ds">每个组件由<b>各自的官方 operator 独立安装/维护 pod</b>；operator 之间互不依赖，各只做自己的事</div></div>
+            </div>
+            <div class="ops">
+              <div class="opstack">
+                <div class="opbox"><span class="lo mv">M</span><div class="t">Milvus</div><span class="mgr">Milvus Operator</span></div>
+                <div class="opdown"></div>
+                <div class="podbox">Milvus pods<span>MixCoord · Proxy · Q/D/S/I Node</span></div>
+              </div>
+              <div class="opstack">
+                <div class="opbox"><span class="lo">🌊</span><div class="t">Kafka</div><span class="mgr">Strimzi</span></div>
+                <div class="opdown"></div>
+                <div class="podbox">Kafka pods<span>broker · KRaft</span></div>
+              </div>
+              <div class="opstack">
+                <div class="opbox"><span class="lo">📡</span><div class="t">Pulsar</div><span class="mgr">Pulsar Operator</span></div>
+                <div class="opdown"></div>
+                <div class="podbox">Pulsar pods<span>broker · bookie · zk</span></div>
+              </div>
+              <div class="opstack">
+                <div class="opbox"><span class="lo">🪶</span><div class="t">Woodpecker</div><span class="mgr">Woodpecker Operator</span></div>
+                <div class="opdown"></div>
+                <div class="podbox">Woodpecker pods<span>WAL · 用对象存储</span></div>
+              </div>
+              <div class="opstack">
+                <div class="opbox"><span class="lo">🗄️</span><div class="t">etcd</div><span class="mgr">etcd-operator</span></div>
+                <div class="opdown"></div>
+                <div class="podbox">etcd pods<span>raft 集群</span></div>
+              </div>
+              <div class="opstack">
+                <div class="opbox"><span class="lo">🪣</span><div class="t">MinIO</div><span class="mgr">MinIO Operator</span></div>
+                <div class="opdown"></div>
+                <div class="podbox">MinIO pods<span>tenant · 纠删码</span></div>
+              </div>
+              <div class="opstack ext">
+                <div class="opbox"><span class="lo">☁️</span><div class="t">S3 / OSS</div><span class="mgr">External · 无 operator</span></div>
+                <div class="opdown"></div>
+                <div class="podbox">云端托管端点<span>无集群内 pod</span></div>
+              </div>
+            </div>
+            <div class="iso-note">
+              🔗 组件之间的关系（Milvus 用哪个 MQ、连哪个对象存储）<b>由各自的 ConfigMap 决定</b>，不由 WebUI 持有 ——
+              WebUI 只是改配置并触发重启，从不在 operator 之间建立隐式依赖。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- principles -->
+      <div class="section-title" data-rise style="margin-top:30px">四条核心原则<span class="ln"></span></div>
+      <div class="card card-pad" data-rise>
+        <div class="princ">
+          <div class="p"><span class="n">1</span><div><h4>无状态 Stateless</h4>
+            <p>不自带数据库、不持有集群与组件关系状态。视图实时读自 k8s 与各组件 ConfigMap，刷新即重建。唯一真相在集群里，不在本工具。</p></div></div>
+          <div class="p"><span class="n">2</span><div><h4>各管各 · operator 独立</h4>
+            <p>每个组件由它<b>自己的官方 operator</b> 独立安装与维护 pod。operator 之间互不依赖，每个只做自己的事；删除一个不会连带影响其它。</p></div></div>
+          <div class="p"><span class="n">3</span><div><h4>关系由配置决定</h4>
+            <p>Milvus 连哪个 MQ、用哪个对象存储，是各自 ConfigMap 的事。WebUI 只负责把配置改对、触发重启，<b>不编排隐式依赖</b>，也不越界代管别的组件。</p></div></div>
+          <div class="p"><span class="n">4</span><div><h4>即装即用 · 只做可视化与运维</h4>
+            <p>一个 Python 包，pip 安装、连上 kubeconfig 即可。对底层资源做官方方式的安装/配置可视化，并提供必要的常用运维工具，仅此而已。</p></div></div>
+        </div>
+      </div>
+
+      <!-- relation to plan 1 / 2 -->
+      <div class="card" data-rise style="margin-top:30px">
+        <div class="card-head"><h3>和方案一 / 二的关系</h3><span class="sub">把前两者的能力收进一个有护栏的控制台</span></div>
+        <div class="card-pad">
+          <div class="why" style="margin-bottom:11px"><div><b>把方案二的人肉步骤，做成有护栏的向导：</b><a href="switch-mq.html" style="color:#094e37;font-weight:700">切换 MQ 向导</a> = 校验（数据不可迁移确认）→ 准备新 MQ（并存）→ 切流改 ConfigMap + 重建 → 下线旧 MQ + 删 PVC 二次确认。方案二里"靠人记得"的前提，全变成系统强制确认。</div></div>
+          <div class="why" style="margin-bottom:11px"><div><b>把方案一的解耦，落在界面层而非工具里：</b><a href="install.html" style="color:#094e37;font-weight:700">安装向导</a> 搭积木选已有/新建依赖；<a href="configmap.html" style="color:#094e37;font-weight:700">ConfigMap 编辑器</a> 改配置即改"连哪个"。装与连天然分离，不需要往 helm 模板里继续堆 if-else。</div></div>
+          <div class="why"><div><b>不越界，所以纯净：</b>底层永远是组件官方 operator 在干活（学 Rancher 纳管而非取代）。删一个组件不会连带影响别的；升级走各自官方路径。</div></div>
+        </div>
+      </div>
+
+      <!-- prototype pages -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>这些原型页就是落地形态</h3><span class="sub">点开实际走一遍</span></div>
+        <div class="card-pad">
+          <div class="matrix">
+            <a class="card cmp" href="index.html"><div class="top"><span class="lo">🗺️</span><div><div class="nm">Milvus Instances</div><div class="kd">实例拓扑总览</div></div></div></a>
+            <a class="card cmp" href="install.html"><div class="top"><span class="lo">🧱</span><div><div class="nm">安装向导</div><div class="kd">搭积木建实例</div></div></div></a>
+            <a class="card cmp" href="switch-mq.html"><div class="top"><span class="lo">🔁</span><div><div class="nm">切换 MQ 向导</div><div class="kd">核心场景</div></div></div></a>
+            <a class="card cmp" href="configmap.html"><div class="top"><span class="lo">📝</span><div><div class="nm">ConfigMap 编辑器</div><div class="kd">改配置即改"连哪个"</div></div></div></a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'plan-3', crumbs:['方案讨论','方案三 · Admin WebUI'] });
+  document.getElementById('i1').innerHTML = Hub.svg(Hub.I.check,18);
+</script>
+</body>
+</html>

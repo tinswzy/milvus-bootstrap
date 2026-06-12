@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案二 · K8s 原生操作 · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>方案二 · K8s 原生操作</h1>
+          <p><strong>完全不改</strong> helm/operator，用 <code class="c2">helm upgrade</code> + <code class="c2">kubectl</code> 把切换 hack 成几步（以 pulsar → woodpecker 为例）。当天可用的<strong>止血手册</strong>。</p>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>把切换 hack 成三步</h3><span class="sub">pulsar → woodpecker，全程不改 helm/operator</span></div>
+        <div class="card-pad doc">
+          <h3 class="dh">① 一条 helm upgrade：装上 woodpecker service + 用 user.yaml 把旧 pulsar 钉死</h3>
+          <pre class="codeblock"><span class="c"># 1a) 写一个 user.yaml，把 milvus 的 MQ 强行钉在旧 pulsar（user.yaml 优先级最高，盖过 chart 渲染）</span>
+<span class="p">$</span> cat &gt;/tmp/p-to-w-recover-pulsar.yaml &lt;&lt;'EOF'
+<span class="k">extraConfigFiles</span>:
+  user.yaml: |-
+    log:
+      level: debug
+    <span class="k">mq</span>:
+      type: pulsar
+    messageQueue: pulsar
+    <span class="k">pulsar</span>:
+      address: p-to-w-pulsarv3-proxy
+      port: 6650
+EOF
+
+<span class="c"># 1b) 一条 upgrade：装上独立 woodpecker service，并应用上面的 user.yaml</span>
+<span class="p">$</span> helm upgrade -i p-to-w charts/milvus \
+    -f charts/milvus/values.yaml \
+    -f /tmp/p-to-w-recover-pulsar.yaml \
+    --reuse-values \
+    --set <span class="k">woodpecker.enabled</span>=true \
+    --set <span class="k">streaming.enabled</span>=true \
+    --set <span class="k">streaming.woodpecker.embedded</span>=false \      <span class="c"># woodpecker 跑成独立 service</span>
+    --set woodpecker.image.repository=harbor.milvus.io/woodpecker/woodpecker \
+    --set woodpecker.image.tag=dev-204302e-82-all \
+    --set image.all.repository=harbor.milvus.io/milvusdb/milvus \
+    --set image.all.tag=master-20260609-1853a148 \
+    --set woodpecker.containerSecurityContext.runAsUser=0 \   <span class="c">## 临时设置为 root user</span>
+    --set woodpecker.containerSecurityContext.runAsGroup=0</pre>
+          <div class="why" style="margin-top:11px"><div><b>一波同时干两件事：</b>① 装上<b>独立的 woodpecker service</b>（<code class="c2">woodpecker.enabled=true</code> + <code class="c2">streaming.woodpecker.embedded=false</code>）；② 用 <code class="c2">extraConfigFiles / user.yaml</code> 把 milvus 的 <code class="c2">mq.type</code> 强行<b>钉死在旧 pulsar</b>（user.yaml 优先级最高，直接盖过 chart 的 MQ 渲染）。升级后：<b>woodpecker 已就位、milvus 仍稳连 pulsar</b>，两者并存。镜像 tag、临时 root 都得手填 —— 够 hack。</div></div>
+
+          <h3 class="dh" style="margin-top:18px">② 切换 WAL：调 milvus 的 streaming 管理 API（确认集群已抽干 / 可清空后）</h3>
+          <pre class="codeblock"><span class="c"># 运行时把 WAL 后端从 pulsar 切到 woodpecker —— 不改 helm、不重启、不碰 if-else 链</span>
+<span class="p">$</span> curl -X POST http://&lt;milvus-proxy&gt;:9091/management/wal/alter \
+    -d '<span class="v">{"target_wal_name":"woodpecker"}</span>'</pre>
+          <div class="why" style="margin-top:11px"><div><b>真正的切换在内核运行时：</b>3.0 streaming 架构把 WAL 选择做成了<b>可在线 alter 的能力</b>，一个管理 API 就把后端从 pulsar 换成 woodpecker —— 不依赖 helm/operator 重渲染，<b>绕开了那条 MQ if-else 优先级链</b>。这是切换能"干净"的关键。</div></div>
+
+          <h3 class="dh" style="margin-top:18px">③ k8s 原生删除旧 pulsar 实例资源</h3>
+          <pre class="codeblock"><span class="c"># 切换验证通过后，旧 pulsar helm 不会自动清，直接用 kubectl 删</span>
+<span class="p">$</span> kubectl delete sts,deploy,svc,cm -l app.kubernetes.io/instance=p-to-w-pulsarv3
+<span class="p">$</span> kubectl delete pvc -l app.kubernetes.io/instance=p-to-w-pulsarv3   <span class="c"># 最后一步，不可逆</span></pre>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>为什么这套 hack 能成</h3></div>
+        <div class="card-pad">
+          <div class="why" style="margin-bottom:11px"><div><b>user.yaml 盖过 chart 渲染：</b>milvus 读 <code class="c2">user.yaml</code> 的优先级高于 chart 渲染出的配置，所以不管模板里 MQ if-else 怎么算，都被 user.yaml 里的 <code class="c2">mq.type: pulsar</code> 强行钉住 —— 装新服务时连接不被改乱。</div></div>
+          <div class="why" style="margin-bottom:11px"><div><b>切换在内核运行时完成：</b>3.0 streaming 把 WAL 选择做成<b>可在线 alter 的能力</b>，<code class="c2">POST /management/wal/alter</code> 直接把后端从 pulsar 换成 woodpecker，不重启、不重渲染、<b>绕开 if-else 链</b> —— 这是切换能"干净"的关键。</div></div>
+          <div class="why"><div><b>有回滚窗口：</b>删 pulsar PVC 之前都可退 —— API 把 <code class="c2">target_wal_name</code> 切回 pulsar 即可（user.yaml 里的 pulsar 配置还在），旧 PVC 在、数据可用。<b>第三步删 PVC 不可逆，务必最后做。</b></div></div>
+        </div>
+      </div>
+
+      <div class="callout co-warn" data-rise style="margin-top:18px">
+        <span class="ic" id="i2"></span>
+        <div><b>为什么体验差：</b>手搓 user.yaml 覆盖配置、手填镜像 tag、临时把 woodpecker 跑成 root、再调 milvus 内部管理 API 切换、最后人肉删 PVC —— 命令多、顺序敏感、无护栏，最致命的前提（数据不可迁移、PVC 不可逆）全靠人记得。这正是 <a href="switch-mq.html" style="color:var(--accent-ink);font-weight:600">方案三的切换向导</a> 要把每一步、每个前提校验都变成有护栏的界面。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'plan-2', crumbs:['方案讨论','方案二 · K8s 原生操作'] });
+  document.getElementById('i2').innerHTML = Hub.svg(Hub.I.warn,18);
+</script>
+</body>
+</html>
