@@ -79,6 +79,12 @@
   .mqo{ font-size:10.5px; font-family:var(--font-mono); padding:2px 8px; border-radius:6px; border:1px solid var(--line-2); background:#fff; }
   .mqo.on{ background:var(--accent-soft); color:var(--accent-ink); border-color:#bfeef4; font-weight:600; }
   .mqo.off{ background:var(--surface-3); color:var(--fg-faint); text-decoration:line-through; }
+  /* notes = pain-point card (amber) */
+  .note-card{ border-color:#e3c486; background:linear-gradient(180deg,#fff7e8,var(--surface) 130px); box-shadow:0 5px 16px rgba(207,138,9,.13), 0 1px 3px rgba(16,24,44,.06); }
+  .note-card .card-head{ background:linear-gradient(90deg, rgba(207,138,9,.13), rgba(207,138,9,0) 50%); border-bottom-color:#eccf8f; }
+  .note-card .card-head::before{ background:linear-gradient(180deg, var(--warn), #d99a2b); opacity:1; }
+  .note-card .card-head h3{ color:#8a5c04; }
+  .note-card .card-head .sub{ color:#a5762a; }
 </style>
 </head>
 <body>
@@ -216,6 +222,26 @@
             <a class="btn btn-ghost btn-sm" href="plan-2.html">方案二详情 →</a>
             <a class="btn btn-primary btn-sm" href="plan-3.html">方案三详情 →</a>
           </div>
+        </div>
+      </div>
+
+      <div class="card note-card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>Notes · 吐槽一个真实的痛：流程文档多到维护不过来 😮‍💨</h3><span class="sub">环境差异 × 安装方式 × 组件组合 → 文档爆炸（这也是 webui 想顺带解决的痛点诉求）</span></div>
+        <div class="card-pad">
+          <p style="margin:0;font-size:13px;color:var(--fg-2);line-height:1.7">现在光是「安装 / 切换 / 改配置」这些流程，就被 <b>环境差异 × 安装方式 × 组件组合</b> 炸成一大堆 —— 每种组合都得单独维护一篇文档，写的人累、用户看着也晕、还容易过时。举个真实例子：更新一波文档后，想逐流程验证"步骤能不能一一对应、能不能跑通"，光罗列出来就近 <b>30 个流程</b>：</p>
+
+          <table class="tbl" style="margin-top:11px">
+            <thead><tr><th>区</th><th>流程数</th><th>本机可跑</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td><b>S</b> 单机 Docker</td><td class="mono">5</td><td>S1/S2 🟡、S5 🟢；S3(Win)/S4(RPM) 🔴</td><td class="muted">Docker、Compose、Windows、RPM/DEB、Lite</td></tr>
+              <tr><td><b>K</b> 分布式 K8s</td><td class="mono">5</td><td>K1/K2/K3 🟡；K4/K5(GPU) 🔴</td><td class="muted">Helm(service)、Helm standalone、Operator、GPU×2</td></tr>
+              <tr><td><b>M</b> MQ 专属</td><td class="mono">12</td><td>多数 🟡；M1–M5 ♻️ 与 S/K 重叠</td><td class="muted">WP×5、Pulsar×3、Kafka×2、RocksMQ、etcd</td></tr>
+              <tr><td><b>W</b> Switch</td><td class="mono">8</td><td>🟡（需 v2.6.14+ switch API）</td><td class="muted">RocksMQ/Pulsar/Kafka ↔ WP，Helm/Operator</td></tr>
+            </tbody>
+          </table>
+          <div class="muted" style="font-size:11.5px;margin-top:8px">图例：🟢 已验证可跑 · 🟡 部分 / 需条件 · 🔴 本机跑不了 · ♻️ 与其它区重叠　|　合计 ≈ 30 个流程</div>
+
+          <div class="why" style="margin-top:14px"><div><b>这正是 webui（方案三）的额外好处：</b>把"环境 × 安装方式 × 组件组合"这套笛卡尔积，收敛成界面里<b>有护栏的向导</b> —— 一处编排覆盖所有组合，安装 / 切换 / 改配置都在界面里走，不必再为每种组合各写一篇、各自验证、各自维护的文档。</div></div>
         </div>
       </div>
 
