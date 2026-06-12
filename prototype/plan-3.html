@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>方案三 · Admin WebUI · Milvus Enterprise Admin WebUI</title>
+<title>方案三 · Admin WebUI · Milvus Admin WebUI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -70,7 +70,7 @@
 
       <div class="page-head" data-rise>
         <div class="h-l">
-          <h1>方案三 · Milvus Enterprise Admin WebUI</h1>
+          <h1>方案三 · Milvus Admin WebUI</h1>
           <p>从根上解耦：做一个<strong>无状态的 Python WebUI</strong>（就是你正在用的这个原型），把安装从 milvus 工具里彻底剥离，各组件交还自己的<strong>官方 operator</strong>。终态。</p>
         </div>
         <div class="h-r"><a class="btn btn-primary" href="index.html">打开原型 →</a></div>
@@ -87,7 +87,7 @@
         <div class="term">
           <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span class="t">bash — milvus-admin-webui</span></div>
 <pre><span class="c"># 1) 直接 pip 安装（纯 Python module）</span>
-<span class="p">$</span> pip install milvus-enterprise-admin-webui
+<span class="p">$</span> pip install milvus-admin-webui
 
 <span class="c"># 2) 连上你的 kubeconfig 启动 WebUI</span>
 <span class="p">$</span> milvus-admin-webui --kubeconfig ~/.kube/config --port <span class="v">8080</span>
@@ -128,7 +128,7 @@
           <div class="layer accent">
             <div class="lh">
               <span class="lo">A</span>
-              <div><div class="tt">Milvus Enterprise Admin WebUI</div><div class="ds">Python module · pip 安装 · <b>无状态管理者</b>：只做官方安装/配置 + 常用运维工具</div></div>
+              <div><div class="tt">Milvus Admin WebUI</div><div class="ds">Python module · pip 安装 · <b>无状态管理者</b>：只做官方安装/配置 + 常用运维工具</div></div>
               <span class="tag"><span class="badge b-accent"><span class="d"></span>STATELESS</span></span>
             </div>
             <div class="caps">

@@ -1,5 +1,5 @@
 /* ============================================================
-   Milvus Enterprise Admin WebUI — prototype shell & fake engine
+   Milvus Admin WebUI — prototype shell & fake engine
    Builds the rail + topbar on every page, holds the (fake) data,
    and provides toast / drawer / modal helpers. No real backend.
    ============================================================ */
@@ -124,7 +124,7 @@ const Hub = (function () {
     return `
       <div class="brand">
         <span class="mark">${svg('<path d="M12 2l8 5v10l-8 5-8-5V7z" fill="rgba(255,255,255,.15)"/><path d="M8 9l4 6 4-6M12 15v4"/>',20)}</span>
-        <span class="word"><b>Milvus Admin</b><span>Enterprise WebUI</span></span>
+        <span class="word"><b>Milvus Admin</b><span>WebUI</span></span>
       </div>
       <div class="scope" onclick="Hub.toast('演示原型','集群/命名空间切换为假数据','info')">
         <div class="lbl">集群 · 命名空间</div>

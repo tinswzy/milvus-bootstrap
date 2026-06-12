@@ -1,4 +1,4 @@
-# 方案三：Milvus Enterprise Admin WebUI
+# 方案三：Milvus Admin WebUI
 
 > 面向读者：研发 / 产品。
 >
@@ -12,7 +12,7 @@
 
 "Hub"（如 Cloudera Data Hub、Transwarp Data Hub）暗示一个**大集合**——把所有组件的管理都吞进自己。这恰恰是我们要避免的：现有 milvus-helm/operator 的病根，就是"一个工具越界代管 etcd/minio/pulsar/kafka"。
 
-我们要的相反：**每个组件由它自己的官方 operator 管**，admin webui 只是薄薄一层"编排 + 配置面板 + 依赖可视化"。所以叫 **Enterprise Admin WebUI**，强调它的**轻量**与**不越界**。
+我们要的相反：**每个组件由它自己的官方 operator 管**，admin webui 只是薄薄一层"编排 + 配置面板 + 依赖可视化"。所以叫 **Admin WebUI**，强调它的**轻量**与**不越界**。
 
 | | "Hub" 心智（要避免） | "Admin WebUI" 心智（我们要的） |
 | --- | --- | --- |
@@ -110,7 +110,7 @@ Step 3 切流+下线 → 改 milvus ConfigMap 的 mq.type=kafka → 重建 milvu
 └───────────────▲──────────────────────────┬──────────────────┘
                 │ REST / WebSocket(进度流)   │
 ┌───────────────┴──────────────────────────▼──────────────────┐
-│  Python 后端 (FastAPI)  —— Milvus Enterprise Admin WebUI       │
+│  Python 后端 (FastAPI)  —— Milvus Admin WebUI       │
 │  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐ │
 │  │ API 层        │ │ 编排引擎      │ │ 依赖规则引擎          │ │
 │  │ /components   │ │ Orchestrator │ │ DependencyRules      │ │
