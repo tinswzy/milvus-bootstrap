@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MQ 切换 · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  .mq-zone { grid-row:3; grid-column:1 / -1; display:flex; justify-content:center; align-items:center; padding-top:8px; flex-wrap:wrap; gap:4px; }
+  .box-dark { background:linear-gradient(180deg,#0f1626,#0b1120); border:1.5px solid var(--accent); color:#e7ecf7;
+    box-shadow:0 12px 30px rgba(8,20,40,.32); width:256px; cursor:default; }
+  .box-dark:hover { transform:none; box-shadow:0 12px 30px rgba(8,20,40,.32); }
+  .box-dark .lo { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.14); }
+  .box-dark .nm { color:#fff; } .box-dark .role { color:#9aa6c4; }
+  .box-dark .id { background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.14); color:#cdd6ea; }
+  .box-dark select { background:#17203a; border-color:rgba(255,255,255,.16); color:#e7ecf7; }
+  .box-cur { width:222px; }
+  .flow-switch { position:relative; width:84px; height:2px; margin:0 22px; flex:none;
+    background-image:linear-gradient(90deg,var(--warn) 55%,transparent 0); background-size:11px 2px; background-repeat:repeat-x; animation:flowx .8s linear infinite; }
+  .flow-switch::after { content:''; position:absolute; right:-2px; top:-4px; border-left:7px solid var(--warn); border-top:5px solid transparent; border-bottom:5px solid transparent; }
+  .flow-switch .lbl { position:absolute; top:-21px; left:50%; transform:translateX(-50%); font-size:10px; color:var(--warn); font-family:var(--font-mono); white-space:nowrap; background:var(--surface); padding:0 7px; font-weight:600; }
+  .box .newtag,.box .reusetag { margin-left:0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>切换消息队列</h1>
+          <p>选择一个 Milvus 实例，把它的 MQ 切换到<strong>另一种类型</strong>的目标 MQ（可复用已有，也可装新）。带护栏的三步：<strong>校验 → 准备目标 → 切流并下线旧 MQ</strong>。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="../docs/02-方案二_k8s原生操作.md">等价命令手册</a></div>
+      </div>
+
+      <!-- instance picker -->
+      <div class="card card-pad" data-rise style="display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap">
+        <span style="font-size:13px;color:var(--fg-3)">切换实例</span>
+        <select id="selInst" class="chip" style="height:32px;font-size:13px;cursor:pointer;min-width:200px"></select>
+        <span style="margin-left:6px;font-size:13px;color:var(--fg-3)">当前 MQ</span>
+        <span id="curBadge" class="badge b-accent" style="height:28px;font-size:13px"></span>
+        <span class="muted mono" style="margin-left:auto;font-size:11.5px">目标 MQ 类型不可与当前相同</span>
+      </div>
+
+      <!-- topology with target MQ -->
+      <div class="card" data-rise style="margin-bottom:20px">
+        <div class="card-head"><h3>实例拓扑与切换目标</h3><span class="sub">浅框=当前数据流 · 深框=切换目标</span></div>
+        <div class="topo" id="topo">
+          <a class="box cell-etcd" id="boxEtcd" href="component.html?c=etcd">
+            <div class="bt"><span class="lo">🗄️</span><div><div class="nm">etcd</div><div class="role">元数据</div></div></div>
+            <div class="id"><span class="d" style="background:var(--ok)"></span><span id="etcdId">—</span></div></a>
+          <div class="flow-h col2"></div>
+          <a class="box box-mv" id="boxMv" href="component.html?c=milvus">
+            <div class="bt"><span class="lo">M</span><div><div class="nm" id="mvName">milvus</div><div class="role">向量数据库内核 · MixCoord</div></div></div>
+            <div class="id"><span class="d" style="background:var(--ok)"></span><span id="mvId">—</span></div>
+            <div class="mvmeta"><span class="chip" id="mvNodes">—</span></div></a>
+          <div class="flow-h col4"></div>
+          <a class="box cell-store" id="boxStore" href="component.html?c=minio">
+            <div class="bt"><span class="lo" id="storeLogo">🪣</span><div><div class="nm" id="storeName">对象存储</div><div class="role">Object Storage</div></div></div>
+            <div class="id"><span class="d" style="background:var(--ok)"></span><span id="storeId">—</span></div></a>
+          <div class="flow-v"></div>
+          <div class="mq-zone">
+            <a class="box box-cur" id="boxCur" href="#">
+              <div class="bt"><span class="lo" id="curLogo">🪶</span><div><div class="nm" id="curName">Woodpecker</div><div class="role">当前 MQ · ACTIVE</div></div></div>
+              <div class="id"><span class="d" style="background:var(--ok)"></span><span id="curId">—</span></div></a>
+            <div class="flow-switch"><span class="lbl">切换 ⟶</span></div>
+            <div class="box box-dark" data-slot="target">
+              <div class="slot-h"><span class="lo" id="tgtLogo">🌊</span><div><div class="nm" id="tgtName">Kafka</div><div class="role" id="tgtRole">目标 MQ</div></div><span class="newtag" id="tgtTag">新建</span></div>
+              <select id="selTarget"></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout co-err" data-rise style="margin-bottom:18px">
+        <span class="ic" data-i="warn"></span>
+        <div><b>WAL 数据不可跨 MQ 迁移。</b>切换等价于<strong>在干净/空集群上更换后端</strong>，存量流式数据无法原地迁移，请先确认集群可清空或已备份。</div>
+      </div>
+
+      <!-- stepper -->
+      <div class="card card-pad" data-rise style="margin-bottom:20px">
+        <div class="stepper" id="stepper">
+          <div class="st active" data-s="1"><div class="dot">1</div><div class="tx"><b>校验前置条件</b><span>数据可清空 / 已备份</span></div><div class="bar"></div></div>
+          <div class="st" data-s="2"><div class="dot">2</div><div class="tx"><b id="s2title">准备目标 MQ</b><span id="s2sub">装好并等待就绪</span></div><div class="bar"></div></div>
+          <div class="st" data-s="3"><div class="dot">3</div><div class="tx"><b>切流 & 下线旧 MQ</b><span>改配置 → 重建 → 清理</span></div></div>
+        </div>
+      </div>
+
+      <div id="panels">
+        <!-- STEP 1 -->
+        <section class="panel" data-panel="1">
+          <div class="grid g-2">
+            <div class="card">
+              <div class="card-head"><h3>前置校验</h3><span class="sub">自动检查</span></div>
+              <div class="card-pad"><ul class="list-clean" id="checks"></ul></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>人工确认</h3><span class="sub">护栏，缺一不可</span></div>
+              <div class="card-pad" style="display:flex;flex-direction:column;gap:12px">
+                <label class="brick" style="padding:12px 14px"><input type="checkbox" class="gate" style="display:none">
+                  <span class="check" data-i="check"></span><div class="bd"><b>我已知悉数据不可迁移</b><p>切换后需重建 collection 并重新导入</p></div></label>
+                <label class="brick" style="padding:12px 14px"><input type="checkbox" class="gate" style="display:none">
+                  <span class="check" data-i="check"></span><div class="bd"><b>集群已清空或已完成备份</b><p>已用 milvus-backup / Birdwatcher 导出</p></div></label>
+                <label class="brick" style="padding:12px 14px"><input type="checkbox" class="gate" style="display:none">
+                  <span class="check" data-i="check"></span><div class="bd"><b>已选好维护窗口</b><p>切流期间写入会短暂中断</p></div></label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- STEP 2 -->
+        <section class="panel" data-panel="2" hidden>
+          <div class="callout co-info" style="margin-bottom:16px"><span class="ic" data-i="info"></span>
+            <div id="s2note">此步只准备目标 MQ，旧 MQ 仍在正常服务 —— 新旧并存，校验通过后才切流。</div></div>
+          <div class="card">
+            <div class="card-head"><h3 id="s2head">准备 Kafka</h3><span class="sub" id="s2mgr"></span>
+              <div class="right"><button class="btn btn-primary btn-sm" id="provBtn">开始</button></div></div>
+            <div class="card-pad">
+              <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+                <div class="prog" style="flex:1"><i id="provBar" style="width:0%"></i></div>
+                <span class="mono" id="provPct" style="font-size:13px;color:var(--fg-2);width:42px;text-align:right">0%</span></div>
+              <div class="timeline" id="provLog"><div class="ev"><div class="t">就绪</div><div class="m">点击右上角开始…</div></div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- STEP 3 -->
+        <section class="panel" data-panel="3" hidden>
+          <div class="grid g-2" style="margin-bottom:16px">
+            <div class="card">
+              <div class="card-head"><h3>ConfigMap 变更预览</h3><span class="sub">milvus · default.yaml</span></div>
+              <div class="card-pad"><div class="diff" id="diffOut"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>切流执行计划</h3></div>
+              <div class="card-pad">
+                <ol style="margin:0;padding-left:18px;line-height:2.1;font-size:13px">
+                  <li>写入 milvus <span class="mono">ConfigMap</span>（mq.type → <b id="planT">kafka</b>）</li>
+                  <li>滚动重建 Milvus 组件，加载新配置</li>
+                  <li>健康校验：proxy / streamingnode 就绪</li>
+                  <li>下线旧 <b id="planOld">Woodpecker</b></li>
+                  <li class="muted">可选：删除旧 MQ PVC（不可逆，需二次确认）</li>
+                </ol>
+                <div class="callout co-warn" style="margin-top:14px"><span class="ic" data-i="warn"></span>
+                  <div>删除旧 MQ 的 PVC 不可逆。默认<strong>保留</strong>，确认新 MQ 稳定后再单独清理。</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card card-pad" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <button class="btn btn-primary" id="cutBtn">执行切流</button>
+            <button class="btn btn-danger" id="purgeBtn" disabled>切流完成后：删除旧 PVC</button>
+            <span class="muted" style="margin-left:auto;font-size:12.5px">执行后 mq.type 即固定为新后端，不可热回退</span>
+          </div>
+          <div class="card" style="margin-top:16px" id="cutCard" hidden>
+            <div class="card-head"><h3>切流进度</h3></div>
+            <div class="card-pad"><div class="timeline" id="cutLog"></div></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="card card-pad" style="margin-top:20px;display:flex;align-items:center;gap:12px" data-rise>
+        <a class="btn btn-ghost" href="index.html">取消</a>
+        <span class="muted mono" id="stepLabel" style="font-size:12px">步骤 1 / 3</span>
+        <div style="margin-left:auto;display:flex;gap:10px">
+          <button class="btn btn-ghost" id="prevBtn" disabled>上一步</button>
+          <button class="btn btn-primary" id="nextBtn" disabled>下一步</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'index', crumbs:['Milvus Instances','切换 MQ'] });
+  const S=Hub.svg, I=Hub.I, MQ=Hub.MQMETA, ST=Hub.STOREMETA, P=Hub.POOL;
+  document.querySelectorAll('[data-i="warn"]').forEach(e=>e.innerHTML=S(I.warn,18));
+  document.querySelectorAll('[data-i="info"]').forEach(e=>e.innerHTML=S(I.info,18));
+  document.querySelectorAll('[data-i="check"]').forEach(e=>e.innerHTML=S(I.check,14));
+
+  let inst, target, step=1, provDone=false;
+  const $=id=>document.getElementById(id);
+  const opt=(v,t)=>`<option value="${v}">${t}</option>`;
+
+  // instance picker
+  $('selInst').innerHTML = Hub.INSTANCES.map(x=>opt(x.name, `${x.name}（当前 ${MQ[x.mq.kind].name}）`)).join('');
+  $('selInst').onchange = ()=> loadInstance($('selInst').value);
+
+  function targetOptions(curKind){
+    const kinds=['woodpecker','kafka','pulsar'].filter(k=>k!==curKind);   // ← 排除同类型
+    return `<optgroup label="安装新 MQ（独立实例）">`+kinds.map(k=>opt('new:'+k+':', MQ[k].logo+' 安装新 '+MQ[k].name)).join('')+`</optgroup>`
+         + `<optgroup label="复用已有 MQ">`+kinds.flatMap(k=>P[k].map(id=>opt('reuse:'+k+':'+id, MQ[k].logo+' '+id+'（复用）'))).join('')+`</optgroup>`;
+  }
+
+  function loadInstance(name){
+    inst = Hub.INSTANCES.find(x=>x.name===name) || Hub.INSTANCES[0];
+    const storeC = inst.store.kind==='s3'?'s3':'minio';
+    // topology
+    $('etcdId').textContent=inst.etcd;
+    $('mvName').textContent=inst.name; $('mvId').textContent=inst.name+' · v'+inst.version; $('mvNodes').textContent=inst.nodes+' nodes';
+    $('storeLogo').textContent=ST[inst.store.kind].logo; $('storeName').textContent=ST[inst.store.kind].name; $('storeId').textContent=inst.store.id;
+    $('boxStore').href='component.html?c='+storeC;
+    $('curLogo').textContent=MQ[inst.mq.kind].logo; $('curName').textContent=MQ[inst.mq.kind].name; $('curId').textContent=inst.mq.id;
+    $('boxCur').href='component.html?c='+inst.mq.kind;
+    $('curBadge').innerHTML=`<span class="d"></span>${MQ[inst.mq.kind].logo} ${MQ[inst.mq.kind].name}`;
+    // checks
+    $('checks').innerHTML = `
+      <li><span class="badge b-ok"><span class="d"></span>通过</span> 目标 operator 已就位</li>
+      <li><span class="badge b-ok"><span class="d"></span>通过</span> 对象存储 <b>${inst.store.id}</b> 健康（新旧 MQ 共用）</li>
+      <li><span class="badge b-warn"><span class="d"></span>注意</span> 实例 <b>${inst.name}</b> 存在 collection，切换前需清空或备份</li>
+      <li><span class="badge b-ok"><span class="d"></span>通过</span> 资源配额充足（切换窗口需新旧 MQ 并存）</li>`;
+    // target options (exclude same type)
+    $('selTarget').innerHTML = targetOptions(inst.mq.kind);
+    // reset wizard
+    document.querySelectorAll('.gate').forEach(cb=>{ cb.checked=false; cb.closest('.brick').classList.remove('sel'); });
+    provDone=false; $('provBtn').disabled=false; $('provBtn').textContent='开始'; $('provBar').style.width='0%'; $('provPct').textContent='0%';
+    $('provLog').innerHTML='<div class="ev"><div class="t">就绪</div><div class="m">点击右上角开始…</div></div>';
+    $('cutCard').hidden=true; $('cutBtn').disabled=false; $('purgeBtn').disabled=true; $('purgeBtn').textContent='切流完成后：删除旧 PVC';
+    syncTarget(); show(1);
+  }
+
+  function syncTarget(){
+    target = (()=>{ const [mode,kind,id]=$('selTarget').value.split(':'); return {mode,kind,id}; })();
+    $('tgtLogo').textContent=MQ[target.kind].logo; $('tgtName').textContent=MQ[target.kind].name;
+    const tag=$('tgtTag'); tag.className=(target.mode==='new'?'newtag':'reusetag'); tag.textContent=target.mode==='new'?'新建':'复用';
+    $('tgtRole').textContent = target.mode==='new' ? '目标 MQ · 新建独立实例' : '目标 MQ · 复用 '+target.id;
+    // step2 wording
+    $('s2title').textContent = target.mode==='new' ? '安装新 MQ' : '校验目标 MQ';
+    $('s2sub').textContent   = target.mode==='new' ? '装好并等待就绪' : '校验可达与兼容';
+    $('s2head').textContent  = (target.mode==='new'?'安装 ':'校验 ')+MQ[target.kind].name;
+    $('s2mgr').textContent   = target.mode==='new' ? MGR[target.kind]+' · 下发 CR' : '复用 '+target.id+' · 连通性校验';
+    $('provBtn').textContent = target.mode==='new' ? '开始安装' : '校验目标';
+    $('s2note').innerHTML    = target.mode==='new'
+      ? `此步由 <b>${MGR[target.kind]}</b> 安装新的 ${MQ[target.kind].name} 实例，旧 MQ 仍在服务 —— 新旧并存，校验通过后才切流。`
+      : `此步复用已有 <b>${target.id}</b>，只做连通性与兼容性校验，不安装新组件。`;
+    // step3
+    $('planT').textContent=target.kind; $('planOld').textContent=MQ[inst.mq.kind].name;
+    renderDiff();
+  }
+  const MGR = { woodpecker:'Woodpecker Operator', kafka:'Strimzi', pulsar:'Pulsar Operator' };
+  $('selTarget').onchange = ()=>{ provDone=false; $('provBtn').disabled=false; $('provBar').style.width='0%'; $('provPct').textContent='0%';
+    $('provLog').innerHTML='<div class="ev"><div class="t">就绪</div><div class="m">点击右上角开始…</div></div>'; syncTarget(); if(step===2) refreshNext(); };
+
+  function brokerLine(){
+    const ns=inst.ns, addr = target.mode==='reuse'?target.id:(inst.name+'-'+target.kind);
+    if(target.kind==='kafka')  return [`kafka:`, `  brokerList: ${addr}.${ns}:9092`];
+    if(target.kind==='pulsar') return [`pulsar:`, `  address: ${addr}-proxy.${ns}:6650`];
+    return [`# woodpecker:`, `  # 走对象存储 ${inst.store.id}，无需 broker 地址`];
+  }
+  function renderDiff(){
+    const [b1,b2]=brokerLine();
+    $('diffOut').innerHTML =
+      `<div class="ln del"><span class="gut">- </span>mq:</div>`+
+      `<div class="ln del"><span class="gut">- </span>  type: ${inst.mq.kind}</div>`+
+      `<div class="ln add"><span class="gut">+ </span>mq:</div>`+
+      `<div class="ln add"><span class="gut">+ </span>  type: ${target.kind}</div>`+
+      `<div class="ln ctx"><span class="gut"> </span>messageQueue:</div>`+
+      `<div class="ln add"><span class="gut">+ </span>${b1}</div>`+
+      `<div class="ln add"><span class="gut">+ </span>${b2}</div>`;
+  }
+
+  // ---- gates ----
+  document.querySelectorAll('.gate').forEach(cb=> cb.closest('.brick').addEventListener('click',e=>{
+    e.preventDefault(); cb.checked=!cb.checked; cb.closest('.brick').classList.toggle('sel',cb.checked); refreshNext(); }));
+  const gatesPassed = ()=> [...document.querySelectorAll('.gate')].every(c=>c.checked);
+
+  function refreshNext(){
+    const next=$('nextBtn');
+    if(step===1) next.disabled=!gatesPassed();
+    else if(step===2) next.disabled=!provDone;
+    else next.disabled=false;
+    $('prevBtn').disabled=step===1;
+    next.textContent = step===3?'完成':'下一步';
+  }
+  function show(n){
+    step=n;
+    document.querySelectorAll('.panel').forEach(p=>p.hidden=(+p.dataset.panel!==n));
+    document.querySelectorAll('#stepper .st').forEach(st=>{ const s=+st.dataset.s; st.classList.toggle('active',s===n); st.classList.toggle('done',s<n); });
+    $('stepLabel').textContent=`步骤 ${n} / 3`; refreshNext(); window.scrollTo({top:0,behavior:'smooth'});
+  }
+  $('nextBtn').onclick=()=>{ if(step===3){ Hub.toast('切换流程已记录','可在总览查看 MQ 状态','ok'); setTimeout(()=>location.href='index.html',900); return; } show(step+1); };
+  $('prevBtn').onclick=()=>show(step-1);
+
+  // ---- step2 provision / verify ----
+  $('provBtn').onclick=function(){
+    this.disabled=true; this.textContent= target.mode==='new'?'安装中…':'校验中…';
+    const bar=$('provBar'),pct=$('provPct'),log=$('provLog');
+    const steps = target.mode==='new'
+      ? ['下发 '+MQ[target.kind].name+' CR 给 '+MGR[target.kind]+'…','operator 创建 StatefulSet / Service…','等待 broker 就绪 (1/3)…','等待 broker 就绪 (3/3)…','健康探针通过，新 MQ 就绪 ✓']
+      : ['连接目标 '+target.id+'…','校验版本与协议兼容…','校验网络可达与认证…','目标 MQ 就绪，可切流 ✓'];
+    log.innerHTML=''; let i=0;
+    const tick=setInterval(()=>{
+      bar.style.width=Math.round((i+1)/steps.length*100)+'%'; pct.textContent=Math.round((i+1)/steps.length*100)+'%';
+      const ev=document.createElement('div'); ev.className='ev'; ev.innerHTML=`<div class="t">${String(i+1).padStart(2,'0')}</div><div class="m">${steps[i]}</div>`;
+      log.appendChild(ev); i++;
+      if(i>=steps.length){ clearInterval(tick); provDone=true; $('provBtn').textContent='已就绪';
+        Hub.toast(MQ[target.kind].name+' 已就绪','新旧 MQ 并存中，可进入下一步','ok'); refreshNext(); }
+    }, target.mode==='new'?650:560);
+  };
+
+  // ---- step3 cutover ----
+  $('cutBtn').onclick=()=> Hub.modal({ title:'确认切流到 '+MQ[target.kind].name, danger:true, confirmText:'写入并重建',
+    msg:'将写入 milvus ConfigMap 并滚动重建组件。mq.type 切换后不可热回退。', onConfirm(){ runCut(); }});
+  function runCut(){
+    $('cutCard').hidden=false; const log=$('cutLog'); log.innerHTML='';
+    const steps=[['写入 ConfigMap mq.type = '+target.kind,''],['滚动重建 Milvus 组件…',''],
+      ['proxy / streamingnode 就绪 ✓',''],['下线旧 '+MQ[inst.mq.kind].name+'…','warn'],['切流完成，当前 MQ = '+target.kind+' ✓','']];
+    let i=0; const tick=setInterval(()=>{
+      const ev=document.createElement('div'); ev.className='ev '+steps[i][1];
+      ev.innerHTML=`<div class="t">${String(i+1).padStart(2,'0')}</div><div class="m">${steps[i][0]}</div>`; log.appendChild(ev); i++;
+      if(i>=steps.length){ clearInterval(tick); $('purgeBtn').disabled=false; $('cutBtn').disabled=true;
+        // topology: target becomes ACTIVE, old fades
+        $('boxCur').style.opacity='.5'; $('boxCur').querySelector('.role').textContent='旧 MQ · 待下线';
+        document.querySelector('.box-dark').style.borderColor='var(--ok)';
+        Hub.toast('切流完成','mq.type = '+target.kind,'ok'); }
+    },700);
+  }
+  $('purgeBtn').onclick=()=>{ Hub.modal({ title:'删除旧 '+MQ[inst.mq.kind].name+' PVC？', danger:true, confirmText:'永久删除',
+    msg:'此操作不可逆，将永久删除旧 MQ 的持久化数据。请确认新 MQ 已稳定运行。',
+    body:'<div class="callout co-err"><span class="ic" id="px"></span><div>建议保留至业务验证通过后再删除。</div></div>',
+    onConfirm(){ Hub.toast('已删除旧 MQ PVC','存储空间已释放','warn'); $('purgeBtn').disabled=true; $('purgeBtn').textContent='PVC 已删除'; }});
+    const px=$('px'); if(px) px.innerHTML=S(I.warn,18); };
+
+  // preselect the instance passed via ?inst= (from a Milvus instance box)
+  const _want = new URLSearchParams(location.search).get('inst');
+  const _start = Hub.INSTANCES.find(x=>x.name===_want) ? _want : Hub.INSTANCES[0].name;
+  $('selInst').value = _start;
+  loadInstance(_start);
+</script>
+</body>
+</html>

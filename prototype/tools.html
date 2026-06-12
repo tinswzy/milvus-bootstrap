@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工具箱 · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  .tool { display:flex; flex-direction:column; gap:0; overflow:hidden; }
+  .tool .banner { height:74px; display:flex; align-items:center; padding:0 20px; gap:14px; position:relative; }
+  .tool .banner .lo { width:46px; height:46px; border-radius:12px; display:grid; place-items:center; font-size:23px; background:rgba(255,255,255,.7); border:1px solid var(--line); }
+  .console { background:var(--ink-850); color:#cdd6ea; font-family:var(--font-mono); font-size:12.5px; border-radius:10px; padding:14px 16px; min-height:120px; }
+  .console .p { color:#74e0ec; } .console .o { color:#9aa6c4; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>运维工具箱</h1>
+          <p>把日常排障 / 观测工具收进一处：可视化客户端、元数据诊断、日志导出。一键打开或运行。</p>
+        </div>
+      </div>
+
+      <div class="grid g-3" data-rise>
+        <!-- Attu -->
+        <div class="card tool">
+          <div class="banner" style="background:linear-gradient(120deg,var(--accent-soft),#eef9fb)">
+            <span class="lo">📊</span>
+            <div><b style="font-size:16px">Attu</b><div class="muted mono" style="font-size:11.5px">v2.4.10 · 运行中</div></div>
+            <span class="badge b-ok" style="position:absolute;top:14px;right:16px"><span class="d"></span>运行中</span>
+          </div>
+          <div class="card-pad" style="flex:1;display:flex;flex-direction:column">
+            <p class="muted" style="font-size:13px;margin:0 0 14px;flex:1">Milvus 官方可视化客户端：浏览 collection、建索引、跑向量检索、看加载状态。</p>
+            <div style="display:flex;gap:9px">
+              <button class="btn btn-primary btn-sm" style="flex:1;justify-content:center" onclick="Hub.toast('打开 Attu','新标签页打开 attu 服务（假）','ok')">打开界面</button>
+              <a class="btn btn-ghost btn-sm" href="component.html?c=attu">详情</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Birdwatcher -->
+        <div class="card tool">
+          <div class="banner" style="background:linear-gradient(120deg,#eef0fb,#f5f6fd)">
+            <span class="lo">🔭</span>
+            <div><b style="font-size:16px">Birdwatcher</b><div class="muted mono" style="font-size:11.5px">v1.0.6 · 未部署</div></div>
+            <span class="badge b-idle" style="position:absolute;top:14px;right:16px"><span class="d"></span>未部署</span>
+          </div>
+          <div class="card-pad" style="flex:1;display:flex;flex-direction:column">
+            <p class="muted" style="font-size:13px;margin:0 0 14px;flex:1">元数据诊断 CLI：连接 etcd 检查 collection / segment / channel 状态，排查加载与 compaction 问题。</p>
+            <div style="display:flex;gap:9px">
+              <button class="btn btn-primary btn-sm" style="flex:1;justify-content:center" id="bwRun">启动会话</button>
+              <a class="btn btn-ghost btn-sm" href="component.html?c=birdwatcher">详情</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Log Export -->
+        <div class="card tool">
+          <div class="banner" style="background:linear-gradient(120deg,#fdf3e8,#fbf7f0)">
+            <span class="lo">📤</span>
+            <div><b style="font-size:16px">Log Export</b><div class="muted mono" style="font-size:11.5px">按需任务</div></div>
+            <span class="badge b-idle" style="position:absolute;top:14px;right:16px"><span class="d"></span>就绪</span>
+          </div>
+          <div class="card-pad" style="flex:1;display:flex;flex-direction:column">
+            <p class="muted" style="font-size:13px;margin:0 0 14px;flex:1">一键打包各组件日志（milvus / etcd / minio / woodpecker），用于提单或离线排障。</p>
+            <div style="display:flex;gap:9px">
+              <button class="btn btn-primary btn-sm" style="flex:1;justify-content:center" id="logBtn">导出日志</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Birdwatcher console -->
+      <div class="card" data-rise style="margin-top:22px">
+        <div class="card-head"><h3>Birdwatcher 会话</h3><span class="sub mono">connect → etcd</span>
+          <div class="right"><span class="badge b-idle" id="bwState"><span class="d"></span>未连接</span></div></div>
+        <div class="card-pad">
+          <div class="console" id="bwConsole"><span class="o"># 点击「启动会话」开始（演示输出）</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'tools', crumbs:['工具','工具箱'] });
+
+  document.getElementById('bwRun').onclick = startBW;
+  function startBW(){
+    document.getElementById('bwState').innerHTML='<span class="d"></span>已连接';
+    document.getElementById('bwState').className='badge b-ok';
+    const con=document.getElementById('bwConsole');
+    const lines=[ ['p','Milvus(my-release) > connect --etcd my-release-etcd:2379'],
+      ['o','Using milvus instance: my-release'],
+      ['p','Milvus(my-release) > show collections'],
+      ['o','=== Collection: docs_embeddings  (loaded)  segments: 42 ==='],
+      ['o','=== Collection: images_v3       (loaded)  segments: 18 ==='],
+      ['p','Milvus(my-release) > show channel-watch'],
+      ['o','pchannel: by-dev-rootcoord-dml_0  state: WatchSuccess'] ];
+    con.innerHTML=''; let i=0;
+    const t=setInterval(()=>{ const [c,x]=lines[i]; const d=document.createElement('div'); d.className=c; d.textContent=x; con.appendChild(d); i++; if(i>=lines.length){clearInterval(t); Hub.toast('Birdwatcher 会话就绪','已连接 etcd（演示）','ok');} },420);
+  }
+
+  document.getElementById('logBtn').onclick = ()=>{
+    Hub.modal({ title:'导出日志', icon:'info', confirmText:'开始导出',
+      msg:'选择要打包的组件日志，导出为 tar.gz。',
+      body:`<div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+        <label style="display:flex;gap:9px;align-items:center"><input type="checkbox" checked> 🐦 Milvus（近 1h）</label>
+        <label style="display:flex;gap:9px;align-items:center"><input type="checkbox" checked> 🪶 Woodpecker</label>
+        <label style="display:flex;gap:9px;align-items:center"><input type="checkbox"> 🗄️ etcd</label>
+        <label style="display:flex;gap:9px;align-items:center"><input type="checkbox"> 🪣 MinIO</label></div>`,
+      onConfirm(){ Hub.toast('正在打包日志…','milvus + woodpecker','info'); setTimeout(()=>Hub.toast('导出完成','milvus-logs-20260611.tar.gz（假）','ok'),1700); }});
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>组件详情 · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:20px; }
+  .tabs button { background:none; border:none; padding:11px 16px; font-family:var(--font-ui); font-size:13.5px; font-weight:600;
+    color:var(--fg-3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs button.on { color:var(--accent-ink); border-bottom-color:var(--accent); }
+  .hero { display:flex; align-items:center; gap:18px; }
+  .hero .big { width:60px; height:60px; border-radius:15px; display:grid; place-items:center; font-size:30px;
+    background:var(--surface-3); border:1px solid var(--line); flex:none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  const S=Hub.svg, I=Hub.I;
+  const id = new URLSearchParams(location.search).get('c') || 'milvus';
+  const c = Hub.byId(id) || Hub.byId('milvus');
+  // instance-scoped Pods view, e.g. component.html?c=milvus&inst=milvus-prod
+  const instName = new URLSearchParams(location.search).get('inst');
+  const inst = (id==='milvus' && instName) ? Hub.INSTANCES.find(x=>x.name===instName) : null;
+
+  const dispName = inst ? inst.name : c.name;
+  const dispVer  = inst ? ('v'+inst.version) : c.version;
+  const dispStat = inst ? inst.status : c.status;
+  const dispRep  = inst ? inst.nodes : c.replicas;
+  const dispNs   = inst ? inst.ns : c.ns;
+  const podPrefix= inst ? inst.name : c.id;
+  const upgradable = dispVer!=='—' && dispVer!=='external' && c.latest!=='—' && dispVer!==c.latest && dispVer!==('v'+c.latest);
+
+  Hub.mount({ page: inst?'index':'', crumbs: inst ? ['Milvus Instances', inst.name, 'Pods'] : ['组件', c.name] });
+
+  const deployed = dispStat!=='idle';
+  const pods = [];
+  if (deployed) {
+    const roles = id==='milvus' ? ['mixcoord','proxy','querynode','datanode','streamingnode','indexnode'] : null;
+    const [r] = (dispRep||'1/1').split('/').map(Number);
+    for(let i=0;i<Math.min(r,6);i++) pods.push({ n:`${podPrefix}-${roles?roles[i]:i}-${(46656+i*1371).toString(36)}`, st:'ok', age:`${2+i}d`, cpu:`${(0.2+i*0.1).toFixed(1)}`, mem:`${(0.8+i*0.3).toFixed(1)}Gi` });
+  }
+  const big = c.accent
+    ? `<span class="big" style="font-family:var(--font-display);font-weight:700;color:#fff;background:linear-gradient(150deg,var(--accent),var(--indigo));border:none">${c.logo}</span>`
+    : `<span class="big">${c.logo}</span>`;
+
+  const mqLink = (c.id==='woodpecker'||c.id==='kafka'||c.id==='pulsar')
+    ? `<a class="btn btn-ghost" href="switch-mq.html">${S(I.swap,15)} 切换 MQ</a>`
+    : (inst ? `<a class="btn btn-ghost" href="switch-mq.html?inst=${inst.name}">${S(I.swap,15)} 切换 MQ</a>` : '');
+  const upBtn = (inst && upgradable) ? `<button class="btn btn-primary" id="upg">${S(I.upgrade,15)} 升级 ${c.latest}</button>` : '';
+
+  document.getElementById('content').innerHTML = `
+    <div class="page-head" data-rise style="align-items:center">
+      <div class="hero">
+        ${big}
+        <div>
+          <h1 style="margin-bottom:7px">${dispName} ${inst?`<span class="badge b-accent" style="vertical-align:middle">MQ: ${inst.mq.kind}</span>`:(c.active?'<span class="badge b-accent" style="vertical-align:middle">ACTIVE MQ</span>':'')}</h1>
+          <p style="margin:0">${inst?'Milvus 实例 · MixCoord + Proxy + Query / Data / Streaming / Index Node':c.role}</p>
+        </div>
+      </div>
+      <div class="h-r">
+        ${upBtn}
+        ${mqLink}
+        ${deployed?`<button class="btn btn-ghost" id="restart">${S(I.restart,15)} 重启</button>`:''}
+        ${deployed?`<button class="btn btn-danger" id="uninstall">卸载</button>`:`<button class="btn btn-primary" id="deploy">部署</button>`}
+      </div>
+    </div>
+
+    <div class="tiles" data-rise style="grid-template-columns:repeat(4,1fr);margin-bottom:8px">
+      <div class="card card-pad tile"><div class="cap">状态</div><div style="margin-top:12px">${Hub.badge(dispStat,true)}</div></div>
+      <div class="card card-pad tile"><div class="cap">${inst?'节点':'副本'}</div><div class="num mono" style="font-size:24px;margin-top:12px">${dispRep}</div></div>
+      <div class="card card-pad tile"><div class="cap">版本 (image tag)</div><div class="num mono" style="font-size:22px;margin-top:12px">${dispVer}</div>
+        ${upgradable?`<div class="delta" style="color:var(--warn)">↑ ${c.latest} 可用</div>`:''}</div>
+      <div class="card card-pad tile"><div class="cap">管理方</div><div style="font-weight:650;margin-top:14px;font-size:15px">${c.mgr}</div>
+        <div class="muted mono" style="font-size:11px;margin-top:4px">ns: ${dispNs}</div></div>
+    </div>
+
+    <div class="callout co-info" data-rise style="margin:18px 0">
+      <span class="ic" id="ci"></span>
+      <div><b>${dispName} 由 ${c.mgr} 独立管理。</b>本控制台对它只做"读状态 + 下发操作"，不代管其内部逻辑——这就是"组件各管各"的纯净边界。</div>
+    </div>
+
+    <div class="tabs" data-rise>
+      <button class="on" data-tab="pods">工作负载</button>
+      <button data-tab="config">配置</button>
+      <button data-tab="events">事件</button>
+    </div>
+
+    <div data-rise>
+      <section data-pane="pods">
+        ${deployed ? `<div class="card"><table class="tbl">
+          <thead><tr><th>Pod</th><th>状态</th><th>Age</th><th>CPU</th><th>内存</th><th style="text-align:right">操作</th></tr></thead>
+          <tbody>${pods.map(p=>`<tr><td class="mono">${p.n}</td><td>${Hub.badge('ok',true)}</td><td class="mono">${p.age}</td>
+            <td class="mono">${p.cpu}</td><td class="mono">${p.mem}</td>
+            <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="Hub.toast('查看日志','${p.n}（假）','info')">日志</button></td></tr>`).join('')}</tbody>
+        </table></div>` : `<div class="card card-pad" style="text-align:center;color:var(--fg-3);padding:50px">该组件尚未部署。<br><br><button class="btn btn-primary" onclick="location.href='install.html'">前往安装向导</button></div>`}
+      </section>
+
+      <section data-pane="config" hidden>
+        <div class="card">
+          <div class="card-head"><h3>ConfigMap 摘要</h3>
+            <div class="right"><a class="btn btn-ghost btn-sm" href="configmap.html${inst?('?inst='+inst.name):''}">${S(I.sliders,14)} 编辑配置</a></div></div>
+          <div class="card-pad"><div class="editor"><span class="c"># ${c.id} · 关键配置（只读摘要）</span>
+${cfgSnippet(c.id)}</div></div>
+        </div>
+      </section>
+
+      <section data-pane="events" hidden>
+        <div class="card card-pad"><div class="timeline">
+          <div class="ev"><div class="t">2 分钟前</div><div class="m">${dispName} 健康探针通过</div></div>
+          <div class="ev"><div class="t">2 小时前</div><div class="m">${c.mgr} reconcile 完成，无漂移</div></div>
+          <div class="ev warn"><div class="t">昨天</div><div class="m">检测到新版本 ${c.latest}</div></div>
+          <div class="ev"><div class="t">3 天前</div><div class="m">由 ${c.mgr} 创建 / 纳管</div></div>
+        </div></div>
+      </section>
+    </div>`;
+
+  document.getElementById('ci').innerHTML=S(I.info,18);
+  { const ub=document.getElementById('upg'); if(ub) ub.onclick=()=>Hub.modal({ title:`升级 ${dispName} → ${c.latest}`, icon:'info', confirmText:'开始升级',
+      msg:'修改该实例 Milvus CR 的 image tag，operator 滚动升级。',
+      onConfirm(){ Hub.toast('升级已下发：'+dispName, dispVer+' → '+c.latest,'info'); setTimeout(()=>Hub.toast(dispName+' 升级完成','现版本 '+c.latest,'ok'),1800); } }); }
+
+  function cfgSnippet(id){
+    const m={ milvus:`<span class="k">mq:</span>\n  <span class="k">type:</span> <span class="v">woodpecker</span>\n<span class="k">queryNode:</span>\n  <span class="k">mmap:</span>\n    <span class="k">mmapEnabled:</span> <span class="v">false</span>`,
+      woodpecker:`<span class="k">storage:</span>\n  <span class="k">type:</span> <span class="v">minio</span>\n<span class="k">logstore:</span>\n  <span class="k">segmentRollingPolicy:</span>\n    <span class="k">maxSize:</span> <span class="v">256M</span>`,
+      kafka:`<span class="k">replicas:</span> <span class="v">3</span>\n<span class="k">listeners:</span>\n  <span class="k">plain:</span> <span class="v">9092</span>\n<span class="c"># 由 Strimzi Kafka CR 渲染</span>`,
+      pulsar:`<span class="k">broker:</span>\n  <span class="k">replicas:</span> <span class="v">3</span>\n<span class="k">bookkeeper:</span>\n  <span class="k">replicas:</span> <span class="v">3</span>`,
+      etcd:`<span class="k">replicaCount:</span> <span class="v">3</span>\n<span class="k">autoCompactionMode:</span> <span class="v">revision</span>`,
+      minio:`<span class="k">servers:</span> <span class="v">4</span>\n<span class="k">volumesPerServer:</span> <span class="v">4</span>\n<span class="k">mode:</span> <span class="v">distributed</span>`,
+      s3:`<span class="k">endpoint:</span> <span class="v">s3.amazonaws.com</span>\n<span class="k">bucket:</span> <span class="v">milvus-prod</span>`,
+      attu:`<span class="k">milvusUrl:</span> <span class="v">my-release-milvus:19530</span>`,
+      birdwatcher:`<span class="c"># 诊断 CLI，按需运行</span>`, logexport:`<span class="c"># 日志导出任务，按需触发</span>` };
+    return m[id]||`<span class="c"># 无配置摘要</span>`;
+  }
+
+  // tabs
+  document.querySelectorAll('.tabs button').forEach(b=> b.onclick=()=>{
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    document.querySelectorAll('[data-pane]').forEach(p=> p.hidden = p.dataset.pane!==b.dataset.tab);
+  });
+
+  // actions
+  const r=document.getElementById('restart'); if(r) r.onclick=()=>Hub.modal({title:`重启 ${c.name}？`,icon:'warn',confirmText:'滚动重启',msg:'将滚动重启该组件的工作负载。',onConfirm(){Hub.toast('已触发重启',c.name,'ok');}});
+  const u=document.getElementById('uninstall'); if(u) u.onclick=()=>Hub.modal({title:`卸载 ${c.name}？`,danger:true,confirmText:'卸载',msg:`将通过 ${c.mgr} 卸载该组件。其它组件不受影响。`,body:`<div class="callout co-warn"><span class="ic">${S(I.warn,18)}</span><div>PVC 默认保留，可在卸载后单独清理。</div></div>`,onConfirm(){Hub.toast('已卸载 '+c.name,'其它组件未受影响','warn');setTimeout(()=>location.href='index.html',900);}});
+  const d=document.getElementById('deploy'); if(d) d.onclick=()=>location.href='install.html';
+</script>
+</body>
+</html>

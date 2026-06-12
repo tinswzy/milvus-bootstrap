@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dependencies Instances · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  .acc { margin-bottom:14px; overflow:hidden; }
+  .acc-head { display:flex; align-items:center; gap:13px; padding:15px 20px; cursor:pointer; transition:background .14s; user-select:none; }
+  .acc-head:hover { background:var(--surface-2); }
+  .acc-head .lo { width:38px;height:38px;border-radius:10px; display:grid;place-items:center; font-size:18px; background:var(--surface-3); border:1px solid var(--line); flex:none; }
+  .acc-head .lo.mv { font-family:var(--font-display);font-weight:700;color:#fff;border:none;background:linear-gradient(150deg,var(--accent),var(--indigo)); }
+  .acc-head .nm { font-family:var(--font-display); font-weight:650; font-size:15px; }
+  .acc-head .sub { font-size:11.5px; color:var(--fg-3); margin-top:1px; }
+  .acc-head .right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .acc-head .chev { transition:transform .22s; color:var(--fg-3); }
+  .acc.open .acc-head .chev { transform:rotate(180deg); }
+  .acc.open .acc-head { border-bottom:1px solid var(--line); }
+  .img { font-family:var(--font-mono); font-size:11.5px; color:var(--fg-2); background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:3px 8px; display:inline-block; }
+  .img .t { color:var(--accent-ink); font-weight:600; }
+  .tag-up { font-family:var(--font-mono); font-size:12px; color:var(--warn); font-weight:600; }
+  .f-row { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--fg-2); }
+  .f-in { height:32px; border:1px solid var(--line-2); border-radius:7px; padding:0 10px; font-family:var(--font-mono); font-size:12.5px; color:var(--fg); }
+  .f-in:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>Dependencies Instances</h1>
+          <p>Milvus 依赖的各组件服务实例，按类型分组、点击展开看每个实例。集群内工作负载（etcd / MinIO / MQ）显示运行的 image tag 与可升级版本；外部对象存储（S3 / Blob / OSS / COS / OBS）显示接入点、无版本升级。<strong>每个分类右上角可创建该类型的新实例</strong>。Milvus 实例本身在「Milvus Instances」中管理。</p>
+        </div>
+        <div class="h-r"><button class="btn btn-primary" id="checkAll">检查全部更新</button></div>
+      </div>
+
+      <div class="tiles" data-rise style="grid-template-columns:repeat(3,1fr);margin-bottom:22px">
+        <div class="card card-pad tile"><div class="glow"></div><div class="cap">可升级实例</div><div class="num" style="color:var(--warn)" id="tUp">—</div></div>
+        <div class="card card-pad tile"><div class="cap">外部存储接入</div><div class="num" style="color:var(--accent-ink)" id="tBind">—</div></div>
+        <div class="card card-pad tile"><div class="cap">实例总数</div><div class="num" id="tAll">—</div><div class="delta muted" id="tGrp"></div></div>
+      </div>
+
+      <div id="groups" data-rise></div>
+
+      <div class="callout co-info" style="margin-top:18px" data-rise>
+        <span class="ic" id="noteIc"></span>
+        <div><b>两类依赖实例：</b>集群内工作负载（Strimzi / 各 operator 管理）独立升级、互不影响；外部对象存储是托管接入端点（凭证 + endpoint），无法"升级"，只能创建 / 编辑 / 解绑。Milvus 实例在创建或切换时从这些依赖实例里选用。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'upgrade', crumbs:['实例','Dependencies Instances'] });
+  const S=Hub.svg, I=Hub.I, dot=Hub.statusDot;
+  const PLUS = S('<path d="M12 5v14M5 12h14"/>',13);
+  document.getElementById('noteIc').innerHTML=S(I.info,18);
+  const rand = ()=> Math.random().toString(36).slice(2,6);
+
+  // Two kinds of dependency groups:
+  //  - kind:'workload'  in-cluster k8s pods, have image tag + upgrade
+  //  - kind:'binding'   external object-storage access (endpoint/bucket), creatable, NOT upgradable
+  const GROUPS = [
+    { id:'woodpecker', kind:'workload', name:'Woodpecker', logo:'🪶', mgr:'Woodpecker Operator', repo:'milvusdb/woodpecker', latest:'v0.5.0',
+      instances:[ {id:'woodpecker-svc-9d2e', ns:'milvus', tag:'v0.4.0', status:'ok', store:'minio-tenant-7f3c'} ] },
+    { id:'kafka', kind:'workload', name:'Kafka', logo:'🌊', mgr:'Strimzi', repo:'quay.io/strimzi/kafka', latest:'3.7.0',
+      instances:[ {id:'kafka-cluster-4b7a', ns:'milvus-stg', tag:'3.6.1', status:'ok'} ] },
+    { id:'pulsar', kind:'workload', name:'Pulsar', logo:'📡', mgr:'Pulsar Operator', repo:'apachepulsar/pulsar', latest:'3.0.6',
+      instances:[ {id:'pulsar-cluster-2c9f', ns:'milvus-ana', tag:'3.0.6', status:'ok'} ] },
+    { id:'etcd', kind:'workload', name:'etcd', logo:'🗄️', mgr:'etcd-operator', repo:'quay.io/coreos/etcd', latest:'v3.5.16',
+      instances:[ {id:'etcd-cluster-a1b2', ns:'milvus',     tag:'v3.5.14', status:'ok'},
+                  {id:'etcd-cluster-c3d4', ns:'milvus-stg', tag:'v3.5.16', status:'ok'},
+                  {id:'etcd-cluster-e5f6', ns:'milvus-ana', tag:'v3.5.14', status:'ok'} ] },
+    { id:'minio', kind:'workload', idPrefix:'minio-tenant', name:'MinIO', logo:'🪣', mgr:'MinIO Operator', repo:'minio/minio', latest:'2024-08-29',
+      instances:[ {id:'minio-tenant-7f3c', ns:'milvus',     tag:'2024-08-29', status:'ok'},
+                  {id:'minio-tenant-1a8b', ns:'milvus-stg', tag:'2024-06-13', status:'ok'} ] },
+
+    // ---- external object storage (binding) ----
+    { id:'aws-s3', kind:'binding', name:'AWS S3', logo:'🟧', mgr:'External · Amazon S3', idPrefix:'s3', epHint:'s3.us-east-1.amazonaws.com', regionHint:'us-east-1',
+      instances:[ {id:'s3-prod-use1', endpoint:'s3.us-east-1.amazonaws.com', bucket:'milvus-prod', region:'us-east-1', status:'ok'} ] },
+    { id:'azure-blob', kind:'binding', name:'Azure Blob', logo:'🟦', mgr:'External · Azure Blob', idPrefix:'azblob', epHint:'<account>.blob.core.windows.net', regionHint:'eastus',
+      instances:[] },
+    { id:'gcp-gcs', kind:'binding', name:'GCP Cloud Storage', logo:'🟩', mgr:'External · Google Cloud Storage', idPrefix:'gcs', epHint:'storage.googleapis.com', regionHint:'us-central1',
+      instances:[] },
+    { id:'aliyun-oss', kind:'binding', name:'Aliyun OSS', logo:'🔶', mgr:'External · 阿里云 OSS', idPrefix:'oss', epHint:'oss-cn-hangzhou.aliyuncs.com', regionHint:'cn-hangzhou',
+      instances:[ {id:'oss-cn-hz-01', endpoint:'oss-cn-hangzhou.aliyuncs.com', bucket:'milvus-cn', region:'cn-hangzhou', status:'ok'} ] },
+    { id:'tencent-cos', kind:'binding', name:'Tencent COS', logo:'🐧', mgr:'External · 腾讯云 COS', idPrefix:'cos', epHint:'cos.ap-guangzhou.myqcloud.com', regionHint:'ap-guangzhou',
+      instances:[] },
+    { id:'huawei-obs', kind:'binding', name:'Huawei OBS', logo:'🔴', mgr:'External · 华为云 OBS', idPrefix:'obs', epHint:'obs.cn-north-4.myhuaweicloud.com', regionHint:'cn-north-4',
+      instances:[] },
+
+    { id:'attu', kind:'workload', name:'Attu', logo:'📊', mgr:'Tool', repo:'zilliz/attu', latest:'v2.4.12',
+      instances:[ {id:'attu-7c9f', ns:'milvus', tag:'v2.4.10', status:'ok'} ] },
+  ];
+
+  const open = new Set([GROUPS[0].id]);
+  const upg  = (g,i) => g.kind==='workload' && i.tag !== g.latest;
+  const grpUp = g => g.kind==='workload' ? g.instances.filter(i=>upg(g,i)).length : 0;
+
+  function instRow(g,i){
+    const can = upg(g,i);
+    return `<tr>
+      <td><div class="cell-name"><span style="width:7px;height:7px;border-radius:50%;background:${dot(i.status)};display:inline-block"></span>
+        <div><span class="mono">${i.id}</span><div class="muted mono" style="font-size:11px;font-weight:400">ns: ${i.ns}${i.store?` · 存储: ${i.store}`:''}</div></div></div></td>
+      <td><span class="img">${g.repo}:<span class="t">${i.tag}</span></span></td>
+      <td>${ can ? `<span class="tag-up">${i.tag} → ${g.latest}</span>` : `<span class="badge b-ok"><span class="d"></span>最新</span>` }</td>
+      <td>${Hub.badge(i.status,true)}</td>
+      <td style="text-align:right">
+        <button class="btn ${can?'btn-primary':'btn-ghost'} btn-sm" ${can?'':'disabled'} data-up="${g.id}::${i.id}">升级</button>
+      </td></tr>`;
+  }
+
+  function bindRow(g,i){
+    return `<tr>
+      <td><div class="cell-name"><span style="width:7px;height:7px;border-radius:50%;background:${dot(i.status)};display:inline-block"></span>
+        <div><span class="mono">${i.id}</span><div class="muted mono" style="font-size:11px;font-weight:400">${g.name}</div></div></div></td>
+      <td><span class="img">${i.endpoint}</span></td>
+      <td class="mono">${i.bucket||'—'}${i.region?' · '+i.region:''}</td>
+      <td>${Hub.badge(i.status,true)}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" data-test="${g.id}::${i.id}">测试连接</button>
+        <button class="btn btn-ghost btn-sm" data-unbind="${g.id}::${i.id}">解绑</button>
+      </td></tr>`;
+  }
+
+  function groupHTML(g){
+    const n=g.instances.length, isOpen=open.has(g.id), binding=g.kind==='binding';
+    const up = grpUp(g);
+    const badge = binding ? '<span class="badge b-accent"><span class="d"></span>外部接入</span>'
+                : up ? `<span class="badge b-warn"><span class="d"></span>${up} 可升级</span>`
+                     : '<span class="badge b-ok"><span class="d"></span>全最新</span>';
+    const upAll = (!binding && up) ? `<button class="btn btn-ghost btn-sm" data-upall="${g.id}">升级全部</button>` : '';
+    const createBtn = `<button class="btn btn-ghost btn-sm" data-create="${g.id}">${PLUS} 创建</button>`;
+    let body;
+    if(n===0){
+      body = `<div class="card-pad" style="text-align:center;color:var(--fg-3);padding:30px 20px">
+        暂无实例 · <a style="color:var(--accent-ink);cursor:pointer;font-weight:600" data-create2="${g.id}">点击创建一个 ${g.name} ${binding?'接入':'实例'}</a></div>`;
+    } else if(binding){
+      body = `<table class="tbl"><thead><tr><th>实例</th><th>接入点 Endpoint</th><th>Bucket / 区域</th><th>状态</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>${g.instances.map(i=>bindRow(g,i)).join('')}</tbody></table>`;
+    } else {
+      body = `<table class="tbl"><thead><tr><th>实例</th><th>运行镜像 (image tag)</th><th>可升级至</th><th>状态</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>${g.instances.map(i=>instRow(g,i)).join('')}</tbody></table>`;
+    }
+    return `<div class="card acc ${isOpen?'open':''}" data-g="${g.id}">
+      <div class="acc-head" data-toggle="${g.id}">
+        <span class="lo ${g.accent?'mv':''}">${g.logo}</span>
+        <div><div class="nm">${g.name}</div><div class="sub">${g.mgr}${binding?'':' · '+g.repo}</div></div>
+        <div class="right">
+          <span class="chip">${n} 实例</span>${badge}${upAll}${createBtn}
+          <span class="chev">${S(I.chev,18)}</span>
+        </div>
+      </div>
+      <div class="acc-body" ${isOpen?'':'hidden'}>${body}</div>
+    </div>`;
+  }
+
+  const root=document.getElementById('groups');
+  function render(){ root.innerHTML=GROUPS.map(groupHTML).join(''); wire(); recount(); }
+
+  function recount(){
+    let up=0, all=0, bind=0;
+    GROUPS.forEach(g=>g.instances.forEach(i=>{ all++; if(g.kind==='binding') bind++; else if(upg(g,i)) up++; }));
+    document.getElementById('tUp').textContent=up;
+    document.getElementById('tBind').textContent=bind;
+    document.getElementById('tAll').textContent=all;
+    document.getElementById('tGrp').textContent=GROUPS.length+' 个分类';
+  }
+
+  function wire(){
+    root.querySelectorAll('[data-toggle]').forEach(h=> h.onclick=e=>{
+      if(e.target.closest('[data-upall],[data-create]')) return;
+      const id=h.dataset.toggle; open.has(id)?open.delete(id):open.add(id); render();
+    });
+    root.querySelectorAll('[data-up]').forEach(b=> b.onclick=()=>{
+      const [gid,iid]=b.dataset.up.split('::'); const g=GROUPS.find(x=>x.id===gid); doUpgrade(g,[g.instances.find(x=>x.id===iid)]);
+    });
+    root.querySelectorAll('[data-upall]').forEach(b=> b.onclick=e=>{ e.stopPropagation();
+      const g=GROUPS.find(x=>x.id===b.dataset.upall); doUpgrade(g, g.instances.filter(i=>upg(g,i))); });
+    root.querySelectorAll('[data-create]').forEach(b=> b.onclick=e=>{ e.stopPropagation(); createInstance(b.dataset.create); });
+    root.querySelectorAll('[data-create2]').forEach(a=> a.onclick=()=> createInstance(a.dataset.create2));
+    root.querySelectorAll('[data-test]').forEach(b=> b.onclick=()=>{ const [,iid]=b.dataset.test.split('::'); Hub.toast('连接测试通过', iid+' 可达','ok'); });
+    root.querySelectorAll('[data-unbind]').forEach(b=> b.onclick=()=>{
+      const [gid,iid]=b.dataset.unbind.split('::'); const g=GROUPS.find(x=>x.id===gid);
+      Hub.modal({ title:'解绑 '+iid+'？', danger:true, confirmText:'解绑', msg:'仅移除该外部存储接入登记，不会删除云端任何数据。',
+        onConfirm(){ g.instances=g.instances.filter(x=>x.id!==iid); render(); Hub.toast('已解绑 '+iid,'',  'warn'); }});
+    });
+  }
+
+  function doUpgrade(g, list){
+    list=list.filter(Boolean); if(!list.length) return;
+    const path={ woodpecker:'更新 StatefulSet 镜像并按序重启', kafka:'Strimzi 更新 Kafka CR',
+      pulsar:'Pulsar Operator 滚动升级', etcd:'etcd-operator 滚动升级', minio:'MinIO Operator 升级 tenant', attu:'更新 Deployment 镜像' }[g.id]||'走官方升级路径';
+    const many=list.length>1;
+    Hub.modal({ title:`升级 ${g.name}${many?` · ${list.length} 个实例`:`：${list[0].id}`} → ${g.latest}`, icon:'info', confirmText:'开始升级', msg: path+'。',
+      body:`<div class="depmap" style="margin-top:4px">${list.map(i=>`<div class="row"><span class="node mono">${i.id}</span><span class="arr mono">${i.tag} → ${g.latest}</span></div>`).join('')}</div>`,
+      onConfirm(){
+        Hub.toast('升级已下发：'+g.name, (many?list.length+' 个实例':list[0].id)+' 滚动升级中…','info');
+        setTimeout(()=>{ list.forEach(i=> i.tag=g.latest); render(); Hub.toast(g.name+' 升级完成','现版本 '+g.latest,'ok'); }, 2000);
+      }});
+  }
+
+  function bindInputs(map,d){ for(const[id,k] of Object.entries(map)){ const el=document.getElementById(id); if(el){ d[k]=el.value; el.oninput=el.onchange=()=>d[k]=el.value; } } }
+
+  // object-storage groups (in-cluster MinIO + external bindings) — Woodpecker depends on one of these
+  const STORAGE = GROUPS.filter(g=> g.id==='minio' || g.kind==='binding');
+  function storageOptions(){
+    let html='';
+    STORAGE.forEach(g=>{ if(g.instances.length)
+      html += `<optgroup label="${g.name}">`+g.instances.map(i=>`<option value="exist:${g.id}:${i.id}">${g.logo} ${i.id}</option>`).join('')+`</optgroup>`; });
+    html += `<optgroup label="➕ 新建对象存储">`+STORAGE.map(g=>`<option value="new:${g.id}">${g.logo} 新建 ${g.name} ${g.kind==='binding'?'接入':'实例'}</option>`).join('')+`</optgroup>`;
+    return html;
+  }
+  // params form for a to-be-created storage instance, shown inline under the woodpecker dialog
+  function storeParamsHTML(sg){
+    if(sg.kind==='binding') return `
+      <div class="f-row">接入点 Endpoint<input id="sp_ep" class="f-in" value="${sg.epHint}"></div>
+      <div class="f-row">Bucket / 容器<input id="sp_bk" class="f-in" value="milvus-prod"></div>
+      <div class="f-row">区域 Region<input id="sp_rg" class="f-in" value="${sg.regionHint||''}"></div>`;
+    return `
+      <div class="f-row">存储实例名称<input id="sp_nm" class="f-in" value="${(sg.idPrefix||sg.id)}-${rand()}"></div>
+      <div class="f-row">命名空间<input id="sp_ns" class="f-in" value="milvus"></div>`;
+  }
+  function toggleStoreParams(d){
+    const box=document.getElementById('wpStoreParams'); if(!box) return;
+    const [mode,sgid]=(d.store||'').split(':');
+    if(mode==='new'){ const sg=GROUPS.find(x=>x.id===sgid);
+      box.innerHTML=`<div style="border:1px dashed var(--accent);border-radius:9px;padding:12px;background:var(--accent-soft);display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:11.5px;font-weight:600;color:var(--accent-ink)">将新建 ${sg.name} ${sg.kind==='binding'?'接入':'实例'} · 填写参数</div>
+        ${storeParamsHTML(sg)}</div>`;
+      box.hidden=false;
+      bindInputs(sg.kind==='binding'?{sp_ep:'sp_ep',sp_bk:'sp_bk',sp_rg:'sp_rg'}:{sp_nm:'sp_nm',sp_ns:'sp_ns'}, d);
+    } else { box.hidden=true; box.innerHTML=''; ['sp_ep','sp_bk','sp_rg','sp_nm','sp_ns'].forEach(k=>delete d[k]); }
+  }
+  function createWoodpecker(){
+    const g=GROUPS.find(x=>x.id==='woodpecker'); const d={};
+    Hub.modal({ title:'创建 Woodpecker 实例', icon:'info', confirmText:'下一步',
+      msg:'Woodpecker 是基于对象存储的 WAL —— 选已有对象存储实例，或新建一个（新建会先创建存储、再二次确认创建 Woodpecker）。',
+      body:`<div style="display:flex;flex-direction:column;gap:11px">
+        <label class="f-row">实例名称<input id="f_nm" class="f-in" value="woodpecker-${rand()}"></label>
+        <label class="f-row">命名空间<input id="f_ns" class="f-in" value="milvus"></label>
+        <label class="f-row">对象存储（依赖 · 可选已有或新建）<select id="f_store" class="f-in" style="cursor:pointer">${storageOptions()}</select></label>
+        <div id="wpStoreParams" hidden></div></div>`,
+      onConfirm(){ proceedWoodpecker(g,d); } });
+    bindInputs({f_nm:'nm',f_ns:'ns'}, d);
+    const sel=document.getElementById('f_store'); if(sel){ d.store=sel.value; sel.onchange=()=>{ d.store=sel.value; toggleStoreParams(d); }; }
+  }
+  function proceedWoodpecker(g,d){
+    const name=d.nm, ns=d.ns||'milvus'; const [mode,sgid]=(d.store||'').split(':');
+    if(mode==='new'){
+      // step ①: create the object storage instance first, with the entered params
+      const sg=GROUPS.find(x=>x.id===sgid); let storeId;
+      if(sg.kind==='binding'){ storeId=(sg.idPrefix||sg.id)+'-'+rand();
+        sg.instances.push({ id:storeId, endpoint:d.sp_ep||sg.epHint, bucket:d.sp_bk||'milvus-prod', region:d.sp_rg||sg.regionHint||'', status:'ok' }); }
+      else { storeId=d.sp_nm||((sg.idPrefix||sg.id)+'-'+rand());
+        sg.instances.push({ id:storeId, ns:d.sp_ns||'milvus', tag:sg.latest, status:'ok' }); }
+      open.add(sgid); render(); Hub.toast('① 已创建对象存储：'+storeId, sg.name,'ok');
+      // step ②: second confirmation to create the woodpecker bound to it
+      Hub.modal({ title:'② 确认创建 Woodpecker', icon:'ok', confirmText:'创建 Woodpecker',
+        msg:`对象存储 ${storeId} 已创建。确认创建 Woodpecker 实例 ${name} 并绑定到它？`,
+        body:`<div class="depmap"><div class="row"><span class="node mono">${name}</span><span class="arr mono">→ 绑定 ${storeId}</span></div></div>`,
+        onConfirm(){ g.instances.push({ id:name, ns, tag:g.latest, status:'ok', store:storeId });
+          open.add('woodpecker'); render(); Hub.toast('② 已下发 Woodpecker：'+name,'绑定新建存储 '+storeId,'ok'); } });
+    } else {
+      const storeId=(d.store||'').split(':')[2];
+      g.instances.push({ id:name, ns, tag:g.latest, status:'ok', store:storeId });
+      open.add('woodpecker'); render(); Hub.toast('已下发：'+name,'绑定存储 '+storeId,'ok');
+    }
+  }
+
+  function createInstance(gid){
+    const g=GROUPS.find(x=>x.id===gid);
+    if(g.kind==='binding'){
+      const d={};
+      Hub.modal({ title:'接入 '+g.name, icon:'info', confirmText:'创建接入',
+        msg:'登记一个 '+g.name+' 对象存储接入（外部托管，不在集群内部署，因此无版本升级）。',
+        body:`<div style="display:flex;flex-direction:column;gap:11px">
+          <label class="f-row">接入点 Endpoint<input id="f_ep" class="f-in" value="${g.epHint}"></label>
+          <label class="f-row">Bucket / 容器<input id="f_bk" class="f-in" value="milvus-prod"></label>
+          <label class="f-row">区域 Region<input id="f_rg" class="f-in" value="${g.regionHint||''}"></label></div>`,
+        onConfirm(){ g.instances.push({ id:g.idPrefix+'-'+rand(), endpoint:d.ep, bucket:d.bk, region:d.rg, status:'ok' });
+          open.add(gid); render(); Hub.toast('已创建 '+g.name+' 接入', g.idPrefix+' · '+(d.bk||'milvus-prod'),'ok'); } });
+      bindInputs({f_ep:'ep',f_bk:'bk',f_rg:'rg'}, d);
+    } else if(g.id==='woodpecker'){
+      createWoodpecker();
+    } else {
+      const d={};
+      Hub.modal({ title:'创建 '+g.name+' 实例', icon:'info', confirmText:'创建并部署',
+        msg:'由 '+g.mgr+' 部署一个新的 '+g.name+' 实例（版本 '+g.latest+'）。',
+        body:`<div style="display:flex;flex-direction:column;gap:11px">
+          <label class="f-row">实例名称<input id="f_nm" class="f-in" value="${g.id}-${rand()}"></label>
+          <label class="f-row">命名空间<input id="f_ns" class="f-in" value="milvus"></label></div>`,
+        onConfirm(){ g.instances.push({ id:d.nm, ns:d.ns||'milvus', tag:g.latest, status:'ok' });
+          open.add(gid); render(); Hub.toast('已下发：'+d.nm, g.mgr+' 正在创建…','ok'); } });
+      bindInputs({f_nm:'nm',f_ns:'ns'}, d);
+    }
+  }
+
+  document.getElementById('checkAll').onclick=()=>{
+    Hub.toast('正在检查所有组件…','拉取各 operator/chart 最新 tag','info');
+    setTimeout(()=>{ let up=0; GROUPS.forEach(g=>up+=grpUp(g)); Hub.toast('检查完成', up+' 个实例有可用更新', up?'warn':'ok'); },1300);
+  };
+
+  render();
+</script>
+</body>
+</html>

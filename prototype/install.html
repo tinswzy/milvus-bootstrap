@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新建实例 · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>新建 Milvus 实例</h1>
+          <p>以 <strong>Milvus</strong> 为核心。每个依赖组件都是一个小框，可<strong>下拉复用已有实例</strong>，也可<strong>安装新的独立实例</strong> —— 复用还是新建，由你决定。</p>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-bottom:20px">
+        <div class="card-head"><h3>实例拓扑</h3><span class="sub">虚线框 = 将新建独立实例；实线框 = 复用已有</span></div>
+        <div class="topo" id="topo">
+          <!-- etcd slot -->
+          <div class="box cell-etcd isnew" data-slot="etcd">
+            <div class="slot-h"><span class="lo">🗄️</span><div><div class="nm">etcd</div><div class="role">元数据</div></div><span class="tag-slot newtag">新建</span></div>
+            <select id="selEtcd"></select>
+          </div>
+          <div class="flow-h col2"></div>
+          <!-- milvus center -->
+          <div class="box box-mv">
+            <div class="bt"><span class="lo">M</span><div><div class="nm">Milvus 实例</div><div class="role">向量数据库内核 · MixCoord</div></div></div>
+            <input class="mvname" id="mvName" value="milvus-prod-2" placeholder="实例名称">
+            <div class="mvmeta">
+              <select id="selVer" style="margin-top:0;flex:1"><option>v3.0.0</option><option>v2.6.3</option><option>v2.6.0</option></select>
+              <select id="selMode" style="margin-top:0;flex:1"><option>cluster</option><option>standalone</option></select>
+            </div>
+          </div>
+          <div class="flow-h col4"></div>
+          <!-- object storage slot -->
+          <div class="box cell-store isnew" data-slot="store">
+            <div class="slot-h"><span class="lo" id="storeLogo">🪣</span><div><div class="nm" id="storeName">对象存储</div><div class="role">Object Storage</div></div><span class="tag-slot newtag">新建</span></div>
+            <select id="selStore"></select>
+          </div>
+          <div class="flow-v"></div>
+          <!-- mq slot -->
+          <div class="box cell-mq isnew" data-slot="mq">
+            <div class="slot-h"><span class="lo" id="mqLogo">🪶</span><div><div class="nm" id="mqName">消息队列</div><div class="role">MQ · WAL</div></div><span class="tag-slot newtag">新建</span></div>
+            <select id="selMq"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid g-2-1" data-rise>
+        <div class="card">
+          <div class="card-head"><h3>部署清单</h3><span class="sub">即将下发</span></div>
+          <div class="card-pad"><div class="depmap" id="summary"></div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card card-pad">
+            <div class="callout co-info" style="margin-bottom:0"><span class="ic" id="ci"></span>
+              <div>复用的依赖<strong>不会被本实例独占</strong>；新建的依赖由其官方 operator 独立部署。删除本 Milvus 实例不会连带删除复用的依赖。</div></div>
+          </div>
+          <div class="card card-pad">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <span class="muted" style="font-size:12.5px">新建组件</span><span class="mono" id="newCount" style="font-weight:600">—</span></div>
+            <button class="btn btn-primary" id="deployBtn" style="width:100%;justify-content:center">部署实例</button>
+            <button class="btn btn-ghost btn-sm" id="tplBtn" style="width:100%;justify-content:center;margin-top:9px">另存为蓝图模板</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'install', crumbs:['编排','新建实例'] });
+  const S=Hub.svg, I=Hub.I, P=Hub.POOL, MQ=Hub.MQMETA, ST=Hub.STOREMETA;
+  document.getElementById('ci').innerHTML=S(I.info,18);
+
+  // ---- build dropdown options ----
+  function opt(v,t){ return `<option value="${v}">${t}</option>`; }
+  document.getElementById('selEtcd').innerHTML =
+    `<optgroup label="新建">${opt('new:etcd:','➕ 安装新 etcd 实例')}</optgroup>` +
+    `<optgroup label="复用已有">${P.etcd.map(id=>opt('reuse:etcd:'+id, id+'（复用）')).join('')}</optgroup>`;
+
+  document.getElementById('selStore').innerHTML =
+    `<optgroup label="新建">${opt('new:minio:','➕ 安装新 MinIO 实例')}${opt('new:s3:','☁️ 接入外部 S3 / OSS')}</optgroup>` +
+    `<optgroup label="复用已有 MinIO">${P.minio.map(id=>opt('reuse:minio:'+id, id+'（复用）')).join('')}</optgroup>` +
+    `<optgroup label="复用外部 S3">${P.s3.map(id=>opt('reuse:s3:'+id, id+'（复用）')).join('')}</optgroup>`;
+
+  document.getElementById('selMq').innerHTML =
+    `<optgroup label="新建">${opt('new:woodpecker:','🪶 安装新 Woodpecker（推荐）')}${opt('new:kafka:','🌊 安装新 Kafka')}${opt('new:pulsar:','📡 安装新 Pulsar')}</optgroup>` +
+    `<optgroup label="复用已有">${P.woodpecker.map(id=>opt('reuse:woodpecker:'+id,id+'（复用）')).join('')}${P.kafka.map(id=>opt('reuse:kafka:'+id,id+'（复用）')).join('')}${P.pulsar.map(id=>opt('reuse:pulsar:'+id,id+'（复用）')).join('')}</optgroup>`;
+
+  // ---- parse + react ----
+  const parse = v => { const [mode,kind,id]=v.split(':'); return {mode,kind,id}; };
+
+  function slotState(slot){ return parse(document.getElementById({etcd:'selEtcd',store:'selStore',mq:'selMq'}[slot]).value); }
+
+  function refreshSlot(slot){
+    const box=document.querySelector(`.box[data-slot="${slot}"]`);
+    const st=slotState(slot);
+    box.classList.toggle('isnew', st.mode==='new');
+    const tag=box.querySelector('.tag-slot');
+    tag.className='tag-slot '+(st.mode==='new'?'newtag':'reusetag');
+    tag.textContent = st.mode==='new' ? '新建' : '复用';
+    // update store / mq logo + name to reflect chosen kind
+    if(slot==='store'){ document.getElementById('storeLogo').textContent=ST[st.kind].logo; document.getElementById('storeName').textContent=ST[st.kind].name; }
+    if(slot==='mq'){ document.getElementById('mqLogo').textContent=MQ[st.kind].logo; document.getElementById('mqName').textContent=MQ[st.kind].name; }
+    render();
+  }
+
+  ['selEtcd','selStore','selMq'].forEach(id=> document.getElementById(id).onchange = ()=> refreshSlot(({selEtcd:'etcd',selStore:'store',selMq:'mq'})[id]) );
+  document.getElementById('mvName').oninput = render;
+
+  function render(){
+    const name=document.getElementById('mvName').value.trim()||'(未命名)';
+    const e=slotState('etcd'), s=slotState('store'), m=slotState('mq');
+    const line=(logo,label,st)=>`<div class="row"><span class="node">${logo} ${label}</span>
+      <span class="arr">${st.mode==='new'?'<span class="badge b-accent" style="height:18px">新建</span>':'<span class="badge b-idle" style="height:18px">复用 '+st.id+'</span>'}</span></div>`;
+    document.getElementById('summary').innerHTML =
+      `<div class="row"><span class="node" style="border-color:var(--accent);background:var(--accent-soft)">M ${name}</span><span class="arr">核心 · ${document.getElementById('selVer').value} · ${document.getElementById('selMode').value}</span></div>`
+      + line('🗄️','etcd',e)
+      + line(ST[s.kind].logo, ST[s.kind].name, s)
+      + line(MQ[m.kind].logo, MQ[m.kind].name+'（MQ）', m);
+    const newN=[e,s,m].filter(x=>x.mode==='new').length;
+    document.getElementById('newCount').textContent = newN + ' 个新建 · ' + (3-newN) + ' 个复用';
+    document.getElementById('deployBtn').disabled = !document.getElementById('mvName').value.trim();
+  }
+
+  document.getElementById('deployBtn').onclick = ()=>{
+    const name=document.getElementById('mvName').value.trim();
+    const e=slotState('etcd'), s=slotState('store'), m=slotState('mq');
+    const tag=st=>st.mode==='new'?'<span class="badge b-accent" style="height:18px">新建独立实例</span>':'<span class="badge b-idle" style="height:18px">复用 '+st.id+'</span>';
+    Hub.modal({ title:'部署 '+name, icon:'info', confirmText:'确认部署',
+      msg:'依赖将分别由各自官方 operator 处理（新建）或直接挂载（复用）。',
+      body:`<div class="depmap" style="margin-top:4px">
+        <div class="row"><span class="node">🗄️ etcd</span><span class="arr">${tag(e)}</span></div>
+        <div class="row"><span class="node">${ST[s.kind].logo} ${ST[s.kind].name}</span><span class="arr">${tag(s)}</span></div>
+        <div class="row"><span class="node">${MQ[m.kind].logo} ${MQ[m.kind].name}</span><span class="arr">${tag(m)}</span></div></div>`,
+      onConfirm(){
+        Hub.toast('部署已下发：'+name,'新建依赖由官方 operator 创建…','ok');
+        setTimeout(()=>Hub.toast('依赖就绪','开始部署 Milvus 内核…','info'),1300);
+        setTimeout(()=>{ Hub.toast(name+' 部署完成','跳转实例总览','ok'); setTimeout(()=>location.href='index.html',800); },2700);
+      }});
+  };
+  document.getElementById('tplBtn').onclick = ()=> Hub.toast('已保存蓝图','可在新建实例时一键套用','ok');
+
+  // init
+  refreshSlot('etcd'); refreshSlot('store'); refreshSlot('mq'); render();
+</script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>实例总览 · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>Milvus 实例总览</h1>
+          <p>以 <strong>Milvus 实例</strong> 为中心，一行一个实例。依赖组件围绕 Milvus 排布，用数据流线连接：<span class="mono">etcd → Milvus → 对象存储</span>，<span class="mono">Milvus → 消息队列</span>。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-primary" href="install.html">新建实例</a></div>
+      </div>
+
+      <div class="tiles" data-rise style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+        <div class="card card-pad tile"><div class="glow"></div><div class="cap">Milvus 实例</div><div class="num">3</div><div class="delta muted">跨 3 个 namespace</div></div>
+        <div class="card card-pad tile"><div class="cap">健康度</div><div class="num"><span style="color:var(--ok)">2</span><small> 健康 · </small><span style="color:var(--warn)">1</span><small> 降级</small></div></div>
+        <div class="card card-pad tile"><div class="cap">实例待升级</div><div class="num" style="color:var(--warn)" id="tPend">3</div><div class="delta muted">点实例框右上角 ↑ 升级</div></div>
+      </div>
+
+      <div class="section-title" data-rise>实例数据流拓扑 <span class="muted" style="font-weight:400;font-size:12.5px">— 点击任意框进入组件详情</span><span class="ln"></span></div>
+      <div id="rows"></div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'index', crumbs:['Milvus Instances'] });
+  const S=Hub.svg, I=Hub.I, dot=Hub.statusDot;
+  const MV_LATEST = Hub.byId('milvus').latest;
+  const mvUpgradable = inst => inst.version !== MV_LATEST;
+
+  function depBox(cls, href, logo, name, role, id, st){
+    return `<a class="box ${cls}" href="${href}">
+      <div class="bt"><span class="lo">${logo}</span><div><div class="nm">${name}</div><div class="role">${role}</div></div></div>
+      <div class="id"><span class="d" style="background:${dot(st)}"></span>${id}</div></a>`;
+  }
+
+  function rowHTML(inst){
+    const store = Hub.STOREMETA[inst.store.kind], mq = Hub.MQMETA[inst.mq.kind];
+    const storeC = inst.store.kind==='s3' ? 's3' : 'minio';
+    return `<div class="card inst" data-rise>
+      <div class="inst-head">
+        <span class="mvdot">M</span>
+        <div><div class="nm">${inst.name}</div><div class="ns">ns: ${inst.ns} · v${inst.version} · ${inst.nodes} nodes</div></div>
+        <div class="right">${Hub.badge(inst.status,true)}</div>
+      </div>
+      <div class="topo">
+        ${depBox('cell-etcd','component.html?c=etcd','🗄️','etcd','元数据',inst.etcd,'ok')}
+        <div class="flow-h col2"></div>
+        <div class="box box-mv">
+          ${mvUpgradable(inst)?`<button class="mv-upgrade" onclick="upgradeInst('${inst.name}')">${S(I.upgrade,12)} 升级 v${MV_LATEST}</button>`:''}
+          <div class="bt"><span class="lo">M</span><div><div class="nm">${inst.name}</div><div class="role">向量数据库内核 · MixCoord</div></div></div>
+          <div class="id"><span class="d" style="background:${dot(inst.status)}"></span>${inst.name} · v${inst.version}</div>
+          <div class="mvmeta"><span class="chip">${inst.nodes} nodes</span>
+            <span class="badge b-accent"><span class="d"></span>MQ: ${inst.mq.kind}</span></div>
+          <div class="mv-actions">
+            <a class="btn btn-primary" href="switch-mq.html?inst=${inst.name}">${S(I.swap,13)}切换 MQ</a>
+            <a class="btn btn-ghost" href="configmap.html?inst=${inst.name}">${S(I.sliders,13)}配置</a>
+            <a class="btn btn-ghost" href="component.html?c=milvus&inst=${inst.name}">${S(I.layers,13)}Pods</a>
+          </div>
+        </div>
+        <div class="flow-h col4"></div>
+        ${depBox('cell-store','component.html?c='+storeC, store.logo, store.name,'对象存储',inst.store.id,'ok')}
+        <div class="flow-v"></div>
+        ${depBox('cell-mq','component.html?c='+inst.mq.kind, mq.logo, mq.name,'消息队列 · WAL',inst.mq.id,'ok')}
+      </div>
+    </div>`;
+  }
+
+  function rerender(){
+    document.getElementById('rows').innerHTML = Hub.INSTANCES.map(rowHTML).join('');
+    document.querySelectorAll('#rows .inst').forEach((el,i)=>{ el.classList.add('reveal'); el.style.animationDelay=(120+i*90)+'ms'; });
+    const t=document.getElementById('tPend'); if(t) t.textContent = Hub.INSTANCES.filter(mvUpgradable).length;
+  }
+  window.upgradeInst = function(name){
+    const it = Hub.INSTANCES.find(x=>x.name===name); if(!it) return;
+    Hub.modal({ title:`升级 ${name} → v${MV_LATEST}`, icon:'info', confirmText:'开始升级',
+      msg:'修改该实例 Milvus CR 的 image tag，operator 滚动升级（不影响其它实例）。',
+      onConfirm(){
+        Hub.toast('升级已下发：'+name, 'v'+it.version+' → v'+MV_LATEST, 'info');
+        setTimeout(()=>{ it.version = MV_LATEST; rerender(); Hub.toast(name+' 升级完成','现版本 v'+MV_LATEST,'ok'); }, 1800);
+      }});
+  };
+  rerender();
+</script>
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ConfigMap 管理 · Milvus Enterprise Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  .cm-edit { width:100%; min-height:360px; resize:vertical; font-family:var(--font-mono); font-size:13px; line-height:1.7;
+    background:var(--ink-850); color:#cdd6ea; border:1px solid #0a1120; border-radius:10px; padding:16px 18px; outline:none; }
+  .cm-edit:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .cm-list a { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; font-size:13px; cursor:pointer; color:var(--fg-2); }
+  .cm-list a:hover { background:var(--surface-2); }
+  .cm-list a.on { background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
+  .ro-pre { font-family:var(--font-mono); font-size:13px; line-height:1.7; background:var(--ink-850); color:#cdd6ea;
+    border:1px solid #0a1120; border-radius:10px; padding:16px 18px; overflow:auto; white-space:pre; margin:0; }
+  .ro-pre .k { color:#74e0ec; } .ro-pre .v { color:#f2c98b; } .ro-pre .c { color:#6a7790; } .ro-pre .meta { color:#9aa6c4; }
+  .seg { display:inline-flex; background:var(--surface-3); border:1px solid var(--line-2); border-radius:8px; padding:2px; }
+  .seg button { border:none; background:none; padding:5px 12px; font-size:12px; font-weight:600; color:var(--fg-3); cursor:pointer; border-radius:6px; font-family:var(--font-ui); }
+  .seg button.on { background:var(--surface); color:var(--accent-ink); box-shadow:var(--shadow-sm); }
+  .seg button[hidden] { display:none; }
+  .kvform { display:flex; flex-direction:column; gap:20px; }
+  .kv-sec-h { font-family:var(--font-mono); font-size:12.5px; font-weight:600; color:var(--fg-2); padding-bottom:8px;
+    border-bottom:1px solid var(--line); margin-bottom:6px; display:flex; align-items:center; gap:9px; }
+  .kv-sec-h span { color:var(--fg-3); font-family:var(--font-ui); font-weight:400; font-size:12px; }
+  .kv-field { display:grid; grid-template-columns:260px 1fr; gap:14px; align-items:center; padding:6px 0; }
+  .kv-field > label { font-family:var(--font-mono); font-size:12.5px; color:var(--fg); }
+  .kv-field .ctl { display:flex; align-items:center; gap:11px; }
+  .kv-field input, .kv-field select { height:32px; border:1px solid var(--line-2); border-radius:7px; padding:0 10px;
+    font-family:var(--font-mono); font-size:12.5px; color:var(--fg); min-width:200px; background:var(--surface); }
+  .kv-field input:focus, .kv-field select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .kv-field .hint { font-size:11px; color:var(--fg-faint); font-family:var(--font-mono); }
+  .ro-note { font-size:12px; color:var(--fg-3); margin-bottom:11px; display:flex; align-items:center; gap:7px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>ConfigMap 管理</h1>
+          <p>"组件之间怎么互相使用" 的统一手法：<strong>改各自的 ConfigMap，然后重启</strong>。Milvus 支持<strong>键值配置</strong>（按 key/value 变更）与 <strong>Raw ConfigMap</strong>（看完整 yaml 怎么放进 ConfigMap）两种方式；其它组件仅 Raw 方式。</p>
+        </div>
+        <div class="h-r" id="instChip"></div>
+      </div>
+
+      <div class="grid g-1-2" data-rise>
+        <div class="card" style="align-self:start">
+          <div class="card-head"><h3>选择组件</h3></div>
+          <div class="card-pad cm-list" id="cmList"></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card">
+            <div class="card-head">
+              <h3 id="cmTitle">milvus · ConfigMap</h3>
+              <span class="sub" id="cmMgr">Milvus Operator</span>
+              <div class="right">
+                <div class="seg" id="modeTabs">
+                  <button data-mode="kv" id="tabKv">键值配置</button>
+                  <button data-mode="raw" id="tabRaw">Raw ConfigMap</button>
+                </div>
+                <button class="btn btn-ghost btn-sm" id="resetBtn">还原</button>
+                <button class="btn btn-ghost btn-sm" id="diffBtn">预览 diff</button>
+                <button class="btn btn-primary btn-sm" id="applyBtn">应用并重启</button>
+              </div>
+            </div>
+            <div class="card-pad">
+              <div id="kvPane" class="kvform"></div>
+              <div id="rawPane"></div>
+            </div>
+          </div>
+
+          <div class="card" id="diffCard" hidden>
+            <div class="card-head"><h3>变更预览</h3><span class="sub">apply 前确认</span></div>
+            <div class="card-pad"><div class="diff" id="diffOut"></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  const _inst = new URLSearchParams(location.search).get('inst');
+  Hub.mount({ page:'configmap', crumbs: _inst ? ['Milvus Instances', _inst, 'ConfigMap'] : ['其他','ConfigMap 管理'] });
+  const S=Hub.svg, I=Hub.I;
+  if(_inst) document.getElementById('instChip').innerHTML = `<span class="chip">实例: ${_inst}</span>`;
+  const deep = o => JSON.parse(JSON.stringify(o));
+
+  // milvus = structured key/value model (default editor); others = raw yaml only
+  const KV_MILVUS = [
+    { sec:'mq', label:'消息队列', fields:[
+      { key:'type', val:'woodpecker', opts:['default','pulsar','kafka','woodpecker'] },
+      { key:'mqBufSize', val:'16' } ]},
+    { sec:'woodpecker', label:'Woodpecker WAL', fields:[
+      { key:'meta.type', val:'etcd' },
+      { key:'meta.prefix', val:'woodpecker' },
+      { key:'storage.type', val:'minio', opts:['minio','local'] },
+      { key:'storage.rootPath', val:'default' } ]},
+    { sec:'queryNode', label:'QueryNode', fields:[
+      { key:'mmap.mmapEnabled', val:'false', opts:['false','true'] },
+      { key:'cache.warmup', val:'async', opts:['async','sync','disable'] } ]},
+  ];
+  const CONFIGS = {
+    milvus:     { name:'milvus', mgr:'Milvus Operator', file:'milvus.yaml', kv:deep(KV_MILVUS) },
+    woodpecker: { name:'woodpecker', mgr:'Woodpecker Operator', file:'woodpecker.yaml', yaml:
+`storage:
+  type: minio
+  bucket: a-bucket
+logstore:
+  segmentRollingPolicy:
+    maxSize: 256M
+    maxInterval: 10m
+  segmentSyncPolicy:
+    maxBytes: 256M
+    maxFlushThreads: 32` },
+    etcd:       { name:'etcd-cluster', mgr:'etcd-operator', file:'etcd.conf.yaml', yaml:
+`replicaCount: 3
+autoCompactionMode: revision
+autoCompactionRetention: "1000"
+quota-backend-bytes: 4294967296
+persistence:
+  size: 10Gi` },
+    minio:      { name:'minio-tenant', mgr:'MinIO Operator', file:'minio.yaml', yaml:
+`servers: 4
+volumesPerServer: 4
+storageSize: 500Gi
+mode: distributed
+resources:
+  requests:
+    memory: 4Gi` },
+  };
+  CONFIGS.milvus._base = deep(KV_MILVUS);   // applied baseline for kv diff
+
+  // ---- yaml gen ----
+  function emit(node,d,out){ const pad='  '.repeat(d); for(const k in node){ if(node[k].__v!==undefined) out.push(pad+k+': '+node[k].__v); else { out.push(pad+k+':'); emit(node[k],d+1,out); } } }
+  function kvToYaml(kv){
+    const out=[];
+    kv.forEach((sec,si)=>{ out.push(sec.sec+':'); const tree={};
+      sec.fields.forEach(f=>{ const parts=f.key.split('.'); let node=tree; parts.forEach((p,i)=>{ if(i===parts.length-1) node[p]={__v:f.val}; else node=node[p]=node[p]||{}; }); });
+      emit(tree,1,out); if(si<kv.length-1) out.push(''); });
+    return out.join('\n');
+  }
+  function embeddedYaml(id){ return id==='milvus' ? kvToYaml(CONFIGS.milvus.kv) : CONFIGS[id].yaml; }
+  function manifestText(id){
+    const c=CONFIGS[id], nm=(id==='milvus' && _inst)? _inst : c.name;
+    const body=embeddedYaml(id).split('\n').map(l=> l.length?('    '+l):'').join('\n');
+    return `apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: ${nm}\n  namespace: milvus\ndata:\n  ${c.file}: |\n${body}`;
+  }
+  function hl(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/^(\s*)([\w.-]+)(:)(.*)$/gm,(m,sp,k,c,v)=>`${sp}<span class="${['apiVersion','kind','metadata','data','name','namespace'].includes(k)?'meta':'k'}">${k}</span>${c}<span class="v">${v}</span>`); }
+
+  // ---- state ----
+  let cur='milvus', mode='kv';
+
+  document.getElementById('cmList').innerHTML = ['milvus','woodpecker','etcd','minio'].map((id,i)=>{
+    const lg=Hub.byId(id); return `<a data-id="${id}" class="${i===0?'on':''}">${lg?lg.logo:'⚙️'} <span>${id}</span>
+      <span class="muted mono" style="margin-left:auto;font-size:10.5px">${CONFIGS[id].mgr.split(' ')[0]}</span></a>`;
+  }).join('');
+  document.querySelectorAll('#cmList a').forEach(a=> a.onclick=()=>load(a.dataset.id));
+
+  function renderKv(){
+    if(cur!=='milvus'){ document.getElementById('kvPane').innerHTML=''; return; }
+    document.getElementById('kvPane').innerHTML = CONFIGS.milvus.kv.map((sec,si)=>`
+      <div class="kv-sec">
+        <div class="kv-sec-h">${sec.sec} <span>${sec.label}</span></div>
+        ${sec.fields.map((f,fi)=>`<div class="kv-field"><label>${sec.sec}.${f.key}</label>
+          <div class="ctl">${ f.opts
+            ? `<select data-si="${si}" data-fi="${fi}">${f.opts.map(o=>`<option ${o===f.val?'selected':''}>${o}</option>`).join('')}</select><span class="hint">${f.opts.join(' | ')}</span>`
+            : `<input data-si="${si}" data-fi="${fi}" value="${f.val}">` }</div></div>`).join('')}
+      </div>`).join('');
+  }
+  function readKv(){ document.querySelectorAll('#kvPane [data-si]').forEach(el=>{ CONFIGS.milvus.kv[+el.dataset.si].fields[+el.dataset.fi].val=el.value; }); }
+
+  function renderRaw(){
+    const pane=document.getElementById('rawPane');
+    if(cur==='milvus'){ readKv();
+      pane.innerHTML = `<div class="ro-note">${S(I.info,15)} Milvus 推荐用「键值配置」编辑；此处为完整 ConfigMap 只读预览（看 yaml 如何放进 data 字段）。</div>
+        <pre class="ro-pre">${hl(manifestText('milvus'))}</pre>`;
+    } else {
+      pane.innerHTML = `<textarea class="cm-edit" id="rawArea" spellcheck="false">${CONFIGS[cur]._base}</textarea>`;
+    }
+  }
+
+  function refreshControls(){
+    const isMv=cur==='milvus', roPreview=isMv && mode==='raw';
+    document.getElementById('tabKv').hidden = !isMv;        // 非 milvus 只有 Raw
+    document.getElementById('modeTabs').style.display = isMv ? '' : 'none';
+    document.querySelectorAll('#modeTabs button').forEach(b=> b.classList.toggle('on', b.dataset.mode===mode));
+    document.getElementById('kvPane').style.display = (mode==='kv') ? '' : 'none';
+    document.getElementById('rawPane').style.display = (mode==='raw') ? '' : 'none';
+    // editable controls hidden only for milvus read-only raw preview
+    ['resetBtn','diffBtn','applyBtn'].forEach(id=> document.getElementById(id).style.display = roPreview ? 'none' : '');
+  }
+
+  function load(id){
+    cur=id; mode = (id==='milvus') ? 'kv' : 'raw';
+    if(id==='milvus' && !CONFIGS.milvus._base) CONFIGS.milvus._base=deep(CONFIGS.milvus.kv);
+    if(id!=='milvus' && !CONFIGS[id]._base) CONFIGS[id]._base=manifestText(id);
+    document.querySelectorAll('#cmList a').forEach(a=>a.classList.toggle('on',a.dataset.id===id));
+    document.getElementById('cmTitle').textContent = (id==='milvus' && _inst ? _inst : CONFIGS[id].name)+' · ConfigMap';
+    document.getElementById('cmMgr').textContent = CONFIGS[id].mgr;
+    renderKv(); renderRaw(); refreshControls();
+    document.getElementById('diffCard').hidden=true;
+  }
+
+  // tab switch
+  document.querySelectorAll('#modeTabs button').forEach(b=> b.onclick=()=>{
+    if(b.hidden) return;
+    if(cur==='milvus' && mode==='kv') readKv();   // carry kv edits into raw preview
+    mode=b.dataset.mode; renderRaw(); refreshControls(); document.getElementById('diffCard').hidden=true;
+  });
+
+  // diff
+  function lineDiff(a,b){ const A=a.split('\n'),B=b.split('\n'),o=[],m=Math.max(A.length,B.length);
+    for(let i=0;i<m;i++){ const x=A[i],y=B[i]; if(x===y){ if(x!==undefined)o.push(['ctx',' ',x]); } else { if(x!==undefined)o.push(['del','-',x]); if(y!==undefined)o.push(['add','+',y]); } } return o; }
+  function baseText(){ return cur==='milvus' ? kvToYaml(CONFIGS.milvus._base) : CONFIGS[cur]._base; }
+  function currentText(){ if(cur==='milvus'){ readKv(); return kvToYaml(CONFIGS.milvus.kv); } const ta=document.getElementById('rawArea'); return ta?ta.value:CONFIGS[cur]._base; }
+  function renderDiff(){
+    const base=baseText(), now=currentText();
+    if(base===now){ Hub.toast('没有变更','当前内容与已应用配置一致','info'); document.getElementById('diffCard').hidden=true; return false; }
+    document.getElementById('diffOut').innerHTML = lineDiff(base,now).map(([c,g,t])=>`<div class="ln ${c}"><span class="gut">${g} </span>${t.replace(/</g,'&lt;')||' '}</div>`).join('');
+    document.getElementById('diffCard').hidden=false; return true;
+  }
+  document.getElementById('diffBtn').onclick=renderDiff;
+  document.getElementById('resetBtn').onclick=()=>{
+    if(cur==='milvus'){ CONFIGS.milvus.kv=deep(CONFIGS.milvus._base); }
+    load(cur); Hub.toast('已还原','恢复为已应用的 ConfigMap','info');
+  };
+  document.getElementById('applyBtn').onclick=()=>{
+    if(!renderDiff()) return;
+    Hub.modal({ title:'应用 ConfigMap 并重启', icon:'warn', confirmText:'应用并滚动重启',
+      msg:`将更新 ${cur==='milvus'&&_inst?_inst:CONFIGS[cur].name} 的 ConfigMap 并重启其工作负载以生效。`,
+      body:`<div style="font-size:13px;color:var(--fg-2);margin:4px 0 8px">重启策略：</div>
+        <label style="display:flex;gap:9px;align-items:center;padding:8px 0;font-size:13px"><input type="radio" name="rs" checked> 滚动重启（推荐，零中断）</label>
+        <label style="display:flex;gap:9px;align-items:center;padding:8px 0;font-size:13px"><input type="radio" name="rs"> 重建 Pod（配置涉及启动参数）</label>`,
+      onConfirm(){
+        if(cur==='milvus'){ readKv(); CONFIGS.milvus._base=deep(CONFIGS.milvus.kv); }
+        else { const ta=document.getElementById('rawArea'); if(ta) CONFIGS[cur]._base=ta.value; }
+        Hub.toast('ConfigMap 已更新','触发滚动重启…','ok');
+        setTimeout(()=>Hub.toast(cur+' 重启完成','新配置已生效','ok'),1600);
+        document.getElementById('diffCard').hidden=true;
+      }});
+  };
+
+  load('milvus');
+</script>
+</body>
+</html>
