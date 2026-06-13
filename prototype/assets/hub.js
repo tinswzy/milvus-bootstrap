@@ -111,6 +111,7 @@ const Hub = (function () {
     { id:'plan-1',       label:'方案一 · 扩展 helm/operator（过渡）', icon:I.sliders, href:'plan-1.html' },
     { id:'plan-2',       label:'方案二 · 维持现状 · k8s hack',        icon:I.swap,   href:'plan-2.html' },
     { id:'plan-3',       label:'方案三 · WebUI（终态）',              icon:I.cube,   href:'plan-3.html' },
+    { id:'summary',      label:'讨论小结 · 实施计划',                  icon:I.check,  href:'summary.html' },
   ];
 
   /* ---------- shell render ---------- */

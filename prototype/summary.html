@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方案讨论小结 · Milvus Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  /* layer insight diagram */
+  .lyr-row{ display:flex; align-items:stretch; gap:0; flex-wrap:wrap; margin-top:10px; }
+  .lyr-box{ flex:1 1 180px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); padding:16px 14px; text-align:center; position:relative; box-shadow:var(--shadow-sm); }
+  .lyr-box .ic{ font-size:23px; line-height:1; }
+  .lyr-box .nm{ font-weight:650; font-size:13.5px; margin-top:8px; }
+  .lyr-box .ds{ font-size:11px; color:var(--fg-3); margin-top:5px; font-family:var(--font-mono); line-height:1.5; }
+  .lyr-box.core{ border:1.5px solid var(--accent); background:linear-gradient(180deg,#fff,var(--accent-soft)); box-shadow:0 9px 24px rgba(8,180,200,.16); }
+  .lyr-box.core .nm{ font-weight:700; }
+  .lyr-tag{ position:absolute; top:-10px; left:50%; transform:translateX(-50%); font-family:var(--font-mono); font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; white-space:nowrap; }
+  .lyr-tag.a{ background:var(--accent); color:#fff; box-shadow:0 3px 8px rgba(8,180,200,.35); }
+  .lyr-tag.b{ background:var(--surface-3); color:var(--fg-2); border:1px solid var(--line-2); }
+  .lyr-arr{ flex:none; width:52px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--accent); font-size:17px; font-weight:700; }
+  .lyr-arr span{ font-family:var(--font-mono); font-size:9px; color:var(--fg-faint); margin-top:3px; }
+  @media(max-width:760px){ .lyr-row{ flex-direction:column; } .lyr-arr{ width:auto; height:30px; transform:rotate(90deg); } }
+  /* priority pills */
+  .pr{ font-family:var(--font-mono); font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+  .pr0{ background:var(--accent-soft); color:var(--accent-ink); }
+  .pr1{ background:var(--ok-soft); color:#0c6b46; }
+  .pr2{ background:var(--idle-soft); color:#5a657f; }
+  .tbl td .cmd{ font-family:var(--font-mono); font-size:12px; color:var(--accent-ink); background:var(--surface-3); border:1px solid var(--line); border-radius:5px; padding:1px 7px; font-weight:600; }
+  .star{ color:var(--warn); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>方案讨论小结 · 结论与实施计划</h1>
+          <p>三方案讨论的结论：<strong>做方案三（WebUI 终态）</strong>。但节奏上拆成两步走 —— <strong>先做 Python CLI 内核，再接 WebUI 壳</strong>。下面是结论依据与按任务拆细的实施计划。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="plan-compare.html">看方案对比 →</a></div>
+      </div>
+
+      <div class="callout co-ok" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i1"></span>
+        <div><b>结论：做方案三 —— 无状态 WebUI，各组件交还自己的官方 operator，装/连分离。</b>方案二（k8s hack）当下止血、方案一（改 helm/operator）作过渡，但终态是方案三：把"安装/切换/改配置"收进一个有护栏的控制台，顺带解决文档爆炸的运维痛点。</div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>怎么拆 · 一个关键洞察</h3><span class="sub">WebUI 的核心操作，背后全是调 Python 脚本完成的</span></div>
+        <div class="card-pad">
+          <p style="margin:0;font-size:13px;color:var(--fg-2);line-height:1.7">WebUI 上点的每一个动作（装组件 / 切 MQ / 改配置 / 升级），<b>真正干活的是背后那层 Python 脚本</b> —— 它去调 k8s 与各组件的官方 operator。WebUI 只是把这些脚本"包成页面和向导"。所以工作要<b>先做中间这层、最后补最上面的壳</b>：</p>
+          <div class="lyr-row">
+            <div class="lyr-box">
+              <span class="lyr-tag b">② 后接</span>
+              <div class="ic">🖥️</div><div class="nm">WebUI · 点点点的壳</div>
+              <div class="ds">把每个命令<br>变成页面 / 向导</div>
+            </div>
+            <div class="lyr-arr">→<span>REST / WS</span></div>
+            <div class="lyr-box core">
+              <span class="lyr-tag a">① 先做</span>
+              <div class="ic">⚙️</div><div class="nm">milvus-bootstrap CLI · Python 内核</div>
+              <div class="ds">真正干活：装 / 切 / 配 / 升 / 删<br>本身就能独立交付、可用</div>
+            </div>
+            <div class="lyr-arr">→<span>k8s API</span></div>
+            <div class="lyr-box">
+              <div class="ic">☸️</div><div class="nm">k8s · 各组件官方 operator</div>
+              <div class="ds">etcd / minio / strimzi<br>pulsar / milvus …</div>
+            </div>
+          </div>
+          <div class="why" style="margin-top:14px"><div><b>好处：</b>CLI 先做完就<b>已经能用</b>（命令行先解决问题）；WebUI 阶段只是"给每个命令套个界面 + 进度可视化 + 把护栏前移"，工作量小得多、风险也低。</div></div>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>实施计划 · 两步走</h3><span class="sub">CLI 从 MVP → 扩展 → 运维 → 纳管，最后接 WebUI</span></div>
+        <div class="card-pad">
+          <div class="timeline">
+            <div class="ev"><div class="t">M1 · MVP：装一套能跑的 milvus</div><div class="m">独立装 <b>etcd + minio + woodpecker service</b>，再装 <b>milvus 以 external 直连</b>这三者。<span class="muted">端到端先跑通一套（woodpecker 最简、免额外 MQ）。</span></div></div>
+            <div class="ev"><div class="t">M2 · 扩展 MQ 组件</div><div class="m">补上 <b>pulsar / kafka</b> 的独立安装（同样 external 直连）。<span class="muted">五种依赖都能独立装、milvus 任选其一连。</span></div></div>
+            <div class="ev"><div class="t">M3 · 升级 + 配置管理</div><div class="m">各服务独立<b>升级</b> + <b>ConfigMap</b> 读/改/重启。<span class="muted">至此 <span class="star">switch-mq ★</span> 自然打通（装新 MQ → 切 config/wal-alter → 下线旧）。</span></div></div>
+            <div class="ev"><div class="t">M4 · 纳管存量</div><div class="m">把已有的、旧 <b>milvus-operator / milvus-helm</b> 装的实例接管进 CLI 统一管理。<span class="muted">老用户平滑过渡、不用重装。</span></div></div>
+            <div class="ev"><div class="t">M5 · 接 WebUI</div><div class="m"><b>后端 API + 前端</b>：把每个已做好的命令包成页面 / 向导（即这套原型的形态）。</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>阶段一 · milvus-bootstrap CLI（Python）</h3><span class="sub">按里程碑顺序拆 —— 命令行本身即可交付</span></div>
+        <table class="tbl">
+          <thead><tr><th style="white-space:nowrap">顺序</th><th>里程碑</th><th>包含的能力</th><th>产出</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="pr pr0">① MVP</span></td>
+              <td><b>装一套能跑的 milvus</b></td>
+              <td>独立安装 <b>etcd / minio / woodpecker service</b>；装 <b>milvus 并以 external 方式直连</b>这三者（装/连天然分离）；含脚手架（连 kubeconfig、下发&amp;读 CR、查状态）</td>
+              <td class="muted">端到端跑通一套（woodpecker 最简、免额外 MQ）</td>
+            </tr>
+            <tr>
+              <td><span class="pr pr1">② 扩展</span></td>
+              <td><b>补齐 MQ 组件</b></td>
+              <td>加上 <b>pulsar / kafka</b> 的独立安装（同样 external 直连）</td>
+              <td class="muted">五种依赖都可独立装、milvus 任选其一连；switch 的"装新 MQ"就绪</td>
+            </tr>
+            <tr>
+              <td><span class="pr pr1">③ 运维</span></td>
+              <td><b>升级 + 配置管理</b></td>
+              <td>各服务（etcd/minio/wp/pulsar/kafka/milvus）独立<b>升级</b>；<b>ConfigMap</b> get / diff / 改 / 重启</td>
+              <td class="muted"><span class="star">switch-mq ★</span> 在此自然打通（装新 → 切 config/wal-alter → 下线旧）</td>
+            </tr>
+            <tr>
+              <td><span class="pr pr2">④ 纳管</span></td>
+              <td><b>接管存量实例</b></td>
+              <td>把已有的、旧 <b>milvus-operator / milvus-helm</b> 装的实例读进来、映射到 CLI 模型，统一管理（升级 / 配置 / 切换）</td>
+              <td class="muted">老用户平滑过渡，不用重装</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-size:11.5px;padding:12px 20px;border-top:1px solid var(--line);color:var(--fg-3)">横切（贯穿全程）：操作审计 · <code class="c2">--dry-run</code> 预演 · 失败回滚 · 配置蓝图 · Attu / Birdwatcher / Log Export 等工具。</div>
+      </div>
+
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>阶段二 · WebUI（在 CLI 之上接界面）</h3><span class="sub">每个页面背后就是一个已做好的 CLI 命令</span></div>
+        <table class="tbl">
+          <thead><tr><th>模块 / 页面</th><th>做什么（对接的 CLI 能力）</th><th style="white-space:nowrap">优先级</th></tr></thead>
+          <tbody>
+            <tr><td>后端 API（FastAPI）</td><td>把 CLI 内核封装成 REST；多步任务编排状态机；WebSocket 进度流</td><td><span class="pr pr0">P0</span></td></tr>
+            <tr><td>前端脚手架</td><td>Vue/React 单页 + 复用这套设计系统（侧栏 / 卡片 / 向导）—— 即本原型</td><td><span class="pr pr0">P0</span></td></tr>
+            <tr><td>总览 · 拓扑页</td><td>接 <span class="cmd">status</span> —— Milvus Instances 实例拓扑 + 健康</td><td><span class="pr pr1">P1</span></td></tr>
+            <tr><td>依赖管理页</td><td>接 <span class="cmd">deps</span> —— Dependencies 分组 / 创建 / 升级 / 解绑</td><td><span class="pr pr1">P1</span></td></tr>
+            <tr><td>安装向导</td><td>接 <span class="cmd">install</span> —— 搭积木选组件 + 依赖规则高亮</td><td><span class="pr pr1">P1</span></td></tr>
+            <tr><td>切换 MQ 向导 <span class="star">★</span></td><td>接 <span class="cmd">switch-mq</span> —— 把三步护栏做成界面强制确认 + 进度回显</td><td><span class="pr pr1">P1</span></td></tr>
+            <tr><td>ConfigMap 编辑器</td><td>接 <span class="cmd">config</span> —— diff 预览 + 一键重启</td><td><span class="pr pr2">P2</span></td></tr>
+            <tr><td>升级页</td><td>接 <span class="cmd">upgrade</span> —— 版本对比 + 一键升</td><td><span class="pr pr2">P2</span></td></tr>
+            <tr><td>工具箱 + 审计 + 权限</td><td>接 <span class="cmd">tools</span> + 操作日志 + RBAC / 企业 SSO</td><td><span class="pr pr2">P2</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-top:18px">
+        <span class="ic" id="i2"></span>
+        <div><b>两点说明：</b>① MVP 先用 <b>woodpecker</b> 把端到端跑通（etcd+minio+wp+milvus external），是最短可用路径；<b>switch-mq</b> 在 ②③（pulsar/kafka 安装 + 配置管理）就绪后<b>自然打通</b>，是阶段一的核心收益。② 阶段二是<b>薄壳</b>：每个页面 ≈ 给一个已做好的命令套界面 + 进度可视化 + 护栏前移，比阶段一轻不少。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'summary', crumbs:['方案讨论','讨论小结 · 实施计划'] });
+  document.getElementById('i1').innerHTML = Hub.svg(Hub.I.check,18);
+  document.getElementById('i2').innerHTML = Hub.svg(Hub.I.info,18);
+</script>
+</body>
+</html>
