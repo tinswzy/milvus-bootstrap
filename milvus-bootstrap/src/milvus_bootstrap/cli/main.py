@@ -78,11 +78,19 @@ def install(
     name: str = typer.Option(..., "--name", "-n", help="实例名"),
     method: str | None = typer.Option(None, "--method", help="安装方式 id；默认用 profile 默认"),
     namespace: str = typer.Option("default", "--namespace", "-N"),
+    set_: list[str] = typer.Option(None, "--set", help="覆盖安装参数 key=val（可重复）"),
+    chart: str | None = typer.Option(None, "--chart", help="覆盖 chart 源（如本地 .tgz 路径）"),
     dry_run: bool = typer.Option(True, "--dry-run/--apply", help="默认 dry-run 仅出计划；--apply 真正执行"),
 ) -> None:
     """安装一个组件（默认 dry-run 预演）。"""
-    body = {"kind": kind, "name": name, "method": method, "namespace": namespace, "dry_run": dry_run}
-    _print_task(client.request("POST", "/install", json=body))
+    params: dict[str, str] = {}
+    for item in set_ or []:
+        if "=" in item:
+            k, v = item.split("=", 1)
+            params[k] = v
+    body = {"kind": kind, "name": name, "method": method, "namespace": namespace,
+            "params": params, "chart_override": chart, "dry_run": dry_run}
+    _print_task(client.request("POST", "/install", json=body, timeout=600))
 
 
 def _print_task(task: dict) -> None:

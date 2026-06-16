@@ -1,0 +1,44 @@
+# Woodpecker — official path is the Woodpecker Operator. See phase1-plan.html.
+kind: woodpecker
+state_class: cache_backed            # PVC 仅缓存，真相在 etcd + 对象存储 → 可删重建
+
+detect:
+  image_match: ["woodpecker"]
+  ports: [18080]
+  crd: WoodpeckerCluster
+
+install_methods:
+  - id: woodpecker-operator          # default: 官方方式（自带 decommission/rolling/PDB）
+    platform: k8s
+    default: true
+    kind: operator-cr
+    cr: { group: woodpecker.zilliz.io, version: v1alpha1, plural: woodpeckerclusters, kind: WoodpeckerCluster }
+    ready: { status_path: status.phase, status_equals: Running }
+    params:
+      replicas: 3
+      image: zilliztech/woodpecker:v0.1.26
+      storageSize: 10Gi
+      servicePort: 18080
+      gossipPort: 17946
+      metricsPort: 9091
+  - id: helm-sts                      # 回退：milvus-helm 手写 StatefulSet
+    platform: k8s
+    kind: helm
+    chart: milvus/milvus
+  - id: docker-compose
+    platform: docker
+    kind: compose
+  - id: external
+    platform: k8s
+    kind: external
+
+health:
+  workload_ready: "WoodpeckerCluster.status.phase == Running"
+  cluster_check: "/healthz (metrics port)"
+
+scale_rules:
+  step: one-at-a-time
+  scale_down: "先 decommission flush 到对象存储（operator 自动）"
+
+connect:
+  milvus_values: "streaming.woodpecker / external"

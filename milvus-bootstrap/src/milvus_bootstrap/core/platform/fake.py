@@ -31,6 +31,18 @@ _FAKE_CLUSTER: list[dict[str, Any]] = [
         "ports": [2379, 2380],
         "labels": {"component": "etcd", "tier": "control-plane"},
     },
+    {
+        "platform": "k8s",
+        "name": "milvus-minio",
+        "namespace": "default",
+        "image": "minio/minio:RELEASE.2024-12-18T13-15-44Z",
+        "ports": [9000],
+        "labels": {
+            "app.kubernetes.io/managed-by": "Helm",
+            "helm.sh/chart": "minio-8.0.17",
+            "app.kubernetes.io/instance": "milvus",
+        },
+    },
 ]
 
 
@@ -43,11 +55,11 @@ class FakeAdapter(PlatformAdapter):
     def discover_native(self) -> list[dict[str, Any]]:
         return [dict(w) for w in _FAKE_CLUSTER]
 
-    def plan_apply(self, *, kind, name, namespace, method, chart, params):
+    def plan_apply(self, *, kind, name, namespace, method, method_kind, chart, params):
         where = chart or method
-        return f"[fake] 经 {method} 安装 {kind}/{name} 到 ns={namespace}（{where}, params={params}）"
+        return f"[fake] 经 {method}（{method_kind}）安装 {kind}/{name} 到 ns={namespace}（{where}, params={params}）"
 
-    def apply_workload(self, *, kind, name, namespace, method, chart, params):
+    def apply_workload(self, *, kind, name, namespace, method, method_kind, chart, params):
         self.applied.append({"kind": kind, "name": name, "namespace": namespace, "method": method})
         return f"[fake] applied {kind}/{name} via {method}"
 
@@ -56,3 +68,17 @@ class FakeAdapter(PlatformAdapter):
 
     def delete_workload(self, *, kind, name, namespace):
         return f"[fake] deleted {kind}/{name}"
+
+    def crd_exists(self, *, group, plural):
+        return True  # pretend the operator is installed
+
+    def apply_objects(self, *, manifests):
+        self.applied.extend(manifests)
+        names = ", ".join(f"{m['kind']}/{m['metadata']['name']}" for m in manifests)
+        return f"[fake] applied {names}"
+
+    def wait_cr(self, *, group, version, plural, namespace, name, status_path, status_equals):
+        return f"[fake] {name}.{status_path}={status_equals}"
+
+    def delete_cr(self, *, group, version, plural, namespace, name):
+        return f"[fake] deleted {plural}/{name}"

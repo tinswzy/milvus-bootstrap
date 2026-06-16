@@ -1,0 +1,41 @@
+# MinIO — official path is the MinIO Operator (Tenant CRD). See phase1-plan.html.
+kind: minio
+state_class: authoritative          # 对象数据在盘上，就是真相
+
+detect:
+  image_match: ["minio"]
+  ports: [9000]
+
+install_methods:
+  - id: minio-operator              # default: 官方方式
+    platform: k8s
+    default: true
+    kind: operator-cr
+    cr: { group: minio.min.io, version: v2, plural: tenants, kind: Tenant }
+    ready: { status_path: status.currentState, status_equals: Initialized }
+    params:
+      servers: 4
+      volumesPerServer: 1
+      volumeSize: 500Gi
+      image: quay.io/minio/minio:latest
+  - id: helm-subchart               # 回退：社区 minio helm chart（distributed）
+    platform: k8s
+    kind: helm
+    chart: minio/minio
+  - id: docker-compose
+    platform: docker
+    kind: compose
+  - id: external                    # 外部 S3 / OSS
+    platform: k8s
+    kind: external
+
+health:
+  workload_ready: "tenant.status.currentState == Initialized"
+  cluster_check: "/minio/health/cluster (write quorum)"
+
+scale_rules:
+  step: add-pool
+  scale_down: "不可原地缩；mc admin decommission 迁移后移除 pool"
+
+connect:
+  milvus_values: "externalS3.*"

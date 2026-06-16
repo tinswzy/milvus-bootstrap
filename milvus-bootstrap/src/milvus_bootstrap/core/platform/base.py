@@ -18,13 +18,17 @@ class PlatformAdapter(ABC):
         """Return raw evidence dicts for every candidate workload on this target."""
 
     @abstractmethod
-    def plan_apply(self, *, kind: str, name: str, namespace: str,
-                   method: str, chart: str | None, params: dict[str, Any]) -> str:
-        """Human-readable description of what apply_workload *would* do (dry-run)."""
+    def plan_apply(self, *, kind: str, name: str, namespace: str, method: str,
+                   method_kind: str, chart: str | None, params: dict[str, Any]) -> str:
+        """Human-readable description of what apply_workload *would* do (dry-run).
+
+        ``method_kind`` is how the install is realised on this platform:
+        helm | operator-cr | manifest | compose | external.
+        """
 
     @abstractmethod
-    def apply_workload(self, *, kind: str, name: str, namespace: str,
-                       method: str, chart: str | None, params: dict[str, Any]) -> str:
+    def apply_workload(self, *, kind: str, name: str, namespace: str, method: str,
+                       method_kind: str, chart: str | None, params: dict[str, Any]) -> str:
         """Actually create/update the workload. Returns a short detail string."""
 
     @abstractmethod
@@ -33,3 +37,21 @@ class PlatformAdapter(ABC):
 
     @abstractmethod
     def delete_workload(self, *, kind: str, name: str, namespace: str) -> str: ...
+
+    # ---- operator-cr install mechanism (minio Tenant, woodpecker WoodpeckerCluster, ...) ----
+    @abstractmethod
+    def crd_exists(self, *, group: str, plural: str) -> bool:
+        """Is the CRD registered? (i.e. is the operator installed)"""
+
+    @abstractmethod
+    def apply_objects(self, *, manifests: list[dict[str, Any]]) -> str:
+        """Create/patch arbitrary objects (a config Secret + a CR, etc.)."""
+
+    @abstractmethod
+    def wait_cr(self, *, group: str, version: str, plural: str, namespace: str,
+                name: str, status_path: str, status_equals: str) -> str:
+        """Poll a CR until status_path == status_equals."""
+
+    @abstractmethod
+    def delete_cr(self, *, group: str, version: str, plural: str,
+                  namespace: str, name: str) -> str: ...

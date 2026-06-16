@@ -57,6 +57,7 @@ class InstallReq(BaseModel):
     method: str | None = None
     namespace: str = "default"
     params: dict[str, Any] = {}
+    chart_override: str | None = None
     dry_run: bool = True
 
 
@@ -65,5 +66,6 @@ def install(req: InstallReq) -> dict[str, Any]:
     spec = InstallSpec(
         kind=req.kind, name=req.name, platform=req.platform,
         method=req.method, namespace=req.namespace, params=req.params,
+        chart_override=req.chart_override,
     )
     return _core().install(spec, dry_run=req.dry_run).model_dump()

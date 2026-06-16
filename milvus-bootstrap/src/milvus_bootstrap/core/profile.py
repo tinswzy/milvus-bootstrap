@@ -24,12 +24,28 @@ class DetectRules(BaseModel):
     exclude_labels: dict[str, str] = Field(default_factory=dict)  # hard guardrail
 
 
+class CRInfo(BaseModel):
+    """Custom Resource coordinates for an operator-cr install method."""
+    group: str                                   # e.g. minio.min.io
+    version: str                                 # e.g. v2
+    plural: str                                  # e.g. tenants
+    kind: str                                    # e.g. Tenant
+
+
+class ReadyInfo(BaseModel):
+    """How to know an operator-managed CR is ready (status field == value)."""
+    status_path: str                             # e.g. status.currentState
+    status_equals: str                           # e.g. Initialized
+
+
 class InstallMethod(BaseModel):
     id: str                                      # bitnami-helm / minio-operator / ...
     platform: Platform = Platform.k8s
     default: bool = False
     kind: str = "helm"                           # helm | operator-cr | compose | external
     chart: str | None = None
+    cr: CRInfo | None = None                     # for kind == operator-cr
+    ready: ReadyInfo | None = None               # for kind == operator-cr
     params: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -21,9 +21,9 @@ class DaemonClient:
     def __init__(self) -> None:
         self.sock = paths.sock_path()
 
-    def _client(self) -> httpx.Client:
+    def _client(self, timeout: float = 60) -> httpx.Client:
         transport = httpx.HTTPTransport(uds=str(self.sock))
-        return httpx.Client(transport=transport, base_url="http://daemon", timeout=60)
+        return httpx.Client(transport=transport, base_url="http://daemon", timeout=timeout)
 
     def ping(self) -> bool:
         if not self.sock.exists():
@@ -72,9 +72,10 @@ class DaemonClient:
         pid = paths.pid_path().read_text().strip() if paths.pid_path().exists() else None
         return {"running": self.ping(), "sock": str(self.sock), "pid": pid}
 
-    def request(self, method: str, path: str, json: dict | None = None) -> Any:
+    def request(self, method: str, path: str, json: dict | None = None,
+                timeout: float = 60) -> Any:
         self.ensure_running()
-        with self._client() as c:
+        with self._client(timeout) as c:
             resp = c.request(method, path, json=json)
             resp.raise_for_status()
             return resp.json()

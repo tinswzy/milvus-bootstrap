@@ -51,6 +51,7 @@ class InstallSpec(BaseModel):
     method: str | None = None        # which install_method id; None -> profile default
     namespace: str = "default"
     params: dict[str, Any] = Field(default_factory=dict)
+    chart_override: str | None = None  # override the profile's chart (e.g. a local .tgz)
 
 
 class StepStatus(str, Enum):
