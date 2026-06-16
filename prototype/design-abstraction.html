@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分层抽象 · 组件驱动 × 平台适配 · Milvus Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  /* axis grid */
+  .axis{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+  @media(max-width:880px){ .axis{ grid-template-columns:1fr; } }
+  .mxn{ border:1px solid var(--line-2); border-radius:12px; padding:14px; background:var(--surface); }
+  .mxn.bad{ border-color:var(--err-soft); background:linear-gradient(180deg,#fff,var(--err-soft)); }
+  .mxn.good{ border-color:var(--accent); background:linear-gradient(180deg,#fff,var(--accent-soft)); grid-column:span 2; }
+  @media(max-width:880px){ .mxn.good{ grid-column:span 1; } }
+  .mxn .h{ font-weight:700; font-size:13px; display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .mxn .h .b{ font-family:var(--font-mono); font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; }
+  .mxn.bad .h .b{ background:var(--err-soft); color:#b42318; } .mxn.good .h .b{ background:var(--accent-soft); color:var(--accent-ink); }
+  .grid-tbl{ width:100%; border-collapse:collapse; }
+  .grid-tbl td,.grid-tbl th{ border:1px solid var(--line); padding:5px 4px; text-align:center; font-family:var(--font-mono); font-size:10px; }
+  .grid-tbl th{ background:var(--surface-3); color:var(--fg-2); font-weight:700; }
+  .grid-tbl td{ color:var(--fg-faint); }
+  .grid-tbl .rh{ background:var(--surface-3); color:var(--fg-2); font-weight:700; text-align:left; padding-left:7px; }
+  .mxn.good .two{ display:flex; gap:12px; align-items:stretch; }
+  .axcol{ flex:1; border:1px solid var(--line-2); border-radius:9px; background:var(--surface); padding:11px; }
+  .axcol .t{ font-family:var(--font-mono); font-size:11px; font-weight:700; color:var(--accent-ink); }
+  .axcol .l{ list-style:none; margin:7px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; }
+  .axcol .l li{ font-size:11px; color:var(--fg-2); padding-left:13px; position:relative; line-height:1.5; }
+  .axcol .l li::before{ content:''; position:absolute; left:2px; top:6px; width:5px; height:5px; border-radius:1px; background:var(--accent); }
+  .plus{ display:flex; align-items:center; font-size:20px; font-weight:800; color:var(--accent); }
+  .mxn.good .eq{ margin-top:11px; text-align:center; font-size:12px; font-weight:700; color:var(--accent-ink); background:var(--surface); border:1px dashed var(--accent); border-radius:8px; padding:8px; }
+  /* composition flow */
+  .comp{ border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,var(--surface),var(--surface-3)); padding:16px; }
+  .crow{ border:1.4px solid var(--line-2); border-radius:11px; background:var(--surface); padding:11px 14px; box-shadow:var(--shadow-sm); }
+  .crow .cl{ font-family:var(--font-mono); font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--fg-faint); }
+  .crow .cm{ font-size:12.5px; color:var(--fg-2); margin-top:5px; line-height:1.55; } .crow .cm b{ color:var(--fg-1); }
+  .crow.driver{ border:1.5px solid var(--accent); background:linear-gradient(180deg,#fff,var(--accent-soft)); }
+  .crow.adapter{ border:1.5px solid var(--indigo); background:linear-gradient(180deg,#fff,rgba(99,102,241,.07)); }
+  .cconn{ text-align:center; color:var(--accent); font-weight:700; font-size:14px; padding:5px 0; }
+  .cconn small{ font-family:var(--font-mono); font-size:9.5px; color:var(--fg-faint); font-weight:500; }
+  .tag-poly{ font-family:var(--font-mono); font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:20px; margin-left:8px; }
+  .tp-comp{ background:var(--accent-soft); color:var(--accent-ink); } .tp-plat{ background:rgba(99,102,241,.14); color:var(--indigo); } .tp-gen{ background:var(--idle-soft); color:#5a657f; }
+  /* tables */
+  .tbl td code,.tbl td .c2{ font-family:var(--font-mono); font-size:11px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:0 4px; color:var(--accent-ink); }
+  .tbl td .sig{ font-family:var(--font-mono); font-size:10.5px; color:var(--fg-3); display:block; margin-top:2px; line-height:1.5; }
+  .pill{ font-family:var(--font-mono); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; }
+  .p-gen{ background:var(--idle-soft); color:#5a657f; } .p-ovr{ background:var(--warn-soft); color:#92510a; }
+  /* layer stack */
+  .stack{ display:flex; flex-direction:column; gap:7px; }
+  .lyr{ border:1.3px solid var(--line-2); border-radius:10px; background:var(--surface); padding:10px 14px; display:flex; align-items:center; gap:13px; box-shadow:var(--shadow-sm); }
+  .lyr .lx{ font-family:var(--font-mono); font-size:11px; font-weight:700; color:#fff; background:var(--fg-2); width:30px; height:24px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+  .lyr .lb{ flex:1; } .lyr .ln{ font-weight:700; font-size:13px; } .lyr .ld{ font-size:11.5px; color:var(--fg-3); margin-top:2px; line-height:1.5; }
+  .lyr.driver{ border-color:var(--accent); background:linear-gradient(90deg,var(--accent-soft),#fff); } .lyr.driver .lx{ background:var(--accent); }
+  .lyr.adapter{ border-color:var(--indigo); background:linear-gradient(90deg,rgba(99,102,241,.1),#fff); } .lyr.adapter .lx{ background:var(--indigo); }
+  /* trace */
+  .trace{ border-left:2.5px solid var(--accent); padding-left:0; margin:0; }
+  .tr{ position:relative; padding:9px 0 9px 22px; }
+  .tr::before{ content:''; position:absolute; left:-6px; top:14px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid #fff; box-shadow:0 0 0 1px var(--accent); }
+  .tr .th{ font-weight:700; font-size:12.5px; } .tr .th .lx{ font-family:var(--font-mono); font-size:10px; color:var(--fg-faint); font-weight:700; }
+  .tr .td{ font-size:11.5px; color:var(--fg-3); margin-top:3px; line-height:1.55; }
+  .tr .td code{ font-family:var(--font-mono); font-size:10.5px; background:var(--surface-3); border:1px solid var(--line); border-radius:3px; padding:0 4px; color:var(--accent-ink); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>分层抽象 · 组件驱动 × 平台适配</h1>
+          <p>要不要给 etcd / minio / s3 / pulsar / woodpecker / kafka 做统一抽象？<strong>要</strong>。关键是看清这里有<strong>两条正交的变化轴 —— 组件类型 × 运行平台</strong>，把它们拆成两层多态、用统一接口对上调用，<strong>避免 M×N 爆炸</strong>，并自然把单机 docker / compose 接管纳进来。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="design-runtime.html">← 看运行时</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i1"></span>
+        <div><b>一句话：</b>「<b>这是什么组件、它的运维语义</b>」（etcd 要奇数凑多数派、wp 要先 decommission…）和「<b>它跑在什么平台、怎么落地</b>」（k8s 下 helm/CR、docker 下起容器）是<b>两件正交的事</b>。分别抽象成 <b>ServiceDriver（按组件）</b> 和 <b>PlatformAdapter（按平台）</b>，上面调用层<b>统一调一个接口</b>，靠多态分发。</div>
+      </div>
+
+      <!-- ===== two axes ===== -->
+      <div class="card" data-rise>
+        <div class="card-head"><h3>① 两条正交轴 · 别做成 M×N</h3><span class="sub">组件 6+ 种 × 平台 3 种，硬写就是十几个类</span></div>
+        <div class="card-pad">
+          <div class="axis">
+            <div class="mxn bad">
+              <div class="h"><span class="b">❌ 朴素做法</span> 每格一个实现</div>
+              <table class="grid-tbl">
+                <thead><tr><th></th><th>k8s</th><th>docker</th><th>单机</th></tr></thead>
+                <tbody>
+                  <tr><td class="rh">etcd</td><td>EtcdK8s</td><td>EtcdDk</td><td>…</td></tr>
+                  <tr><td class="rh">minio</td><td>MinioK8s</td><td>MinioDk</td><td>…</td></tr>
+                  <tr><td class="rh">wp</td><td>WpK8s</td><td>WpDk</td><td>…</td></tr>
+                  <tr><td class="rh">pulsar…</td><td>…</td><td>…</td><td>…</td></tr>
+                </tbody>
+              </table>
+              <div style="font-size:11px;color:#b42318;margin-top:10px;line-height:1.55;font-weight:600">6 组件 × 3 平台 = <b>18 份</b>重复实现，新增任一轴都成倍膨胀。</div>
+            </div>
+            <div class="mxn good">
+              <div class="h"><span class="b">✓ 两层多态</span> 拆成正交两轴</div>
+              <div class="two">
+                <div class="axcol"><div class="t">M 个 ServiceDriver<br>（按组件）</div>
+                  <ul class="l"><li>懂 etcd/minio/wp… <b>各自语义</b></li><li>健康判定、扩缩护栏、备份、connect</li><li>只表达<b>意图</b>，不碰平台机械</li></ul></div>
+                <div class="plus">×</div>
+                <div class="axcol"><div class="t">N 个 PlatformAdapter<br>（按平台）</div>
+                  <ul class="l"><li>懂 k8s/docker/单机 <b>怎么落地</b></li><li>apply/get/delete/exec/logs/wait</li><li>不关心是哪种组件</li></ul></div>
+              </div>
+              <div class="eq">M 个 driver ＋ N 个 adapter ＝ 覆盖 M×N 种组合，却只写 <b>M＋N</b> 份代码</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== composition ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>② 怎么组合 · 用「平台中性意图」串起来</h3><span class="sub">driver 说要什么，adapter 负责在具体平台怎么做</span></div>
+        <div class="card-pad">
+          <div class="comp">
+            <div class="crow"><div class="cl">调用层 · 统一接口 <span class="tag-poly tp-gen">不分组件</span></div><div class="cm">Task 编排 / CLI 命令 / API：<code style="font-family:var(--font-mono);font-size:11px">driver = registry.get(kind)</code> 后调统一方法，<b>从不 if-else 判断组件类型</b>。</div></div>
+            <div class="cconn">↓ <small>统一接口调用</small></div>
+            <div class="crow driver"><div class="cl">ServiceDriver · 按组件多态 <span class="tag-poly tp-comp">component</span></div><div class="cm"><b>EtcdDriver / MinioDriver / WoodpeckerDriver…</b> 懂本组件语义，产出<b>平台中性意图</b>：「要 3 个成员」「在实例里 exec 这条命令」「按这个 health 等就绪」「缩容前先 member remove」。</div></div>
+            <div class="cconn">↓ <small>platform-neutral intents</small></div>
+            <div class="crow adapter"><div class="cl">PlatformAdapter · 按平台多态 <span class="tag-poly tp-plat">platform</span></div><div class="cm"><b>K8sAdapter</b>：意图→helm/CR/原生对象 apply；<b>DockerAdapter</b>：意图→起/停容器、compose；<b>StandaloneAdapter</b>：systemd。把抽象意图翻成具体机械操作。</div></div>
+            <div class="cconn">↓</div>
+            <div class="crow"><div class="cl">访问原语 + 目标 <span class="tag-poly tp-gen">基础设施</span></div><div class="cm">kube client / helm / docker SDK / ssh ＋ StateStore；最终作用到 k8s 集群 / docker 主机 / VM。</div></div>
+          </div>
+          <div class="why" style="margin-top:13px"><div><b>分工边界很清：</b>「etcd 要奇数副本、缩容要 member remove」是<b>组件</b>知识 → 进 EtcdDriver；「在这台上把 3 个东西跑起来」是<b>平台</b>知识 → 进 Adapter（k8s 一个 STS、docker 三个容器）。两者都不知道对方细节，靠中性意图解耦。</div></div>
+        </div>
+      </div>
+
+      <!-- ===== uniform interface ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>③ 统一调用接口 · ServiceDriver</h3><span class="sub">所有组件都实现这一套；调用层按 kind 分发，不分组件写逻辑</span></div>
+        <table class="tbl">
+          <thead><tr><th>统一方法</th><th>语义</th><th>对应能力</th></tr></thead>
+          <tbody>
+            <tr><td><code>detect / identify</code></td><td>认出本类组件、判装法/版本/拓扑/归属</td><td>发现 · 识别</td></tr>
+            <tr><td><code>plan_install / install</code></td><td>按平台选装法、产出计划、落地；装完登记</td><td>安装（Provision）</td></tr>
+            <tr><td><code>health / status</code></td><td>就绪门 + 集群级体检（各组件自己定义）</td><td>状态</td></tr>
+            <tr><td><code>connect_info</code></td><td>给出 Milvus 怎么连它（endpoints / secret）</td><td>连接（装/连分离的"连"）</td></tr>
+            <tr><td><code>upgrade</code></td><td>版本升级（含 immutable 字段处理）</td><td>运维</td></tr>
+            <tr><td><code>scale</code></td><td>扩缩（套各组件护栏）</td><td>运维</td></tr>
+            <tr><td><code>reconfigure</code></td><td>改配置 + 按需重启</td><td>运维</td></tr>
+            <tr><td><code>backup / restore</code></td><td>备份与恢复（权威态前置动作）</td><td>数据安全</td></tr>
+            <tr><td><code>adopt / release</code></td><td>接管 / 释放（写或撤管理元数据）</td><td>归属</td></tr>
+            <tr><td><code>delete</code></td><td>卸载（state-class 驱动护栏）</td><td>生命周期</td></tr>
+            <tr><td><code>state_class</code></td><td>权威 / 缓存 / 无状态</td><td>状态模型</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:11.5px;padding:12px 20px;border-top:1px solid var(--line);color:var(--fg-3)">回答「上面调用层是否需要统一调用」：<b>是</b>。调用层只认这套接口 + <code class="c2">kind</code>，多态分发到具体 driver；新增组件不改调用层。</div>
+      </div>
+
+      <!-- ===== 80/20 hybrid ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>④ 80/20 · 通用走 profile，特殊靠代码 override</h3><span class="sub">BaseServiceDriver 吃 profile 实现通用；各 driver 只重写真正特殊的</span></div>
+        <div class="card-pad">
+          <p style="margin:0 0 12px;font-size:12.5px;color:var(--fg-2);line-height:1.65"><code class="c2">BaseServiceDriver</code> 用<b>声明式 profile</b> 实现 80% 通用逻辑（检测签名、默认装法、端口、connect 映射、就绪门、state-class）；具体 driver 继承它，只 <b>override 那 20% 真正组件特有的代码</b>。这样既不堆样板、又能容纳复杂语义。</p>
+          <table class="tbl">
+            <thead><tr><th>操作</th><th>通用（profile 驱动）</th><th>各组件特殊 override（代码）</th></tr></thead>
+            <tbody>
+              <tr><td><b>detect</b></td><td><span class="pill p-gen">通用</span> image/端口/helm 标记/CR 匹配</td><td>排除控制面 etcd 等边角</td></tr>
+              <tr><td><b>install</b></td><td><span class="pill p-gen">通用</span> 选 profile.install_methods[平台] 下发</td><td>operator 型要 apply CR（minio Tenant / Strimzi Kafka）</td></tr>
+              <tr><td><b>health</b></td><td><span class="pill p-gen">通用</span> 工作负载 readyReplicas</td><td><span class="pill p-ovr">override</span> etcd <code>endpoint health</code> 多数派；minio <code>/health/cluster</code> 写 quorum；wp <code>/healthz</code></td></tr>
+              <tr><td><b>scale</b></td><td><span class="pill p-gen">通用</span> 改副本数</td><td><span class="pill p-ovr">override</span> etcd 奇数+一次一个+<code>member remove</code>；minio 加 pool；wp 先 <code>decommission</code></td></tr>
+              <tr><td><b>switch / 特有</b></td><td>—</td><td><span class="pill p-ovr">override</span> milvus 的 <code>wal/alter</code> 切 MQ；这是 milvus driver 独有动作</td></tr>
+              <tr><td><b>backup</b></td><td><span class="pill p-gen">通用</span> 调度+留存</td><td><span class="pill p-ovr">override</span> etcd <code>snapshot save</code>；minio 用 mc mirror</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== docker/compose adoption ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>⑤ 单机 docker / compose 接管</h3><span class="sub">同一套 driver + DockerAdapter，自然覆盖</span></div>
+        <div class="card-pad">
+          <div class="callout co-ok" style="margin-top:0;margin-bottom:13px"><span class="ic" id="i2"></span>
+            <div><b>平台对应关系（一眼看懂）：</b>k8s 的 <code class="c2">helm release</code>（有 release-secret 账本）≈ docker 的 <code class="c2">compose project</code>（有 <code class="c2">com.docker.compose.project</code> 标签）；k8s 的<b>裸 manifest</b> ≈ docker 的<b>裸 <code class="c2">docker run</code> 容器</b>。所以 compose 就是 docker 世界里"成组、有归属账本"的安装单元。</div>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>动作</th><th>在 k8s</th><th>在 docker / compose</th></tr></thead>
+            <tbody>
+              <tr><td><b>发现 / 识别</b></td><td>扫 STS/Deploy/CR + label</td><td>list 容器 + 匹配 image/端口 + 读 compose project 标签</td></tr>
+              <tr><td><b>归属判定</b></td><td>helm 标记 / operator owner / 裸</td><td>属于某 compose project / 裸 <code>docker run</code></td></tr>
+              <tr><td><b>接管</b></td><td>接管 helm release 或写元数据 + 快照</td><td>无 helm release → <b>打我们的 label + 写 FileStateStore + 快照 compose/run spec</b></td></tr>
+              <tr><td><b>运维 / 删除</b></td><td>helm upgrade / kubectl</td><td>compose up/down · docker rm；卷默认保留</td></tr>
+            </tbody>
+          </table>
+          <div class="why" style="margin-top:13px"><div>关键：<b>ServiceDriver 不变</b>（EtcdDriver 还是那个 EtcdDriver），只是注入 <code class="c2">DockerAdapter</code>。"接管"在 ServiceDriver 里是统一动作，平台差异（没有 release-secret 这种账本、改用本地快照）全收敛在 adapter + FileStateStore。回答「是否考虑 docker/compose 接管」：<b>是，且零额外组件代码</b>。</div></div>
+        </div>
+      </div>
+
+      <!-- ===== full layering ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>⑥ 完整分层 · 每层负责什么</h3><span class="sub">标注每层的多态维度：通用 / 按组件 / 按平台</span></div>
+        <div class="card-pad">
+          <div class="stack">
+            <div class="lyr"><span class="lx">L0</span><div class="lb"><div class="ln">Clients · CLI / WebUI <span class="tag-poly tp-gen">通用</span></div><div class="ld">人机入口；WebUI 后期薄壳</div></div></div>
+            <div class="lyr"><span class="lx">L1</span><div class="lb"><div class="ln">命令 / API 层 <span class="tag-poly tp-gen">通用</span></div><div class="ld">把意图变成统一命令；REST/WS（后期）</div></div></div>
+            <div class="lyr"><span class="lx">L2</span><div class="lb"><div class="ln">Orchestration · Task 引擎 <span class="tag-poly tp-gen">通用</span></div><div class="ld">把 driver 的原子操作编成可恢复工作流（状态机/幂等/回滚/进度）</div></div></div>
+            <div class="lyr driver"><span class="lx">L3</span><div class="lb"><div class="ln">ServiceDriver · 组件抽象 <span class="tag-poly tp-comp">按组件多态</span></div><div class="ld">统一接口 + 各组件实现；Base 吃 profile，子类 override 特殊语义。<b>组件知识都在这层</b></div></div></div>
+            <div class="lyr adapter"><span class="lx">L4</span><div class="lb"><div class="ln">PlatformAdapter · 平台抽象 <span class="tag-poly tp-plat">按平台多态</span></div><div class="ld">把平台中性意图翻成 k8s/docker/单机的机械操作。<b>平台知识都在这层</b></div></div></div>
+            <div class="lyr"><span class="lx">L5</span><div class="lb"><div class="ln">访问原语 + StateStore <span class="tag-poly tp-gen">通用</span></div><div class="ld">kube/helm/docker/ssh 客户端；状态落原生对象或本地文件</div></div></div>
+            <div class="lyr"><span class="lx">L6</span><div class="lb"><div class="ln">Targets <span class="tag-poly tp-gen">—</span></div><div class="ld">k8s 集群 / docker 主机 / VM；各组件官方方式</div></div></div>
+          </div>
+          <div class="why" style="margin-top:13px"><div>横切：<b>服务知识库 profiles</b> 喂给 L3，<b>审计 / dry-run / 权限</b> 贯穿各层。变化被关进两层 —— 加组件只动 L3、加平台只动 L4，其余层不变。</div></div>
+        </div>
+      </div>
+
+      <!-- ===== trace ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>⑦ 一次操作穿过各层 · <code class="c2" style="font-size:13px">mb scale etcd 3→5</code></h3><span class="sub">看组件知识和平台知识各在哪层介入</span></div>
+        <div class="card-pad">
+          <div class="trace">
+            <div class="tr"><div class="th"><span class="lx">L1</span> 命令层</div><div class="td">解析 <code>scale(instance, kind=etcd, replicas=5)</code> —— 不关心 etcd 细节</div></div>
+            <div class="tr"><div class="th"><span class="lx">L2</span> 编排</div><div class="td">建一个 Task：precheck（现状 3 副本？）→ do → verify；可 dry-run、失败回滚</div></div>
+            <div class="tr"><div class="th"><span class="lx">L3</span> EtcdDriver <span class="tag-poly tp-comp">组件知识</span></div><div class="td">懂 quorum：<b>必须奇数→实际 3→5</b>、<b>一次加一个</b>、每步等 <code>endpoint health</code>；产出中性意图「ensure replicas=5，逐个加，加完校验多数派」</div></div>
+            <div class="tr"><div class="th"><span class="lx">L4</span> PlatformAdapter <span class="tag-poly tp-plat">平台知识</span></div><div class="td">k8s：patch STS 副本 / helm upgrade，命中 immutable 走 orphan 重建；docker：起 2 个新容器并入 SEEDS</div></div>
+            <div class="tr"><div class="th"><span class="lx">L5</span> 访问 + 状态</div><div class="td">实际调 kube/helm/docker；更新实例快照（last-applied 5 副本）+ 审计</div></div>
+          </div>
+          <div class="why" style="margin-top:13px"><div>同一条命令换成 <b>scale woodpecker</b>，只有 L3 换成 WoodpeckerDriver（缩容先 decommission flush）、L4 行为随平台变；L1/L2/L5 一行不改。这就是两层多态的收益。</div></div>
+        </div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-top:18px">
+        <span class="ic" id="i3"></span>
+        <div><b>回答三问：</b>① 要做统一抽象 —— <b>ServiceDriver 统一接口 + 各组件实现</b>，调用层统一调、按 kind 分发；② docker/compose 接管 —— <b>要，且零额外组件代码</b>（同 driver + DockerAdapter + FileStateStore，compose project ≈ helm release）；③ 分层 —— <b>L0-L6 七层，变化只锁在 L3(按组件)/L4(按平台) 两层</b>。下一步仍是把这些落成<b>计划拆分</b>的工作项。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'design-abstraction', crumbs:['方案讨论','分层抽象 · 组件驱动 × 平台适配'] });
+  document.getElementById('i1').innerHTML = Hub.svg(Hub.I.info,18);
+  document.getElementById('i2').innerHTML = Hub.svg(Hub.I.check,18);
+  document.getElementById('i3').innerHTML = Hub.svg(Hub.I.info,18);
+</script>
+</body>
+</html>

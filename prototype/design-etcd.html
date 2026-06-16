@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阶段一设计 · etcd 样板 · Milvus Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  /* ---- capability flow map ---- */
+  .flowmap{ border:1px solid var(--line); border-radius:13px; background:linear-gradient(180deg,var(--surface),var(--surface-3)); padding:18px 16px; }
+  .frow{ display:flex; align-items:stretch; gap:0; flex-wrap:wrap; }
+  .fnode{ flex:1 1 0; min-width:120px; border:1.4px solid var(--line-2); border-radius:11px; background:var(--surface); padding:12px 12px; box-shadow:var(--shadow-sm); position:relative; }
+  .fnode .n{ font-family:var(--font-mono); font-size:10px; font-weight:700; color:#fff; background:var(--accent); width:20px; height:20px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; }
+  .fnode .ti{ font-weight:700; font-size:13px; margin-top:8px; }
+  .fnode .ds{ font-size:11px; color:var(--fg-3); margin-top:4px; line-height:1.5; font-family:var(--font-mono); }
+  .fnode.start{ flex:0 0 84px; background:var(--surface-3); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-style:dashed; }
+  .fnode.prov{ border-color:var(--accent); background:linear-gradient(180deg,#fff,var(--accent-soft)); }
+  .farr{ flex:0 0 30px; display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:18px; font-weight:700; }
+  .fbranch{ flex:1 1 0; min-width:120px; display:flex; flex-direction:column; gap:8px; }
+  .fbranch .bnode{ border:1.3px solid var(--line-2); border-radius:10px; background:var(--surface); padding:9px 11px; font-size:11.5px; line-height:1.5; }
+  .fbranch .bnode b{ color:var(--fg-1); }
+  .fbranch .bnode.adopt{ border-left:3px solid var(--warn); }
+  .fbranch .bnode.inst{ border-left:3px solid var(--accent); }
+  .statebar{ margin-top:13px; border:1px dashed var(--accent); border-radius:11px; background:rgba(8,180,200,.05); padding:11px 14px; display:flex; align-items:center; gap:11px; }
+  .statebar .n{ font-family:var(--font-mono); font-size:10px; font-weight:700; color:#fff; background:var(--indigo); width:20px; height:20px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+  .statebar .tx{ font-size:12px; color:var(--fg-2); line-height:1.55; } .statebar .tx b{ color:var(--fg-1); }
+  @media(max-width:820px){ .frow{ flex-direction:column; } .farr{ height:24px; transform:rotate(90deg); } .fnode.start{ flex:auto; } }
+  /* ---- landscape table ---- */
+  .tbl td .sig{ font-family:var(--font-mono); font-size:10.5px; color:var(--fg-3); display:block; margin-top:3px; line-height:1.5; }
+  .tbl td code, .tbl td .c2{ font-family:var(--font-mono); font-size:11px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:0 4px; color:var(--accent-ink); }
+  .st-tag{ font-family:var(--font-mono); font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; display:inline-block; }
+  .st-adopt{ background:var(--warn-soft); color:#92510a; }
+  .st-manage{ background:var(--accent-soft); color:var(--accent-ink); }
+  .st-ro{ background:var(--idle-soft); color:#5a657f; }
+  .st-ext{ background:var(--ok-soft); color:#0c6b46; }
+  .st-never{ background:var(--err-soft); color:#b42318; }
+  /* ---- 3-layer cards ---- */
+  .layers{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  @media(max-width:880px){ .layers{ grid-template-columns:1fr; } }
+  .lcard{ border:1px solid var(--line-2); border-radius:12px; background:var(--surface); padding:0; overflow:hidden; box-shadow:var(--shadow-sm); }
+  .lcard .lh{ padding:12px 15px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,var(--accent-soft),transparent); display:flex; align-items:center; gap:9px; }
+  .lcard .lh .n{ font-family:var(--font-mono); font-size:11px; font-weight:700; color:#fff; background:var(--accent); width:22px; height:22px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+  .lcard .lh .nm{ font-weight:700; font-size:13.5px; } .lcard .lh .nm small{ display:block; font-weight:500; font-size:10.5px; color:var(--fg-3); font-family:var(--font-mono); margin-top:1px; }
+  .lcard .lb{ padding:13px 15px; }
+  .lcard .lb .qq{ font-size:11px; font-weight:700; color:var(--accent-ink); font-family:var(--font-mono); }
+  .lcard ul{ margin:6px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:7px; }
+  .lcard li{ font-size:12px; color:var(--fg-2); line-height:1.55; padding-left:16px; position:relative; }
+  .lcard li::before{ content:''; position:absolute; left:2px; top:6px; width:5px; height:5px; border-radius:1px; background:var(--accent); }
+  .lcard li code{ font-family:var(--font-mono); font-size:10.5px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:0 4px; color:var(--accent-ink); }
+  .lcard .out{ margin-top:11px; padding-top:10px; border-top:1px dashed var(--line); font-size:11px; color:var(--fg-3); line-height:1.55; }
+  .lcard .out b{ color:var(--fg-1); }
+  /* ---- ownership states ---- */
+  .owns{ display:grid; grid-template-columns:repeat(2,1fr); gap:13px; }
+  @media(max-width:760px){ .owns{ grid-template-columns:1fr; } }
+  .ocard{ border:1px solid var(--line-2); border-radius:11px; background:var(--surface); padding:13px 15px; border-left-width:4px; }
+  .ocard.managed{ border-left-color:var(--accent); }
+  .ocard.adopt{ border-left-color:var(--warn); }
+  .ocard.ro{ border-left-color:var(--idle); }
+  .ocard.ext{ border-left-color:var(--ok); }
+  .ocard h4{ margin:0 0 4px; font-size:13.5px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .ocard h4 .en{ font-family:var(--font-mono); font-size:10px; font-weight:600; color:var(--fg-faint); }
+  .ocard p{ margin:0 0 7px; font-size:12px; color:var(--fg-2); line-height:1.6; }
+  .ocard .act{ font-size:11.5px; color:var(--fg-3); line-height:1.55; } .ocard .act b{ color:var(--fg-1); }
+  /* ---- action matrix ---- */
+  .mx td, .mx th{ text-align:center; }
+  .mx td:first-child, .mx th:first-child{ text-align:left; }
+  .mx .yes{ color:var(--ok); font-weight:800; }
+  .mx .adoptm{ font-family:var(--font-mono); font-size:10px; font-weight:700; color:#92510a; background:var(--warn-soft); padding:2px 6px; border-radius:5px; }
+  .mx .no{ color:var(--fg-faint); }
+  .mx .warnm{ color:var(--warn); font-weight:800; }
+  /* ---- state classes ---- */
+  .stcls{ display:grid; grid-template-columns:repeat(3,1fr); gap:13px; }
+  @media(max-width:880px){ .stcls{ grid-template-columns:1fr; } }
+  .sc{ border:1px solid var(--line-2); border-radius:12px; background:var(--surface); padding:14px 15px; box-shadow:var(--shadow-sm); }
+  .sc .tag{ font-family:var(--font-mono); font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; display:inline-block; }
+  .sc.auth .tag{ background:var(--err-soft); color:#b42318; }
+  .sc.cache .tag{ background:var(--warn-soft); color:#92510a; }
+  .sc.less .tag{ background:var(--ok-soft); color:#0c6b46; }
+  .sc h4{ margin:9px 0 5px; font-size:13.5px; font-weight:700; }
+  .sc p{ margin:0 0 8px; font-size:12px; color:var(--fg-2); line-height:1.6; }
+  .sc .eg{ font-size:11px; color:var(--fg-3); font-family:var(--font-mono); }
+  .sc .eg b{ color:var(--fg-1); }
+  .sc .pol{ margin-top:9px; padding-top:8px; border-top:1px dashed var(--line); font-size:11px; color:var(--fg-3); line-height:1.55; }
+  .verdict{ border:1.5px solid var(--accent); border-radius:12px; background:linear-gradient(180deg,#fff,var(--accent-soft)); padding:15px 17px; margin-top:15px; }
+  .verdict h4{ margin:0 0 8px; font-size:13.5px; font-weight:800; color:var(--accent-ink); display:flex; align-items:center; gap:8px; }
+  .verdict p{ margin:0 0 7px; font-size:12.5px; color:var(--fg-2); line-height:1.65; } .verdict p:last-child{ margin-bottom:0; }
+  .verdict b{ color:var(--fg-1); } .verdict .hl{ color:#b42318; font-weight:700; } .verdict .ok{ color:#0c6b46; font-weight:700; }
+  .verdict code{ font-family:var(--font-mono); font-size:11.5px; background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:1px 5px; color:var(--accent-ink); }
+  /* work items */
+  .tbl td .pri{ font-family:var(--font-mono); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; }
+  .p-core{ background:var(--accent-soft); color:var(--accent-ink); } .p-next{ background:var(--ok-soft); color:#0c6b46; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>阶段一设计 · etcd 样板</h1>
+          <p>工具最底层的能力是<strong>「搞清楚一个服务是怎么装的」</strong> —— 业界有哪些安装方式、我们怎么<strong>发现</strong>它、怎么<strong>识别</strong>它、能<strong>接管</strong>还是只能只读；要自己装时<strong>默认用哪种方式</strong>；以及它的<strong>运行状态</strong>是有状态、无状态、还是「有缓存但可删了重建」。这页拿 <strong>etcd</strong> 一个场景分析透、设计透，作为其余组件的样板。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="deps-research.html">← 看部署调研</a></div>
+      </div>
+
+      <!-- ===== capability model ===== -->
+      <div class="card" data-rise>
+        <div class="card-head"><h3>能力模型 · 三层发现接管 + 安装 + 状态</h3><span class="sub">本页 = 把这套模型在 etcd 上走通一遍</span></div>
+        <div class="card-pad">
+          <div class="flowmap">
+            <div class="frow">
+              <div class="fnode start">☸️<div style="font-size:10px;color:var(--fg-3);margin-top:4px;font-family:var(--font-mono)">cluster</div></div>
+              <div class="farr">→</div>
+              <div class="fnode"><span class="n">1</span><div class="ti">Deployment Discovery</div><div class="ds">扫出所有疑似 etcd 工作负载</div></div>
+              <div class="farr">→</div>
+              <div class="fnode"><span class="n">2</span><div class="ti">Service Identification</div><div class="ds">判定安装方式 / 版本 / 拓扑 / 角色</div></div>
+              <div class="farr">→</div>
+              <div class="fnode"><span class="n">3</span><div class="ti">Ownership &amp; Management</div><div class="ds">定归属：管 / 接管 / 只读 / 外部</div></div>
+              <div class="farr">→</div>
+              <div class="fbranch">
+                <div class="bnode adopt"><b>已存在</b> → 纳管 / 只读</div>
+                <div class="bnode inst"><span class="n" style="display:inline-flex;width:18px;height:18px;font-size:9px;border-radius:5px;background:var(--accent);color:#fff;align-items:center;justify-content:center;vertical-align:middle">4</span> <b>不存在</b> → Provisioning 安装</div>
+              </div>
+            </div>
+            <div class="statebar">
+              <span class="n">5</span>
+              <div class="tx"><b>运行状态模型（贯穿全程）</b>：每个服务先打上「权威有状态 / 缓存态 / 无状态」标签 —— 它决定<b>删除要不要先备份</b>、<b>能不能直接清 PVC 重建</b>、<b>扩缩容要走什么护栏</b>。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== landscape ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>① 先认全 · etcd 的安装方式全景</h3><span class="sub">业界这么多种装法，工具得各自能认出来、并定好态度</span></div>
+        <table class="tbl">
+          <thead><tr><th>安装方式</th><th>检测信号（怎么认出来）</th><th>与 Milvus 的关系</th><th>默认态度</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>Bitnami Helm</b><br><span class="sig">milvus-helm 子 chart</span></td>
+              <td><span class="sig"><code>app.kubernetes.io/managed-by=Helm</code> · <code>helm.sh/chart=etcd-*</code> · <code>instance=&lt;milvus-rel&gt;</code> · annotation <code>meta.helm.sh/release-name</code></span></td>
+              <td>随 milvus-helm 一把装<span class="sig">属于某个 Milvus 实例</span></td>
+              <td><span class="st-tag st-adopt">可接管</span></td>
+            </tr>
+            <tr>
+              <td><b>Bitnami Helm</b><br><span class="sig">milvus-operator 装</span></td>
+              <td><span class="sig">独立 release <code>&lt;milvus&gt;-etcd</code>（operator 内置 helm）· pod/CR owner 链指向 Milvus CR</span></td>
+              <td>operator 代管<span class="sig">真相在 Milvus CR</span></td>
+              <td><span class="st-tag st-adopt">可接管</span><span class="sig">operator 在跑→需连 CR 一起接管，否则只读</span></td>
+            </tr>
+            <tr>
+              <td><b>独立 Bitnami Helm</b><br><span class="sig">用户自己装的</span></td>
+              <td><span class="sig">有 helm 标记但 <code>instance</code> ≠ 任何 Milvus；被 <code>externalEtcd</code> 引用</span></td>
+              <td>共享 / 自带外部 etcd</td>
+              <td><span class="st-tag st-adopt">接管(需确认)</span></td>
+            </tr>
+            <tr>
+              <td><b>裸 StatefulSet</b><br><span class="sig">原始 manifest 手搓</span></td>
+              <td><span class="sig">image <code>*etcd*</code> · 端口 <code>2379/2380</code> · command etcd；<b>无</b> helm/operator 标记</span></td>
+              <td>用户手工部署</td>
+              <td><span class="st-tag st-adopt">可接管</span><span class="sig">写入管理元数据纳管</span></td>
+            </tr>
+            <tr>
+              <td><b>etcd-operator</b><br><span class="sig">CoreOS · 已归档</span></td>
+              <td><span class="sig">CRD <code>EtcdCluster</code>(<code>etcd.database.coreos.com</code>)；pod ownerRef → CR</span></td>
+              <td>遗留、罕见</td>
+              <td><span class="st-tag st-ro">只读</span><span class="sig">引导迁移到 helm</span></td>
+            </tr>
+            <tr>
+              <td><b>etcd-druid</b><br><span class="sig">Gardener 系</span></td>
+              <td><span class="sig">CRD <code>Etcd</code>(<code>druid.gardener.cloud</code>)</span></td>
+              <td>托管 k8s 场景</td>
+              <td><span class="st-tag st-ro">只读</span></td>
+            </tr>
+            <tr>
+              <td><b>控制面 etcd</b><br><span class="sig">kubeadm 静态 Pod</span></td>
+              <td><span class="sig"><code>component=etcd,tier=control-plane</code> · ns <code>kube-system</code> · annotation <code>config.source=file</code> · ownerRef=Node</span></td>
+              <td>k8s 自身的命脉<span class="sig">与 Milvus 无关</span></td>
+              <td><span class="st-tag st-never">永不接管</span><span class="sig">硬护栏，连只读都默认隐藏</span></td>
+            </tr>
+            <tr>
+              <td><b>集群外 etcd</b><br><span class="sig">VM / systemd / 托管</span></td>
+              <td><span class="sig">集群内无工作负载；只出现在 <code>externalEtcd.endpoints</code>；client 可探活</span></td>
+              <td>Milvus external 直连</td>
+              <td><span class="st-tag st-ext">外部直连</span><span class="sig">只读探活</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-size:11.5px;padding:12px 20px;border-top:1px solid var(--line);color:var(--fg-3)">关键护栏：<b>控制面 etcd（kube-system 静态 Pod）绝不能碰</b> —— 识别阶段必须把它硬排除，这是误操作会搞挂整个集群的红线。</div>
+      </div>
+
+      <!-- ===== 3 layers ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>② 发现 → 识别 → 接管 · 三层怎么做</h3><span class="sub">每层吃上一层的产出，逐步收敛到「能对它做什么」</span></div>
+        <div class="card-pad">
+          <div class="layers">
+            <div class="lcard">
+              <div class="lh"><span class="n">1</span><div class="nm">Deployment Discovery<small>找出来</small></div></div>
+              <div class="lb">
+                <div class="qq">问题：集群里有哪些「疑似 etcd」？</div>
+                <ul>
+                  <li>跨 namespace 扫 <code>StatefulSet</code> / <code>Deployment</code> / 静态 Pod / 相关 <code>CRD</code></li>
+                  <li>初筛信号：容器 image 含 <code>etcd</code>、暴露 <code>2379/2380</code>、command 为 <code>etcd</code></li>
+                  <li>外部线索：Milvus values/CR 里的 <code>externalEtcd.endpoints</code>（集群里没工作负载也要收）</li>
+                </ul>
+                <div class="out"><b>产出：</b>候选 etcd 列表 + 每个的原始证据（label / annotation / owner / image / 端口）。<b>只收集，不下结论。</b></div>
+              </div>
+            </div>
+            <div class="lcard">
+              <div class="lh"><span class="n">2</span><div class="nm">Service Identification<small>认清楚</small></div></div>
+              <div class="lb">
+                <div class="qq">问题：它到底是什么、谁装的？</div>
+                <ul>
+                  <li>安装方式指纹：helm 标记 / operator owner 链 / 静态 Pod 特征 / 裸 manifest / 仅外部端点</li>
+                  <li>拓扑与版本：副本数 &amp; 成员数、client/peer 端点、镜像 tag、TLS/RBAC 是否开</li>
+                  <li>角色归属：专属某 Milvus / 共享 / <span style="color:#b42318;font-weight:600">控制面（硬排除）</span> / 无关应用</li>
+                </ul>
+                <div class="out"><b>产出：</b>一张「身份卡」—— 安装方式、版本、拓扑、归谁用。<b>识别错→后面全错</b>，这层最关键。</div>
+              </div>
+            </div>
+            <div class="lcard">
+              <div class="lh"><span class="n">3</span><div class="nm">Ownership &amp; Management<small>定权限</small></div></div>
+              <div class="lb">
+                <div class="qq">问题：我们能对它做什么？</div>
+                <ul>
+                  <li>按身份卡落到四种归属态之一（见下）</li>
+                  <li>接管动作：写管理元数据、可选接管 helm release 或仅旁挂跟踪</li>
+                  <li>护栏：控制面永不接管；operator 在管的要连 CR 处理；接管前先 snapshot</li>
+                </ul>
+                <div class="out"><b>产出：</b>归属态 + <b>允许的操作集</b>（直接决定 WebUI 上哪些按钮亮）。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ownership states ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>③ 四种归属态 · 各自能做什么</h3><span class="sub">归属态 = 操作权限的总开关</span></div>
+        <div class="card-pad">
+          <div class="owns">
+            <div class="ocard managed">
+              <h4>🟦 Managed <span class="en">本工具安装的</span></h4>
+              <p>我们自己装的，已打 <code>milvus-bootstrap/managed=true</code>。</p>
+              <div class="act"><b>能做：</b>全生命周期 —— 安装 / 升级 / 扩缩容 / 改配置 / 备份 / 删除。</div>
+            </div>
+            <div class="ocard adopt">
+              <h4>🟧 Adoptable <span class="en">可接管</span></h4>
+              <p>milvus-helm / operator / 可识别的 helm / 裸 STS 装的，不是我们装但能安全纳管。</p>
+              <div class="act"><b>能做：</b>查看健康 → <b>一键接管</b>（写元数据 / 接管 release）→ 之后等同 Managed。operator 在管的需连 CR 一起处理。</div>
+            </div>
+            <div class="ocard ro">
+              <h4>⬜ Read-only <span class="en">只读观测</span></h4>
+              <p>控制面 etcd、共享给别的系统的、或归属无法确认的。</p>
+              <div class="act"><b>能做：</b>只看健康 / 版本 / 成员；<b>禁止任何写操作</b>。控制面 etcd 连列表都默认隐藏。</div>
+            </div>
+            <div class="ocard ext">
+              <h4>🟩 External-linked <span class="en">外部直连</span></h4>
+              <p>etcd 在集群外（<code>externalEtcd.endpoints</code>）或托管服务，集群里没有它的 Pod。</p>
+              <div class="act"><b>能做：</b>用 client 探活 / 取版本，只读；<b>无法管 Pod / 扩缩容</b>。</div>
+            </div>
+          </div>
+
+          <table class="tbl mx" style="margin-top:16px">
+            <thead><tr><th>能力</th><th>Managed</th><th>Adoptable</th><th>Read-only</th><th>External</th></tr></thead>
+            <tbody>
+              <tr><td>发现 &amp; 查看身份</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+              <tr><td>健康 / 成员 / quorum</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span><span class="sig">client 探活</span></td></tr>
+              <tr><td>安装（创建）</td><td><span class="yes">✓</span></td><td><span class="no">已存在</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+              <tr><td>升级</td><td><span class="yes">✓</span></td><td><span class="adoptm">接管后</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+              <tr><td>扩缩容</td><td><span class="yes">✓</span></td><td><span class="adoptm">接管后</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+              <tr><td>改配置 / 重启</td><td><span class="yes">✓</span></td><td><span class="adoptm">接管后</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+              <tr><td>备份 snapshot</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span><span class="sig">接管前置</span></td><td><span class="warnm">读快照</span></td><td><span class="warnm">读快照</span></td></tr>
+              <tr><td>删除 / 卸载</td><td><span class="yes">✓</span><span class="sig">强确认</span></td><td><span class="adoptm">接管后</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== provisioning ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>④ 安装层 · 自己装 etcd 时用哪种方式</h3><span class="sub">给一个有主见的默认，也留可选项</span></div>
+        <div class="card-pad">
+          <div class="callout co-ok" style="margin-top:0;margin-bottom:14px">
+            <span class="ic" id="ip"></span>
+            <div><b>默认 = Bitnami Helm chart（<code class="c2">helm upgrade --install</code>）。</b>理由：① 与 milvus-helm / milvus-operator <b>今天用的就是同一个 chart 和镜像</b>（<code class="c2">milvusdb/etcd:3.5.18-r1</code>），纳管/迁移零摩擦；② chart 成熟，自带成员管理（preStop <code class="c2">member remove</code>、PVC 复用）；③ 无需先装 operator。</div>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>可选方式</th><th>何时用</th><th>取舍</th></tr></thead>
+            <tbody>
+              <tr><td><b>Bitnami Helm</b> <span class="st-tag st-manage">默认</span></td><td>绝大多数自建场景</td><td>成熟、与现状一致；CLI 包一层 helm 即可</td></tr>
+              <tr><td>裸 StatefulSet</td><td>不想引入 helm 依赖的极简环境</td><td>自己渲染 YAML，成员管理逻辑要自己补</td></tr>
+              <tr><td>etcd operator（druid）</td><td>已有 druid 的托管平台</td><td>多一层 operator，MVP 不做</td></tr>
+              <tr><td>External 直连</td><td>已有现成 etcd / 合规要求外置</td><td>不安装，只在 Milvus 里填 endpoints</td></tr>
+            </tbody>
+          </table>
+          <div class="why" style="margin-top:14px"><div><b>安装参数（对齐 Milvus 默认）：</b><code class="c2">replicaCount=3</code>（奇数）· 持久化 <code class="c2">10Gi</code> · rbac/TLS 可选 · autoCompaction <code class="c2">revision/1000</code> · 4 GiB quota · resources。<b>装完立即登记为 Managed</b>（写管理元数据），后续走统一生命周期。</div></div>
+        </div>
+      </div>
+
+      <!-- ===== state model ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>⑤ 运行状态模型 · 有状态 / 缓存态 / 无状态</h3><span class="sub">这层标签决定「删除 / 清盘 / 扩缩」的安全策略</span></div>
+        <div class="card-pad">
+          <div class="stcls">
+            <div class="sc auth">
+              <span class="tag">权威有状态 authoritative</span>
+              <h4>盘上就是真相</h4>
+              <p>PVC 里存的就是数据本身、唯一副本，删了 = <b>真丢数据</b>，没有外部可重建来源。</p>
+              <div class="eg">例：<b>etcd</b>（Milvus 元数据）、<b>MinIO</b>（对象数据）</div>
+              <div class="pol"><b>策略：</b>删除前强制 snapshot + 二次确认；PVC 默认保留；扩缩走成员/数据级护栏。</div>
+            </div>
+            <div class="sc cache">
+              <span class="tag">缓存态 cache-backed</span>
+              <h4>盘只是缓存，真相在外</h4>
+              <p>本地 PVC 只是缓存 / 暂存，真相在外部（etcd + 对象存储）。<b>可以删了缓存重头再来</b>。</p>
+              <div class="eg">例：<b>Woodpecker</b>(service 模式)</div>
+              <div class="pol"><b>策略：</b>可安全删 Pod/PVC 重建；缩容前先 decommission 把段 flush 到对象存储。</div>
+            </div>
+            <div class="sc less">
+              <span class="tag">无状态 stateless</span>
+              <h4>没有关键本地态</h4>
+              <p>不持有要紧的本地数据，重建无成本。</p>
+              <div class="eg">例：纯代理 / 计算节点</div>
+              <div class="pol"><b>策略：</b>随便重建 / 滚动 / 横向扩，无需备份。</div>
+            </div>
+          </div>
+
+          <div class="verdict">
+            <h4><span id="iv"></span>etcd 的判定：权威有状态，但「成员级」可重建</h4>
+            <p>回到你的问题 —— etcd <b>能不能删了缓存重头再来？</b><span class="hl">整簇不行</span>：etcd 的盘上就是 Milvus 的元数据（collection / segment / channel…），没有外部真相可恢复，整簇清盘 = 灾难。所以 etcd 归 <b>权威有状态</b>，<span class="hl">不是</span>缓存态。</p>
+            <p><span class="ok">但有一层关键 nuance：</span>etcd 是多副本 Raft，<b>单个成员的数据可由 quorum 重建</b> —— 丢 1/3 成员时，可以清那块 PVC、让它从 leader 重新 sync 回来。所以工具要把这两件事分开：<b>允许「单成员换盘重建」</b>（安全，靠多数派兜底），<b>禁止「整簇清盘」</b>（无可恢复）。</p>
+            <p style="margin-bottom:0"><b>怎么自动判定状态类别：</b>① 声明式 —— 服务知识库给每种类型预置标签（etcd=authoritative）；② 运行时校验 —— 看有没有 <code>volumeClaimTemplates</code>/PVC、有没有<b>外部存储后端</b>配置（woodpecker 有 <code>MINIO_*</code>+<code>STORAGE_TYPE=service</code> → 缓存态；etcd 没有 → 权威态）、有没有备份机制。两者一致才采信。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== work items ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>工作项 · 为 etcd 落地这套能力</h3><span class="sub">这套拆法就是其余组件（minio / woodpecker…）的样板</span></div>
+        <table class="tbl">
+          <thead><tr><th>模块</th><th>任务</th><th>产出</th><th style="white-space:nowrap">优先级</th></tr></thead>
+          <tbody>
+            <tr><td><b>服务知识库</b><br><span class="sig">etcd profile</span></td><td>声明 etcd 的：安装方式清单 &amp; 检测签名、state-class、默认安装参数、健康探针、扩缩规则、备份方式</td><td>一份可被各引擎读取的 etcd 描述（YAML/代码）</td><td><span class="pri p-core">核心</span></td></tr>
+            <tr><td><b>Discovery 扫描器</b></td><td>跨 ns 扫 STS/Deploy/静态Pod/CR + 收集 externalEtcd 端点，按签名产出候选</td><td><code class="c2">discover()</code> → 候选列表 + 原始证据</td><td><span class="pri p-core">核心</span></td></tr>
+            <tr><td><b>Identification 指纹引擎</b></td><td>判安装方式（helm/operator/static/raw/external）+ 版本/成员/拓扑 + 角色分类，<b>硬排除控制面 etcd</b></td><td><code class="c2">identify()</code> → 身份卡</td><td><span class="pri p-core">核心</span></td></tr>
+            <tr><td><b>Ownership 决策 + 接管器</b></td><td>四态判定 + action matrix；接管：写管理元数据 / helm release 接管 / 旁挂；护栏校验</td><td><code class="c2">adopt()</code> / 归属态 + 操作集</td><td><span class="pri p-core">核心</span></td></tr>
+            <tr><td><b>Provisioner</b></td><td>Bitnami helm 默认安装 + 参数面板 + 装完登记为 Managed</td><td><code class="c2">install()</code>（含 --dry-run）</td><td><span class="pri p-core">核心</span></td></tr>
+            <tr><td><b>State engine</b></td><td>state-class 判定（声明 + 运行时校验）→ 联动删除/扩缩/PVC/备份策略与 UI 护栏</td><td>每实例的状态标签 + 安全策略</td><td><span class="pri p-core">核心</span></td></tr>
+            <tr><td><b>健康 &amp; 成员视图</b></td><td><code class="c2">etcdctl endpoint health</code> / <code class="c2">member list</code> / quorum 状态</td><td>状态面板数据源</td><td><span class="pri p-next">次轮</span></td></tr>
+            <tr><td><b>snapshot 备份/恢复</b></td><td>etcd snapshot save/restore；接管与删除的前置动作</td><td>备份能力 + 灾备入口</td><td><span class="pri p-next">次轮</span></td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:11.5px;padding:12px 20px;border-top:1px solid var(--line);color:var(--fg-3)">同样的「知识库 + 五个引擎」，给 minio / woodpecker 各填一份 profile 就能复用 —— 差异只在<b>检测签名、默认安装方式、state-class、扩缩护栏</b>。</div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-top:18px">
+        <span class="ic" id="ii"></span>
+        <div><b>一句话：</b>工具对 etcd 的认知 = 「<b>认全装法 → 发现 → 识别 → 定归属 → （没有就按默认装）→ 贴状态标签管安全</b>」。这套五段式 + 服务知识库就是引擎，其余组件只是换 profile。下一步可对 <b>MinIO / Woodpecker</b> 各出一份同结构设计。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'design-etcd', crumbs:['方案讨论','阶段一设计 · etcd 样板'] });
+  document.getElementById('ip').innerHTML = Hub.svg(Hub.I.check,18);
+  document.getElementById('ii').innerHTML = Hub.svg(Hub.I.info,18);
+  document.getElementById('iv').innerHTML = Hub.svg('<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',16);
+</script>
+</body>
+</html>

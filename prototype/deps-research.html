@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阶段一调研 · 依赖部署与 Pod 管理 · Milvus Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  /* ---- at-a-glance ---- */
+  .tbl td .mq{ font-family:var(--font-mono); font-size:11.5px; color:var(--accent-ink); }
+  .tbl td b{ color:var(--fg-1); }
+  /* ---- per-component card ---- */
+  .row2{ display:grid; grid-template-columns:1.12fr .88fr; gap:20px; align-items:start; }
+  @media(max-width:860px){ .row2{ grid-template-columns:1fr; } }
+  .facts{ display:flex; flex-direction:column; gap:13px; }
+  .fact .k{ font-family:var(--font-mono); font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--fg-faint); }
+  .fact .v{ font-size:12.5px; color:var(--fg-2); line-height:1.65; margin-top:4px; }
+  .fact .v code{ font-family:var(--font-mono); font-size:11.5px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:1px 5px; color:var(--accent-ink); }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:5px; }
+  .ck{ font-family:var(--font-mono); font-size:10.5px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--surface-3); border:1px solid var(--line-2); color:var(--fg-2); white-space:nowrap; }
+  .ck.a{ background:var(--accent-soft); border-color:transparent; color:var(--accent-ink); }
+  /* ---- mini pod topology ---- */
+  .topo2{ background:linear-gradient(180deg,var(--surface),var(--surface-3)); border:1px solid var(--line); border-radius:13px; padding:15px 13px 13px; }
+  .svcbar{ font-family:var(--font-mono); font-size:10.5px; font-weight:600; color:var(--accent-ink); background:var(--accent-soft); border:1px solid var(--line-2); border-radius:8px; padding:5px 10px; text-align:center; }
+  .down{ display:flex; align-items:center; justify-content:center; gap:6px; color:var(--fg-faint); font-size:11px; height:20px; font-family:var(--font-mono); }
+  .down b{ color:var(--fg-3); font-weight:600; }
+  .podwrap{ border-radius:11px; padding:2px; }
+  .podwrap.ec{ border:1.5px dashed var(--accent); background:rgba(8,180,200,.05); padding:9px 7px 7px; position:relative; }
+  .podrow{ display:flex; gap:7px; justify-content:center; }
+  .tpod{ flex:1 1 0; min-width:0; border:1.4px solid var(--line-2); border-radius:9px; background:var(--surface); padding:8px 4px 7px; text-align:center; box-shadow:var(--shadow-sm); }
+  .tpod .pn{ font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--fg-2); }
+  .tpod .role{ font-size:8.5px; color:var(--fg-faint); margin-top:1px; }
+  .disk{ display:inline-block; margin-top:6px; font-family:var(--font-mono); font-size:8.5px; font-weight:700; padding:1px 6px; border-radius:20px; }
+  .disk.local{ background:var(--ok-soft); color:#0c6b46; }
+  .disk.shard{ background:var(--accent-soft); color:var(--accent-ink); }
+  .disk.cache{ background:var(--idle-soft); color:#5a657f; }
+  .enclbl{ position:absolute; top:-9px; left:50%; transform:translateX(-50%); font-family:var(--font-mono); font-size:9px; font-weight:700; color:var(--accent-ink); background:var(--surface); border:1px solid var(--accent); border-radius:20px; padding:1px 9px; white-space:nowrap; }
+  .cpill-row{ text-align:center; margin-top:10px; }
+  .cpill{ display:inline-block; font-family:var(--font-mono); font-size:10px; font-weight:700; padding:3px 11px; border-radius:20px; border:1px solid var(--line-2); background:var(--surface); color:var(--fg-2); }
+  .cpill b{ color:var(--accent-ink); }
+  .extrow{ display:flex; gap:9px; }
+  .extbox{ flex:1; border:1.4px dashed var(--line-2); border-radius:9px; background:var(--surface); padding:8px 6px; text-align:center; }
+  .extbox .en{ font-weight:700; font-size:11.5px; }
+  .extbox .ed{ font-family:var(--font-mono); font-size:8.5px; color:var(--fg-3); margin-top:2px; line-height:1.4; }
+  .extbox.etcd .en{ color:var(--indigo); }
+  .extbox.obj .en{ color:var(--accent-ink); }
+  .topocap{ font-size:10.5px; color:var(--fg-3); line-height:1.6; margin-top:11px; text-align:center; padding-top:9px; border-top:1px dashed var(--line); }
+  /* ---- 怎么管理 Pod box ---- */
+  .pm{ margin-top:18px; border:1px solid var(--line-2); border-radius:12px; background:var(--accent-soft); padding:14px 16px; }
+  .pm h4{ margin:0 0 9px; font-size:13px; font-weight:700; color:var(--accent-ink); display:flex; align-items:center; gap:7px; }
+  .pm ul{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+  .pm li{ font-size:12.5px; color:var(--fg-2); line-height:1.6; padding-left:18px; position:relative; }
+  .pm li::before{ content:''; position:absolute; left:2px; top:7px; width:6px; height:6px; border-radius:2px; background:var(--accent); }
+  .pm li b{ color:var(--fg-1); }
+  .pm li code{ font-family:var(--font-mono); font-size:11.5px; background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:1px 5px; color:var(--accent-ink); }
+  .pm li .lead{ font-family:var(--font-mono); font-size:11px; font-weight:700; color:var(--accent-ink); }
+  .cite{ font-family:var(--font-mono); font-size:10px; color:var(--fg-faint); margin-top:11px; padding-top:9px; border-top:1px dashed var(--line); line-height:1.6; }
+  /* ---- CLI implications ---- */
+  .ins{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  @media(max-width:760px){ .ins{ grid-template-columns:1fr; } }
+  .inscard{ border:1px solid var(--line-2); border-radius:11px; background:var(--surface); padding:14px 15px; }
+  .inscard .ih{ font-size:12.5px; font-weight:700; color:var(--fg-1); display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .inscard .ih .n{ font-family:var(--font-mono); font-size:11px; font-weight:700; color:#fff; background:var(--accent); width:19px; height:19px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+  .inscard p{ margin:0; font-size:12px; color:var(--fg-2); line-height:1.65; }
+  .inscard p code{ font-family:var(--font-mono); font-size:11px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:1px 5px; color:var(--accent-ink); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>阶段一调研 · 依赖部署与 Pod 管理</h1>
+          <p>阶段一 MVP 要独立装起 <strong>etcd / MinIO / Woodpecker</strong> 三件套，再让 Milvus 以 external 直连它们。这页把三者各自的<strong>官方部署方式</strong>、以及 k8s 里<strong>怎么管理对应的 Pod 资源</strong>讲清楚 —— 作为 milvus-bootstrap CLI 的实现依据。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="summary.html">← 回实施计划</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i1"></span>
+        <div>三件套都走同一个 k8s 套路：<b>StatefulSet + headless Service</b> 给每个 Pod 稳定的序号身份和域名。但把这些 Pod「<b>编排成一个集群</b>」的方式三者完全不同 —— etcd 用<b>静态成员表凑 Raft 多数派</b>、MinIO 用<b>纠删码对等分片</b>、Woodpecker 用 <b>gossip 组网 + 状态外置</b>到 etcd 和对象存储。看懂这三种模型，才能写对 CLI 的「装 / 判就绪 / 扩缩容 / 卸载」。</div>
+      </div>
+
+      <!-- ============ at a glance ============ -->
+      <div class="card" data-rise>
+        <div class="card-head"><h3>一屏速览 · 三种 Pod 管理模型</h3><span class="sub">下面逐个展开</span></div>
+        <table class="tbl">
+          <thead><tr>
+            <th>组件</th><th>官方部署方式</th><th>k8s 工作负载</th><th>Pod 怎样编排成集群</th><th>状态 &amp; 数据落点</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><b>🗄️ etcd</b><div class="mq">元数据</div></td>
+              <td>Bitnami <b>Helm</b> chart<div class="mq">无 operator / CRD</div></td>
+              <td>StatefulSet<div class="mq">+ headless &amp; client Svc</div></td>
+              <td><b>静态成员表</b> + Raft<div class="mq">Parallel 同起 · 多数派 (n/2)+1</div></td>
+              <td><b>本地强状态</b><div class="mq">每 Pod 一块 PVC</div></td>
+            </tr>
+            <tr>
+              <td><b>🪣 MinIO</b><div class="mq">对象存储</div></td>
+              <td>官方 <b>MinIO Operator</b>（<code class="c2">Tenant</code> CRD）<div class="mq">milvus 今天用的是 Helm subchart</div></td>
+              <td>StatefulSet（每 pool 一个）<div class="mq">+ headless &amp; S3 Svc</div></td>
+              <td><b>无主对等</b> + 纠删码<div class="mq">端点展开组网 · 读写 quorum</div></td>
+              <td><b>本地分片</b><div class="mq">每 Pod 挂盘 = PVC</div></td>
+            </tr>
+            <tr>
+              <td><b>🪶 Woodpecker</b><div class="mq">MQ · WAL</div></td>
+              <td>Helm 手写 StatefulSet<div class="mq">仓库另有 operator，MVP 暂不用</div></td>
+              <td>StatefulSet<div class="mq">+ headless Svc</div></td>
+              <td><b>gossip 组网</b><div class="mq">SEEDS = 全量 Pod 域名 · 写走 quorum</div></td>
+              <td><b>状态外置</b><div class="mq">元数据→etcd · 日志→对象存储 · PVC 仅缓存</div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ============ etcd ============ -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head">
+          <h3>🗄️ etcd · Bitnami Helm chart</h3>
+          <span class="sub">本地强状态 · Raft 多数派</span>
+        </div>
+        <div class="card-pad">
+          <div class="row2">
+            <div class="facts">
+              <div class="fact"><div class="k">部署方式</div><div class="v">纯 Helm chart（Bitnami <code>etcd</code> 6.3.3，<b>没有 operator / CRD</b>，CoreOS etcd-operator 早已归档）。CLI 实质就是 <code>helm upgrade --install</code> 一个 chart。</div></div>
+              <div class="fact"><div class="k">创建的 k8s 资源</div>
+                <div class="chips">
+                  <span class="ck a">StatefulSet ×1</span><span class="ck">Headless Svc</span><span class="ck">Client Svc :2379</span><span class="ck">PVC ×3</span>
+                </div>
+                <div class="v" style="margin-top:7px">默认 rbac 关闭 → <b>不</b>生成 Secret；<code>pdb.create=false</code>、无 ConfigMap。</div>
+              </div>
+              <div class="fact"><div class="k">Milvus 默认</div><div class="v"><b>3 副本</b> · <code>milvusdb/etcd:3.5.18-r1</code> · 10Gi RWO · autoCompaction <code>revision/1000</code> · 4 GiB quota。</div></div>
+            </div>
+            <div class="topo2">
+              <div class="svcbar">⇆ headless svc · 每 Pod 稳定域名</div>
+              <div class="down">▾</div>
+              <div class="podwrap"><div class="podrow">
+                <div class="tpod"><div class="pn">etcd-0</div><div class="role">member</div><span class="disk local">PVC</span></div>
+                <div class="tpod"><div class="pn">etcd-1</div><div class="role">member</div><span class="disk local">PVC</span></div>
+                <div class="tpod"><div class="pn">etcd-2</div><div class="role">member</div><span class="disk local">PVC</span></div>
+              </div></div>
+              <div class="cpill-row"><span class="cpill">🧭 静态 <b>initial-cluster</b> · 多数派 <b>2/3</b></span></div>
+              <div class="topocap"><b style="color:#0c6b46">绿色 PVC = 强状态在本地</b>：每个成员的 WAL/数据和身份都钉在自己那块盘上。</div>
+            </div>
+          </div>
+
+          <div class="pm">
+            <h4><span id="pe"></span>怎么管理 Pod 资源</h4>
+            <ul>
+              <li><span class="lead">谁管 ·</span> <b>StatefulSet 控制器</b>：Pod 固定序号身份 <code>etcd-0/1/2</code>，配合 headless svc 拿到稳定 DNS。</li>
+              <li><span class="lead">组网 ·</span> 模板把每个序号的 peer URL 拼成<b>静态 <code>ETCD_INITIAL_CLUSTER</code></b>；<code>podManagementPolicy: Parallel</code> 让 3 个 Pod <b>同时启动</b>凑齐 Raft 多数派（顺序启动会死锁）。</li>
+              <li><span class="lead">容错 ·</span> 写入要多数派 <code>(n/2)+1</code>，所以副本取<b>奇数</b> —— 3 容 1、5 容 2；偶数只增成本不增容错。</li>
+              <li><span class="lead">重启/缩容 ·</span> Pod 重建后<b>挂回同一块 PVC</b>、保持成员身份；缩容靠 preStop 钩子 <code>etcdctl member remove</code> 注销，硬删会留下僵尸成员要手动清。</li>
+            </ul>
+            <div class="cite">依据：milvus-helm <code>charts/milvus/values.yaml:688-738</code>；etcd-6.3.3 chart <code>templates/statefulset.yaml</code>（initial-cluster 循环 / Parallel / preStop / volumeClaimTemplates）。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ minio ============ -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head">
+          <h3>🪣 MinIO · 官方 Operator（Tenant CRD）</h3>
+          <span class="sub">无主对等 · 纠删码分片</span>
+        </div>
+        <div class="card-pad">
+          <div class="row2">
+            <div class="facts">
+              <div class="fact"><div class="k">部署方式 · 两条路</div><div class="v"><b>官方推荐</b>：MinIO Operator + <code>Tenant</code> CRD（<code>minio.min.io/v2</code>）—— <code>kubectl apply</code> 一个 Tenant，operator 把它展开成「每个 pool 一个 StatefulSet」。<br><b>Milvus 今天</b>：社区 MinIO Helm subchart，<code>mode: distributed</code>。</div></div>
+              <div class="fact"><div class="k">创建的 k8s 资源</div>
+                <div class="chips">
+                  <span class="ck a">StatefulSet / pool</span><span class="ck">Headless Svc</span><span class="ck">S3 Svc :9000</span><span class="ck">Secret 凭证</span><span class="ck">PVC ×4</span>
+                </div>
+              </div>
+              <div class="fact"><div class="k">Milvus 默认</div><div class="v"><code>distributed</code> · <b>4 副本 × 1 盘</b> · 500Gi/盘 · bucket <code>milvus-bucket</code>。</div></div>
+            </div>
+            <div class="topo2">
+              <div class="svcbar">⇆ headless svc · 每 Pod 稳定域名</div>
+              <div class="down">▾</div>
+              <div class="podwrap ec">
+                <span class="enclbl">纠删码 EC · 无主对等</span>
+                <div class="podrow">
+                  <div class="tpod"><div class="pn">minio-0</div><div class="role">peer</div><span class="disk shard">盘=分片</span></div>
+                  <div class="tpod"><div class="pn">minio-1</div><div class="role">peer</div><span class="disk shard">盘=分片</span></div>
+                  <div class="tpod"><div class="pn">minio-2</div><div class="role">peer</div><span class="disk shard">盘=分片</span></div>
+                  <div class="tpod"><div class="pn">minio-3</div><div class="role">peer</div><span class="disk shard">盘=分片</span></div>
+                </div>
+              </div>
+              <div class="cpill-row"><span class="cpill">🧩 端点展开 <b>{0...N-1}</b> · 无 leader</span></div>
+              <div class="topocap"><b style="color:var(--accent-ink)">每个盘存一份分片</b>：对象按纠删码切片散落各盘，一致性来自读写 quorum 而非主节点。</div>
+            </div>
+          </div>
+
+          <div class="pm">
+            <h4><span id="pm2"></span>怎么管理 Pod 资源</h4>
+            <ul>
+              <li><span class="lead">谁管 ·</span> StatefulSet 控制器；走官方 operator 时是 <b>每个 pool 一个 StatefulSet、由 operator 持有</b>（非自家创建的 STS 会被判 <code>StatusNotOwned</code>）。</li>
+              <li><span class="lead">组网 ·</span> <b>无主、节点对等</b>：靠有序「省略号」端点展开 <code>minio-{0...N-1}.headless</code> 让每个节点知道全量成员，没有 leader / 协调者 / name-node。</li>
+              <li><span class="lead">数据 ·</span> 一个对象按<b>纠删码</b>切成 N=数据+校验 片，一片一盘散在一个 erasure set 里；读要 quorum、写要 quorum，可容忍若干块盘/节点掉线。</li>
+              <li><span class="lead">扩缩容 ·</span> 分布式 MinIO <b>不能原地缩、也不能原地扩单 pool</b> —— 扩容是<b>加一个新 pool</b>（operator 里往 <code>spec.pools[]</code> 追加，新起一个 STS）；要下线得先 <code>mc admin decommission</code> 把数据迁走。</li>
+            </ul>
+            <div class="cite">依据：milvus-helm <code>charts/milvus/values.yaml:627-682</code> + minio subchart <code>templates/statefulset.yaml</code>（端点展开 / volumeClaimTemplates）；官方 minio/operator Tenant CRD 与 distributed DESIGN 文档。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ woodpecker ============ -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head">
+          <h3>🪶 Woodpecker · Helm StatefulSet（service 模式）</h3>
+          <span class="sub">gossip 组网 · 状态外置 → Pod 近无状态</span>
+        </div>
+        <div class="card-pad">
+          <div class="row2">
+            <div class="facts">
+              <div class="fact"><div class="k">部署方式</div><div class="v">milvus-helm 里是<b>手写的 Helm StatefulSet</b>（无 operator/CRD）。Woodpecker 仓库另带一个真的 <code>WoodpeckerCluster</code> operator（较新，MVP 暂走 helm 更稳）。CLI 实质 = <code>helm upgrade --set woodpecker.enabled=true</code> 或直接 apply STS/Svc。</div></div>
+              <div class="fact"><div class="k">创建的 k8s 资源</div>
+                <div class="chips">
+                  <span class="ck a">StatefulSet ×1</span><span class="ck">Headless Svc</span><span class="ck">PVC ×N（缓存）</span>
+                </div>
+                <div class="v" style="margin-top:7px">配置全走 <b>env</b>（<code>SEEDS</code> / <code>MINIO_*</code> / <code>STORAGE_TYPE=service</code>），无独立 ConfigMap。</div>
+              </div>
+              <div class="fact"><div class="k">Milvus 默认</div><div class="v"><code>streaming</code> 默认 MQ（需开 <code>woodpecker.enabled</code>）· <b>4 副本</b> · service 模式 · 30Gi 缓存 PVC。</div></div>
+            </div>
+            <div class="topo2">
+              <div class="svcbar">⇆ headless svc · SEEDS=全量 Pod 域名</div>
+              <div class="down">▾</div>
+              <div class="podwrap"><div class="podrow">
+                <div class="tpod"><div class="pn">wp-0</div><div class="role">logstore</div><span class="disk cache">缓存</span></div>
+                <div class="tpod"><div class="pn">wp-1</div><div class="role">logstore</div><span class="disk cache">缓存</span></div>
+                <div class="tpod"><div class="pn">wp-2</div><div class="role">logstore</div><span class="disk cache">缓存</span></div>
+              </div></div>
+              <div class="cpill-row"><span class="cpill">🕸 gossip / memberlist · 对等</span></div>
+              <div class="down" style="margin-top:9px">▾ <b>状态外置</b></div>
+              <div class="extrow">
+                <div class="extbox etcd"><div class="en">etcd</div><div class="ed">元数据 / 协调<br><code>meta.type=etcd</code></div></div>
+                <div class="extbox obj"><div class="en">对象存储</div><div class="ed">WAL 日志 · durable<br><code>STORAGE_TYPE=service</code></div></div>
+              </div>
+              <div class="topocap"><b style="color:#5a657f">灰色 PVC 只是缓存/暂存</b>：真状态在 etcd（元数据）+ 对象存储（日志），Pod 近似无状态。</div>
+            </div>
+          </div>
+
+          <div class="pm">
+            <h4><span id="pw"></span>怎么管理 Pod 资源</h4>
+            <ul>
+              <li><span class="lead">谁管 ·</span> StatefulSet 控制器（仓库里那套 <code>WoodpeckerCluster</code> operator 能自动管生命周期，但 MVP 不启用）。</li>
+              <li><span class="lead">组网 ·</span> <b>gossip / memberlist</b>：模板把全部 Pod 域名拼进 <code>SEEDS</code> 环境变量，节点经 gossip 端口互相发现；客户端连任一节点即可拿到全拓扑。</li>
+              <li><span class="lead">状态外置 ·</span> 元数据写 <b>etcd</b>、日志(WAL)落 <b>对象存储</b>，本地 PVC 只是缓存/暂存 → Pod 近似无状态、好扩好换。这正是它「最省」的原因：<b>复用 Milvus 本就需要的 etcd + 对象存储，不再多起一套 broker 集群</b>（不像 Pulsar/Kafka）。</li>
+              <li><span class="lead">扩缩容 ·</span> 扩容直接加序号即自动入群；<b>缩容前要先 decommission</b> 把段 flush 到对象存储 —— helm 路径不会自动做，<b>CLI 得自己调 admin API</b> 再降副本。</li>
+            </ul>
+            <div class="cite">依据：milvus-helm <code>templates/woodpecker-statefulset.yaml</code>（SEEDS 循环 / MINIO_* / STORAGE_TYPE=service / volumeClaimTemplates）、<code>woodpecker-svc.yaml</code>；woodpecker <code>README.md</code> 架构、<code>config/woodpecker.yaml</code>（meta.type=etcd / storage.type=minio）、<code>deployments/operator/</code>。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ CLI implications ============ -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>给 CLI 的启示 · 四件要落地的事</h3><span class="sub">三种模型 → 四处实现差异</span></div>
+        <div class="card-pad">
+          <div class="ins">
+            <div class="inscard">
+              <div class="ih"><span class="n">1</span>判「就绪」：基线一样，集群级各不同</div>
+              <p>三者都先看 <code>readyReplicas == replicas</code>，再各加集群级体检 —— etcd：<code>etcdctl endpoint health</code> 看多数派；MinIO：<code>/minio/health/cluster</code> 看写 quorum；Woodpecker：<code>/healthz</code> + 成员就绪。注意 headless 的 <code>publishNotReadyAddresses</code> 会让域名先于就绪解析，<b>别拿 DNS 能解析当就绪</b>。</p>
+            </div>
+            <div class="inscard">
+              <div class="ih"><span class="n">2</span>安装顺序：地基先行</div>
+              <p><b>etcd &amp; 对象存储是地基</b> → 再起 Woodpecker（启动脚本会 <code>nc</code> 等 MinIO，没起来会卡）→ 最后装 Milvus 以 external 直连三者。这个硬依赖顺序就是 CLI 编排状态机的主线。</p>
+            </div>
+            <div class="inscard">
+              <div class="ih"><span class="n">3</span>扩缩容：三套不同的护栏</div>
+              <p>etcd 必须<b>奇数、一次一个</b>，缩容靠 preStop <code>member remove</code>；MinIO <b>只能加 pool、不能原地缩</b>；Woodpecker 缩容前必须先 <b>decommission</b> flush 到对象存储。CLI 要按组件分别加护栏，不能一把 <code>scale</code> 了事。</p>
+            </div>
+            <div class="inscard">
+              <div class="ih"><span class="n">4</span>卸载：PVC 不会自己走</div>
+              <p>StatefulSet 的 <code>volumeClaimTemplates</code> PVC <b>不会被 <code>helm uninstall</code> / 缩容删除</b>。CLI 的 teardown 要显式 <code>kubectl delete pvc -l ...</code>，否则残留盘越积越多（也是误删数据的风险点，需二次确认）。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout co-ok" data-rise style="margin-top:18px">
+        <span class="ic" id="i2"></span>
+        <div><b>一句话结论：</b>「各组件用各自官方方式」不是统一 operator —— 三件套里只有 <b>MinIO 有成熟官方 operator（Tenant CRD）</b>，<b>etcd 基本只有 helm</b>，<b>Woodpecker 自带 operator 但尚新（MVP 走 helm/STS）</b>。CLI 内核要做的，正是把这三种异构安装方式 + 三套 Pod 管理护栏，收敛成统一的「装 / 判就绪 / 扩缩容 / 卸载」命令。</div>
+      </div>
+
+      <div class="callout co-warn" data-rise style="margin-top:14px">
+        <span class="ic" id="i3"></span>
+        <div><b>一处待确认（开发内部）：</b>milvus-helm 的 Woodpecker StatefulSet 目前只往 Pod 注入了 <code class="c2">MINIO_*</code>，<b>没有传 <code class="c2">ETCD_ENDPOINTS</code>、也没挂配置文件</b>。standalone 节点的 etcd 元数据地址从哪来（镜像内默认值？还是 chart 漏配？）需要和 chart owner 对一下 —— 这直接影响 CLI 装 Woodpecker 时要不要自己补 etcd 接入。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'deps-research', crumbs:['方案讨论','阶段一调研 · 依赖部署'] });
+  document.getElementById('i1').innerHTML = Hub.svg(Hub.I.info,18);
+  document.getElementById('i2').innerHTML = Hub.svg(Hub.I.check,18);
+  document.getElementById('i3').innerHTML = Hub.svg(Hub.I.warn,18);
+  const cog = Hub.svg('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',16);
+  ['pe','pm2','pw'].forEach(id=>{ const e=document.getElementById(id); if(e) e.innerHTML=cog; });
+</script>
+</body>
+</html>

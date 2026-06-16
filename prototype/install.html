@@ -64,7 +64,7 @@
         <div style="display:flex;flex-direction:column;gap:16px">
           <div class="card card-pad">
             <div class="callout co-info" style="margin-bottom:0"><span class="ic" id="ci"></span>
-              <div>复用的依赖<strong>不会被本实例独占</strong>；新建的依赖由其官方 operator 独立部署。删除本 Milvus 实例不会连带删除复用的依赖。</div></div>
+              <div>复用的依赖<strong>不会被本实例独占</strong>；新建的依赖由其官方安装方式（operator / helm）独立部署。删除本 Milvus 实例不会连带删除复用的依赖。</div></div>
           </div>
           <div class="card card-pad">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -141,13 +141,13 @@
     const e=slotState('etcd'), s=slotState('store'), m=slotState('mq');
     const tag=st=>st.mode==='new'?'<span class="badge b-accent" style="height:18px">新建独立实例</span>':'<span class="badge b-idle" style="height:18px">复用 '+st.id+'</span>';
     Hub.modal({ title:'部署 '+name, icon:'info', confirmText:'确认部署',
-      msg:'依赖将分别由各自官方 operator 处理（新建）或直接挂载（复用）。',
+      msg:'依赖将分别由各自官方方式（operator / helm） 处理（新建）或直接挂载（复用）。',
       body:`<div class="depmap" style="margin-top:4px">
         <div class="row"><span class="node">🗄️ etcd</span><span class="arr">${tag(e)}</span></div>
         <div class="row"><span class="node">${ST[s.kind].logo} ${ST[s.kind].name}</span><span class="arr">${tag(s)}</span></div>
         <div class="row"><span class="node">${MQ[m.kind].logo} ${MQ[m.kind].name}</span><span class="arr">${tag(m)}</span></div></div>`,
       onConfirm(){
-        Hub.toast('部署已下发：'+name,'新建依赖由官方 operator 创建…','ok');
+        Hub.toast('部署已下发：'+name,'新建依赖由各自官方方式创建…','ok');
         setTimeout(()=>Hub.toast('依赖就绪','开始部署 Milvus 内核…','info'),1300);
         setTimeout(()=>{ Hub.toast(name+' 部署完成','跳转实例总览','ok'); setTimeout(()=>location.href='index.html',800); },2700);
       }});

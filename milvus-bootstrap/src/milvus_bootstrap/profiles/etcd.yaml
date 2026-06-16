@@ -1,0 +1,43 @@
+# etcd — drives all engines. See prototype/phase1-plan.html (etcd task card).
+kind: etcd
+state_class: authoritative          # disk = Milvus metadata; cluster can't be wiped & rebuilt
+
+detect:
+  image_match: ["etcd"]
+  ports: [2379, 2380]
+  helm_chart: "etcd-*"
+  exclude_labels:                   # HARD guardrail: never touch control-plane etcd
+    tier: control-plane
+
+install_methods:
+  - id: bitnami-helm                # default: same chart/image milvus uses today
+    platform: k8s
+    default: true
+    kind: helm
+    chart: bitnami/etcd
+    params:
+      replicaCount: 3               # odd for quorum
+      persistence: { size: 10Gi }
+      auth: { rbac: { enabled: false } }
+  - id: raw-statefulset
+    platform: k8s
+    kind: manifest
+  - id: docker-compose
+    platform: docker
+    kind: compose
+  - id: external
+    platform: k8s
+    kind: external
+
+health:
+  workload_ready: "sts.readyReplicas == replicas"
+  cluster_check: "etcdctl endpoint health --cluster (quorum)"
+
+scale_rules:
+  replicas: odd-only
+  step: one-at-a-time
+  scale_down: "preStop etcdctl member remove"
+  immutable_fields: ["volumeClaimTemplates"]
+
+connect:
+  milvus_values: "externalEtcd.endpoints"

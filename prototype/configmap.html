@@ -113,7 +113,7 @@
   ];
   const CONFIGS = {
     milvus:     { name:'milvus', mgr:'Milvus Operator', file:'milvus.yaml', kv:deep(KV_MILVUS) },
-    woodpecker: { name:'woodpecker', mgr:'Woodpecker Operator', file:'woodpecker.yaml', yaml:
+    woodpecker: { name:'woodpecker', mgr:'Helm', file:'woodpecker.yaml', yaml:
 `storage:
   type: minio
   bucket: a-bucket
@@ -124,7 +124,7 @@ logstore:
   segmentSyncPolicy:
     maxBytes: 256M
     maxFlushThreads: 32` },
-    etcd:       { name:'etcd-cluster', mgr:'etcd-operator', file:'etcd.conf.yaml', yaml:
+    etcd:       { name:'etcd-cluster', mgr:'Bitnami Helm', file:'etcd.conf.yaml', yaml:
 `replicaCount: 3
 autoCompactionMode: revision
 autoCompactionRetention: "1000"

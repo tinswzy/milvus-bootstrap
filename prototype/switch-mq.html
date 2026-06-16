@@ -213,7 +213,7 @@
     $('curBadge').innerHTML=`<span class="d"></span>${MQ[inst.mq.kind].logo} ${MQ[inst.mq.kind].name}`;
     // checks
     $('checks').innerHTML = `
-      <li><span class="badge b-ok"><span class="d"></span>通过</span> 目标 operator 已就位</li>
+      <li><span class="badge b-ok"><span class="d"></span>通过</span> 目标 MQ 服务已就位</li>
       <li><span class="badge b-ok"><span class="d"></span>通过</span> 对象存储 <b>${inst.store.id}</b> 健康（新旧 MQ 共用）</li>
       <li><span class="badge b-warn"><span class="d"></span>注意</span> 实例 <b>${inst.name}</b> 存在 collection，切换前需清空或备份</li>
       <li><span class="badge b-ok"><span class="d"></span>通过</span> 资源配额充足（切换窗口需新旧 MQ 并存）</li>`;
@@ -245,7 +245,7 @@
     $('planT').textContent=target.kind; $('planOld').textContent=MQ[inst.mq.kind].name;
     renderDiff();
   }
-  const MGR = { woodpecker:'Woodpecker Operator', kafka:'Strimzi', pulsar:'Pulsar Operator' };
+  const MGR = { woodpecker:'Helm', kafka:'Strimzi', pulsar:'Apache Helm' };
   $('selTarget').onchange = ()=>{ provDone=false; $('provBtn').disabled=false; $('provBar').style.width='0%'; $('provPct').textContent='0%';
     $('provLog').innerHTML='<div class="ev"><div class="t">就绪</div><div class="m">点击右上角开始…</div></div>'; syncTarget(); if(step===2) refreshNext(); };
 

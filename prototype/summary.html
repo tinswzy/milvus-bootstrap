@@ -49,13 +49,13 @@
 
       <div class="callout co-ok" data-rise style="margin-bottom:18px">
         <span class="ic" id="i1"></span>
-        <div><b>结论：做方案三 —— 无状态 WebUI，各组件交还自己的官方 operator，装/连分离。</b>方案二（k8s hack）当下止血、方案一（改 helm/operator）作过渡，但终态是方案三：把"安装/切换/改配置"收进一个有护栏的控制台，顺带解决文档爆炸的运维痛点。</div>
+        <div><b>结论：做方案三 —— 无状态 WebUI，各组件交还自己的官方安装方式（operator / helm），装/连分离。</b>方案二（k8s hack）当下止血、方案一（改 helm/operator）作过渡，但终态是方案三：把"安装/切换/改配置"收进一个有护栏的控制台，顺带解决文档爆炸的运维痛点。</div>
       </div>
 
       <div class="card" data-rise>
         <div class="card-head"><h3>怎么拆 · 一个关键洞察</h3><span class="sub">WebUI 的核心操作，背后全是调 Python 脚本完成的</span></div>
         <div class="card-pad">
-          <p style="margin:0;font-size:13px;color:var(--fg-2);line-height:1.7">WebUI 上点的每一个动作（装组件 / 切 MQ / 改配置 / 升级），<b>真正干活的是背后那层 Python 脚本</b> —— 它去调 k8s 与各组件的官方 operator。WebUI 只是把这些脚本"包成页面和向导"。所以工作要<b>先做中间这层、最后补最上面的壳</b>：</p>
+          <p style="margin:0;font-size:13px;color:var(--fg-2);line-height:1.7">WebUI 上点的每一个动作（装组件 / 切 MQ / 改配置 / 升级），<b>真正干活的是背后那层 Python 脚本</b> —— 它去调 k8s 与各组件的官方安装方式（operator / helm）。WebUI 只是把这些脚本"包成页面和向导"。所以工作要<b>先做中间这层、最后补最上面的壳</b>：</p>
           <div class="lyr-row">
             <div class="lyr-box">
               <span class="lyr-tag b">② 后接</span>
@@ -70,7 +70,7 @@
             </div>
             <div class="lyr-arr">→<span>k8s API</span></div>
             <div class="lyr-box">
-              <div class="ic">☸️</div><div class="nm">k8s · 各组件官方 operator</div>
+              <div class="ic">☸️</div><div class="nm">k8s · 各组件官方安装方式（operator / helm）</div>
               <div class="ds">etcd / minio / strimzi<br>pulsar / milvus …</div>
             </div>
           </div>
@@ -93,6 +93,7 @@
 
       <div class="card" data-rise style="margin-top:18px">
         <div class="card-head"><h3>阶段一 · milvus-bootstrap CLI（Python）</h3><span class="sub">按里程碑顺序拆 —— 命令行本身即可交付</span></div>
+        <div style="padding:13px 20px 0"><a class="btn btn-ghost btn-sm" href="deps-research.html">📐 ① MVP 三件套（etcd / MinIO / Woodpecker）的部署方式与 Pod 管理调研 →</a></div>
         <table class="tbl">
           <thead><tr><th style="white-space:nowrap">顺序</th><th>里程碑</th><th>包含的能力</th><th>产出</th></tr></thead>
           <tbody>

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>运行时设计 · 部署 / 状态 / 平台抽象 / 后台线程 · Milvus Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  /* deployment diagram */
+  .dep{ border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,var(--surface),var(--surface-3)); padding:18px 16px; }
+  .plane{ border:1.4px solid var(--line-2); border-radius:12px; background:var(--surface); padding:13px 15px; box-shadow:var(--shadow-sm); }
+  .plane .pl{ font-family:var(--font-mono); font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--fg-faint); }
+  .mgmt{ border:1.6px solid var(--accent); background:linear-gradient(180deg,#fff,var(--accent-soft)); }
+  .epill{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface-3); padding:6px 11px; font-size:12px; font-weight:600; color:var(--fg-2); }
+  .epill .c2{ font-family:var(--font-mono); font-size:11px; color:var(--accent-ink); background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:0 5px; }
+  .row-mid{ display:flex; gap:9px; flex-wrap:wrap; margin-top:8px; }
+  .col3{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  @media(max-width:760px){ .col3{ grid-template-columns:1fr; } }
+  .tgt{ border:1.3px solid var(--line-2); border-radius:10px; background:var(--surface); padding:11px 12px; text-align:center; }
+  .tgt .ic{ font-size:20px; } .tgt .nm{ font-weight:700; font-size:12.5px; margin-top:5px; } .tgt .ds{ font-size:10.5px; color:var(--fg-3); margin-top:3px; font-family:var(--font-mono); line-height:1.5; }
+  .conn{ text-align:center; color:var(--accent); font-weight:700; font-size:14px; padding:6px 0; }
+  .conn small{ font-family:var(--font-mono); font-size:9.5px; color:var(--fg-faint); font-weight:500; }
+  .placements{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:13px; }
+  @media(max-width:760px){ .placements{ grid-template-columns:1fr; } }
+  .pc{ border:1px solid var(--line-2); border-left-width:3px; border-radius:10px; background:var(--surface); padding:11px 13px; }
+  .pc.a{ border-left-color:var(--accent); } .pc.b{ border-left-color:var(--indigo); } .pc.c{ border-left-color:var(--warn); }
+  .pc b{ font-size:12.5px; } .pc p{ margin:5px 0 0; font-size:11.5px; color:var(--fg-3); line-height:1.6; }
+  .pc code{ font-family:var(--font-mono); font-size:10.5px; background:var(--surface-3); border:1px solid var(--line); border-radius:3px; padding:0 4px; color:var(--accent-ink); }
+  /* platform abstraction */
+  .pa{ border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,var(--surface),var(--surface-3)); padding:16px; }
+  .pa-eng{ border:1.4px solid var(--accent); border-radius:11px; background:linear-gradient(180deg,#fff,var(--accent-soft)); padding:11px 14px; text-align:center; font-weight:700; font-size:13px; }
+  .pa-eng small{ display:block; font-weight:500; font-size:11px; color:var(--fg-3); font-family:var(--font-mono); margin-top:3px; }
+  .pa-if{ border:1.4px dashed var(--accent); border-radius:11px; background:rgba(8,180,200,.05); padding:10px 14px; text-align:center; margin:0 8%; }
+  .pa-if .l{ font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--accent-ink); text-transform:uppercase; letter-spacing:.03em; }
+  .pa-if .m{ font-family:var(--font-mono); font-size:11px; color:var(--fg-2); margin-top:5px; line-height:1.6; }
+  .pa-impl{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  @media(max-width:760px){ .pa-impl{ grid-template-columns:1fr; } }
+  .impl{ border:1.3px solid var(--line-2); border-radius:10px; background:var(--surface); padding:11px 12px; box-shadow:var(--shadow-sm); }
+  .impl .h{ font-weight:700; font-size:12.5px; display:flex; align-items:center; gap:7px; }
+  .impl .h .e{ font-size:16px; } .impl.fut .h{ color:var(--fg-faint); }
+  .impl ul{ margin:7px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px; }
+  .impl li{ font-family:var(--font-mono); font-size:10.5px; color:var(--fg-3); padding-left:12px; position:relative; line-height:1.5; }
+  .impl li::before{ content:'·'; position:absolute; left:3px; color:var(--accent); font-weight:700; }
+  /* tables */
+  .tbl td code, .tbl td .c2{ font-family:var(--font-mono); font-size:11px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:0 4px; color:var(--accent-ink); }
+  .tbl td .sig{ font-family:var(--font-mono); font-size:10.5px; color:var(--fg-3); display:block; margin-top:2px; line-height:1.5; }
+  .auth{ font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--err-soft);color:#b42318; }
+  .cache{ font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--warn-soft);color:#92510a; }
+  .flagp{ font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--warn-soft);color:#92510a; }
+  .autop{ font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--ok-soft);color:#0c6b46; }
+  .rop{ font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--idle-soft);color:#5a657f; }
+  /* state code */
+  .prof{ background:#0f1720; border-radius:11px; padding:14px 16px; overflow:auto; margin:0; }
+  .prof code{ font-family:var(--font-mono); font-size:11.5px; line-height:1.7; color:#cdd6e3; white-space:pre; display:block; }
+  .prof .k{ color:#7fd1de; } .prof .s{ color:#a7e0b0; } .prof .c{ color:#5b6b7a; } .prof .n{ color:#e3b341; } .prof .e{ color:#d98ad9; }
+  /* daemon diagram */
+  .daemon{ border:1.5px solid var(--indigo); border-radius:13px; background:linear-gradient(180deg,#fff,rgba(99,102,241,.06)); padding:15px; }
+  .daemon .dh{ font-family:var(--font-mono); font-size:11px; font-weight:700; color:var(--indigo); text-align:center; }
+  .loops{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:11px; }
+  @media(max-width:760px){ .loops{ grid-template-columns:1fr; } }
+  .loop{ border:1.3px solid var(--line-2); border-radius:9px; background:var(--surface); padding:9px 11px; box-shadow:var(--shadow-sm); }
+  .loop .ln{ font-weight:700; font-size:12px; } .loop .lc{ font-family:var(--font-mono); font-size:9.5px; color:var(--accent-ink); background:var(--accent-soft); border-radius:20px; padding:1px 7px; display:inline-block; margin-top:4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>运行时设计 · 部署 / 状态 / 平台抽象 / 后台线程</h1>
+          <p>补齐总体设计里没讲透的运行时层：<strong>bootstrap 跑在哪、状态是什么结构存到哪、怎么同时管 k8s 和单机 docker、常驻后台有哪些线程各做什么</strong>。核心是一个 <strong>PlatformAdapter 抽象</strong>，让引擎和"目标是 k8s 还是 docker"彻底解耦。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="design-arch.html">← 看总体设计</a></div>
+      </div>
+
+      <!-- ===== deployment ===== -->
+      <div class="card" data-rise>
+        <div class="card-head"><h3>① 部署形态 · bootstrap 跑在哪</h3><span class="sub">它是「管理面」，永远在被管组件之外</span></div>
+        <div class="card-pad">
+          <div class="dep">
+            <div class="plane"><div class="pl">Clients · 都很瘦</div>
+              <div class="row-mid"><span class="epill">⌨️ CLI · 瘦客户端</span><span class="epill">🖥️ WebUI <small style="font-weight:500;color:var(--fg-faint)">（后期）</small></span></div>
+              <div style="font-size:11.5px;color:var(--fg-3);margin-top:9px;line-height:1.6">CLI 双重角色：① <b>装 / 启停 / 更新 core 本身</b>（自更新，像 claude code / codex）　② <b>转发命令 + 看进度</b>，不含业务逻辑</div>
+            </div>
+            <div class="conn">↕ <small>都经 Core API（本地 socket；远程 REST / WS）</small></div>
+            <div class="plane mgmt"><div class="pl">Core daemon · 运行时本体（所有真实逻辑都在这）</div>
+              <div class="row-mid" style="margin-top:2px">
+                <span class="epill">六引擎</span><span class="epill">ServiceDriver</span><span class="epill">PlatformAdapter</span><span class="epill">Task 编排</span><span class="epill">StateStore</span><span class="epill">后台线程</span><span class="epill">API</span>
+              </div>
+            </div>
+            <div class="conn">↓ <small>统一经 PlatformAdapter 下发</small></div>
+            <div class="col3">
+              <div class="tgt"><div class="ic">☸️</div><div class="nm">k8s 集群</div><div class="ds">kube API<br>helm / operator</div></div>
+              <div class="tgt"><div class="ic">🐳</div><div class="nm">docker 主机</div><div class="ds">docker / compose<br>socket</div></div>
+              <div class="tgt"><div class="ic">🖧</div><div class="nm">单机 / VM</div><div class="ds">ssh / systemd<br><span style="color:var(--fg-faint)">后续</span></div></div>
+            </div>
+          </div>
+
+          <div class="placements">
+            <div class="pc a"><b>① 本机 core</b><p>core daemon 作为本地进程/容器跑在运维机上，CLI 连<b>本地 socket</b>；管本机 docker，或经 kubeconfig 管远程 k8s。<b>最轻，MVP 主形态</b>。</p></div>
+            <div class="pc b"><b>② 集群内 core</b><p>core 作为 <code>Deployment</code> + ServiceAccount + RBAC 跑在 k8s 里，暴露 REST/WS 给多人 / WebUI；CLI 远程连它。</p></div>
+            <div class="pc c"><b>③ 主机常驻 core</b><p>core 作为 systemd / 容器跑在运维主机，集中管<b>没有 k8s 的 docker 环境</b>或多个目标；CLI 连它。</p></div>
+          </div>
+          <div class="why" style="margin-top:13px"><div><b>关键（修正）：</b>真正干活的是 <b>core daemon</b> —— 六引擎 / 驱动 / 适配器 / Task / 状态 / 后台线程全在它里面。<b>CLI 是瘦客户端</b>，只做三件事：<b>装 / 启停 / 更新 core</b>（自更新，像 claude code / codex）、<b>转发命令</b>、<b>显示进度</b>；连「一次性命令」也是 CLI 先确保 core 起着、再 RPC 给它执行。core 跑在哪由需求定，CLI 在哪都能连。</div></div>
+        </div>
+      </div>
+
+      <!-- ===== state ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>② 状态结构与落点 · StateStore 抽象</h3><span class="sub">状态是可重建缓存；落点跟随运行平台、定期自纠</span></div>
+        <div class="card-pad">
+          <pre class="prof"><code><span class="c"># 逻辑状态结构 —— 全是可重建缓存（删了重新 discover 即可）</span>
+<span class="c"># 落点跟随平台：k8s 跑的→k8s Secret；docker/单机 跑的→本地 SQLite/JSON</span>
+<span class="k">Instance:</span>                       <span class="c"># 一套 Milvus + 它的依赖绑定</span>
+  <span class="k">id / name</span>
+  <span class="k">platform:</span> <span class="s">k8s | docker | standalone</span>
+  <span class="k">location:</span> { <span class="k">namespace</span> | <span class="k">host</span> }
+  <span class="k">milvus:</span> { <span class="k">version</span>, <span class="k">mode</span>, <span class="k">endpoints</span> }
+  <span class="k">ownership:</span> <span class="s">Managed | Adoptable | ReadOnly | External</span>
+  <span class="k">deps:</span> [ <span class="e">DependencyBinding</span> ]
+  <span class="k">snapshot_ref</span>                  <span class="c"># 仅供 update 时快速 diff 的缓存（可删可重建）</span>
+<span class="k">DependencyBinding:</span>
+  <span class="k">kind:</span> <span class="s">etcd | minio | woodpecker | pulsar | kafka</span>
+  <span class="k">install_method:</span> <span class="s">bitnami-helm | minio-operator | compose | external …</span>
+  <span class="k">ref:</span> { <span class="k">release</span> | <span class="k">container</span> | <span class="k">endpoints</span> }
+  <span class="k">ownership / state_class / version / endpoints</span>
+<span class="k">Task:</span> { <span class="k">id, type, target, status</span>, <span class="k">steps:</span>[{name,status,plan,result}], <span class="k">audit</span> }
+<span class="c">#  ↓↓ 以下是缓存：可重建、不权威，丢了重新拉即可  ↓↓</span>
+<span class="k">ImageStatus:</span> { <span class="k">kind, current, latest, upgradable</span> }
+<span class="k">Candidate:</span>   { <span class="k">kind, evidence, identified, suggested_ownership</span>, <span class="k">status:</span> <span class="s">pending_confirm</span> }
+<span class="k">HealthSnap:</span>  { <span class="k">instance, workload_ready, cluster_health, ts</span> }</code></pre>
+
+          <table class="tbl" style="margin-top:14px">
+            <thead><tr><th>数据</th><th>性质</th><th>落点 = 跟随实例运行的平台</th></tr></thead>
+            <tbody>
+              <tr><td>Instance / 绑定清单</td><td><span class="cache">可重建缓存</span><span class="sig">删了重 discover</span></td><td>k8s→Secret/ConfigMap（带 label）　·　docker/单机→SQLite/JSON</td></tr>
+              <tr><td>实例快照 snapshot</td><td><span class="cache">可重建缓存</span><span class="sig">仅供 update 快速 diff</span></td><td>同上（跟随平台）</td></tr>
+              <tr><td>Task / 审计记录</td><td>记录<span class="sig">丢了不影响正确性</span></td><td>同上</td></tr>
+              <tr><td>image / candidate / health</td><td><span class="cache">缓存</span></td><td>内存为主 + 可选持久</td></tr>
+              <tr><td>连接 / 凭据配置</td><td>输入<span class="sig">用户给的，非状态</span></td><td>k8s→挂载 Secret/env　·　单机→<code>~/.milvus-bootstrap/config.yaml</code></td></tr>
+            </tbody>
+          </table>
+          <div class="why" style="margin-top:13px"><div><b>三个修正要点：</b>① <b>落点 = 跟随运行平台</b>，不是可选项 —— 实例在 docker 跑则状态在<b>本地</b>、在 k8s 跑则状态在 <b>k8s Secret</b>，天然一一对应（<code class="c2">K8sStateStore</code> / <code class="c2">FileStateStore</code> 同一接口）。② 状态<b>是可删的派生缓存</b>，删了下次 discover 自动重建，只为 update 时<b>快速检查 / diff</b> 用。③ 后台<b>定期拿真实状态校对、自动纠偏</b>。永远的真相是<b>运行中的目标本身</b>，StateStore 只是加速用的便捷副本。</div></div>
+        </div>
+      </div>
+
+      <!-- ===== platform abstraction ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>③ 平台抽象 · 同时管 k8s 与单机 docker</h3><span class="sub">引擎平台无关，靠 PlatformAdapter 屏蔽差异</span></div>
+        <div class="card-pad">
+          <div class="pa">
+            <div class="pa-eng">六引擎 · 平台无关<small>Discovery / Identification / Ownership / Provisioner / Lifecycle / State 只调统一原语</small></div>
+            <div class="conn">↓</div>
+            <div class="pa-if">
+              <div class="l">PlatformAdapter 接口</div>
+              <div class="m">apply / get / delete workload · exec · logs · wait_ready · discover_native · state_store</div>
+            </div>
+            <div class="conn">↓</div>
+            <div class="pa-impl">
+              <div class="impl"><div class="h"><span class="e">☸️</span> K8sAdapter</div>
+                <ul><li>workload = helm release / operator CR / 原生对象</li><li>discover = 扫 STS/Deploy/CR + label</li><li>exec = pod exec · logs = pod log</li><li>state = Secret/ConfigMap</li></ul></div>
+              <div class="impl"><div class="h"><span class="e">🐳</span> DockerAdapter</div>
+                <ul><li>workload = container / compose project</li><li>discover = list 容器 + image + label</li><li>exec = docker exec · logs = docker logs</li><li>state = 本地文件 / SQLite</li></ul></div>
+              <div class="impl fut"><div class="h"><span class="e">🖧</span> StandaloneAdapter <span style="font-size:10px;color:var(--fg-faint)">（后续）</span></div>
+                <ul><li>workload = systemd unit / 进程</li><li>discover = ssh 探测 + 端口</li><li>exec/logs = ssh · journalctl</li><li>state = 本地文件</li></ul></div>
+            </div>
+          </div>
+          <div class="why" style="margin-top:13px"><div><b>两维抽象 = 平台 × 组件。</b>「在哪跑」交给 PlatformAdapter；「装哪个组件、怎么认」交给组件 profile，且 <b>profile 的 install_methods / detect 按平台分别声明</b>。于是 etcd 在 k8s 上是 bitnami-helm、在 docker 上是跑容器 —— 同一个 Provisioner 调不同 adapter 即可，引擎零改动。</div></div>
+        </div>
+      </div>
+
+      <!-- ===== onboarding matrix ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>④ 当前这些软件 · 分别怎么接入</h3><span class="sub">每个组件在 k8s / docker 两个平台上的装法、识别签名</span></div>
+        <table class="tbl">
+          <thead><tr><th>组件</th><th>k8s · 装 / 识别</th><th>docker · 装 / 识别</th><th>state-class</th><th>Milvus 连接</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>🗄️ etcd</b></td>
+              <td>bitnami helm<span class="sig">helm 标记 + STS + :2379</span></td>
+              <td><code>bitnami/etcd</code> 容器<span class="sig">image + :2379/:2380</span></td>
+              <td><span class="auth">authoritative</span></td>
+              <td><code>externalEtcd.endpoints</code></td>
+            </tr>
+            <tr>
+              <td><b>🪣 MinIO</b></td>
+              <td>MinIO Operator(Tenant)/helm<span class="sig">Tenant CR / STS + :9000</span></td>
+              <td><code>minio/minio</code> 容器<span class="sig">image + :9000</span></td>
+              <td><span class="auth">authoritative</span></td>
+              <td><code>externalS3.*</code></td>
+            </tr>
+            <tr>
+              <td><b>🪶 Woodpecker</b></td>
+              <td>Woodpecker Operator（CRD）<span class="sig">WoodpeckerCluster CR · 自动建 STS/PDB · 手写 helm STS 作回退</span></td>
+              <td>compose（仓库自带）<span class="sig">image + :18080</span></td>
+              <td><span class="cache">cache-backed</span></td>
+              <td><code>streaming.woodpecker</code> / external</td>
+            </tr>
+            <tr>
+              <td><b>📡 Pulsar</b></td>
+              <td>apache helm<span class="sig">helm + STS + :6650</span></td>
+              <td>compose<span class="sig">image + :6650</span></td>
+              <td><span class="auth">authoritative</span></td>
+              <td><code>externalPulsar</code></td>
+            </tr>
+            <tr>
+              <td><b>🌊 Kafka</b></td>
+              <td>Strimzi operator<span class="sig">Kafka CR + :9092</span></td>
+              <td>compose<span class="sig">image + :9092</span></td>
+              <td><span class="auth">authoritative</span></td>
+              <td><code>externalKafka</code></td>
+            </tr>
+            <tr>
+              <td><b>Ⓜ️ Milvus</b></td>
+              <td>milvus-operator / helm<span class="sig">Milvus CR / STS + :19530</span></td>
+              <td>docker-compose standalone<span class="sig">image + :19530</span></td>
+              <td>本体（连接目标）</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-size:11.5px;padding:12px 20px;border-top:1px solid var(--line);color:var(--fg-3)">接入一个组件 = 给它的 profile 填上「每个平台的装法 + 检测签名 + state-class + connect 方式」。引擎、StateStore、PlatformAdapter 都不动。</div>
+      </div>
+
+      <!-- ===== background threads ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>⑤ 后台线程 · 常驻 daemon 才跑</h3><span class="sub">区别于按需触发的 Task 引擎 —— 这些是周期性自巡的 worker</span></div>
+        <div class="card-pad">
+          <div class="daemon">
+            <div class="dh">core daemon · 单事件循环 + worker 池（阻塞的 helm/kubectl/docker 调用丢线程池）</div>
+            <div class="loops">
+              <div class="loop"><div class="ln">🔭 Discovery poller</div><div class="lc">每数分钟</div></div>
+              <div class="loop"><div class="ln">🏷️ Image/version poller</div><div class="lc">每数小时</div></div>
+              <div class="loop"><div class="ln">❤️ Health poller</div><div class="lc">每 30–60s</div></div>
+              <div class="loop"><div class="ln">⚙️ Task runner（worker 池）</div><div class="lc">常驻消费队列</div></div>
+              <div class="loop"><div class="ln">🔀 Drift detector</div><div class="lc">每数分钟</div></div>
+              <div class="loop"><div class="ln">🧹 GC / retention</div><div class="lc">每日</div></div>
+            </div>
+          </div>
+
+          <table class="tbl" style="margin-top:14px">
+            <thead><tr><th>线程 / loop</th><th>读什么</th><th>产出 / 写</th><th style="white-space:nowrap">是否自动动手</th></tr></thead>
+            <tbody>
+              <tr><td><b>🔭 Discovery poller</b></td><td>各 target 的工作负载 / 容器 / 端点</td><td>刷新候选清单 + <b>校正已知实例的 state 缓存</b>；新发现的 stateful / deployment / 容器 → 置 <code>pending_confirm</code></td><td><span class="flagp">只标记 · 待用户确认才接入</span></td></tr>
+              <tr><td><b>🏷️ Image/version poller</b></td><td>镜像 registry · helm repo · GitHub releases</td><td>比对运行版本 → 标「<b>可升级</b>」+ 版本差</td><td><span class="flagp">只标记 · 待用户确认才升</span></td></tr>
+              <tr><td><b>❤️ Health poller</b></td><td>被管实例：就绪门 + 集群级体检（etcdctl / minio cluster / wp healthz）</td><td>更新状态、亮灯、触发告警</td><td><span class="rop">只读</span></td></tr>
+              <tr><td><b>⚙️ Task runner</b></td><td>任务队列</td><td>执行用户已提交的 Task 状态机、推进度、重试 / 续跑</td><td><span class="autop">执行已授权任务</span></td></tr>
+              <tr><td><b>🔀 Drift detector</b></td><td>live 状态 vs last-applied 快照</td><td>标记漂移（被 kubectl edit 过的字段）</td><td><span class="flagp">只标记</span></td></tr>
+              <tr><td><b>🧹 GC / retention</b></td><td>旧任务记录 / 缓存 / 快照历史</td><td>按保留策略清理</td><td><span class="autop">自动（安全操作）</span></td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout co-warn" style="margin-top:14px;margin-bottom:0"><span class="ic" id="iw"></span>
+            <div><b>护栏：巡检线程只「发现」不「动手」。</b>Discovery 发现新资源 → 进待确认队列，<b>用户点确认才接管</b>；Image poller 发现新版本 → 只亮「可升级」，<b>用户点了才走 F4 升级</b>。真正改动集群的只有 Task runner，且跑的都是用户已授权、带 dry-run / 回滚的任务。这样"自动巡检"和"人来拍板"分得很清。</div>
+          </div>
+          <div class="why" style="margin-top:13px"><div><b>这些线程都跑在 core daemon 里</b> —— CLI 是瘦客户端，只转发命令、看进度，<b>不跑任何业务逻辑（含这些巡检）</b>；core 没在跑时 CLI 会先把它拉起来。周期巡检也是 <b>state 缓存能"定期自纠"</b>的来源（Discovery/Health poller 拿真实状态回写校正）。</div></div>
+        </div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-top:18px">
+        <span class="ic" id="ii"></span>
+        <div><b>合起来看：</b>总体设计讲「系统由什么组成」，这页讲「它怎么活起来」—— 一个管理面进程，按需 CLI / 常驻 daemon 两形态，靠 <b>PlatformAdapter</b> 同时罩住 k8s 与 docker，状态经 <b>StateStore</b> 落原生对象或本地文件，常驻态再开一圈<b>只发现不动手</b>的巡检线程。下一步仍是 <b>计划拆分</b>，把这些落成工作项。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'design-runtime', crumbs:['方案讨论','运行时设计 · 部署/状态/平台'] });
+  document.getElementById('iw').innerHTML = Hub.svg(Hub.I.warn,18);
+  document.getElementById('ii').innerHTML = Hub.svg(Hub.I.info,18);
+</script>
+</body>
+</html>

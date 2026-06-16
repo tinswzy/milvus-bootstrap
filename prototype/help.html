@@ -71,7 +71,7 @@
       <div class="page-head" data-rise>
         <div class="h-l">
           <h1>这是什么 · 架构</h1>
-          <p>Milvus Admin WebUI 是一个 <strong>pip 安装即用的 Python WebUI</strong>，连接 Kubernetes，对 Milvus 及其依赖组件做<strong>官方 operator 层面的可视化安装与配置管理</strong>。它本身<strong>尽可能无状态</strong>——只是一个管理者，每个组件都由各自的官方 operator 独立维护。</p>
+          <p>Milvus Admin WebUI 是一个 <strong>pip 安装即用的 Python WebUI</strong>，连接 Kubernetes，对 Milvus 及其依赖组件做<strong>官方方式（operator / helm）层面的可视化安装与配置管理</strong>。它本身<strong>尽可能无状态</strong>——只是一个管理者，每个组件都由各自的官方安装方式（operator / helm） 独立维护。</p>
         </div>
       </div>
 
@@ -86,7 +86,7 @@
 <span class="c"># 2) 连上你的 kubeconfig 启动 WebUI</span>
 <span class="p">$</span> milvus-admin-webui --kubeconfig ~/.kube/config --port <span class="v">8080</span>
 <span class="ok">✔</span> connected to cluster: <span class="v">prod-cluster</span>
-<span class="ok">✔</span> discovered operators: milvus, strimzi, pulsar, etcd, minio
+<span class="ok">✔</span> discovered: milvus-operator · minio-operator · strimzi · etcd/pulsar (helm)
 <span class="ok">✔</span> serving UI at <span class="v">http://localhost:8080</span>
 
 <span class="c"># 无需数据库、无需后端存储 —— 状态实时读自 k8s</span></pre>
@@ -97,14 +97,14 @@
             <li>📦 单一 Python 包，<b>pip 一键安装</b></li>
             <li>🔌 启动只需一个 <b>kubeconfig</b></li>
             <li>🗄️ <b>无自带数据库</b>，不落任何业务状态</li>
-            <li>🔭 自动发现集群里已装的各官方 operator</li>
+            <li>🔭 自动发现集群里已装的各官方安装方式（operator / helm）</li>
             <li>🧰 内置常用运维工具入口（Attu / Birdwatcher / Log Export）</li>
           </ul>
         </div>
       </div>
 
       <!-- architecture diagram -->
-      <div class="section-title" data-rise style="margin-top:30px">层次架构图<span class="ln"></span><span class="muted" style="font-size:12px;font-weight:400">WebUI 只是无状态管理者，每个 operator 各管各</span></div>
+      <div class="section-title" data-rise style="margin-top:30px">层次架构图<span class="ln"></span><span class="muted" style="font-size:12px;font-weight:400">WebUI 只是无状态管理者，每个组件各管各</span></div>
 
       <div class="card card-pad" data-rise>
         <div class="arch">
@@ -140,7 +140,7 @@
           <div class="layer k8s">
             <div class="lh" style="margin-bottom:14px">
               <span class="lo">☸️</span>
-              <div><div class="tt">Kubernetes</div><div class="ds">每个组件由<b>各自的官方 operator 独立安装/维护 pod</b>；operator 之间互不依赖，各只做自己的事</div></div>
+              <div><div class="tt">Kubernetes</div><div class="ds">每个组件由<b>各自的官方安装方式（operator / helm） 独立安装/维护 pod</b>；各组件之间互不依赖，各只做自己的事</div></div>
             </div>
             <div class="ops">
               <div class="opstack">
@@ -154,17 +154,17 @@
                 <div class="podbox">Kafka pods<span>broker · KRaft</span></div>
               </div>
               <div class="opstack">
-                <div class="opbox"><span class="lo">📡</span><div class="t">Pulsar</div><span class="mgr">Pulsar Operator</span></div>
+                <div class="opbox"><span class="lo">📡</span><div class="t">Pulsar</div><span class="mgr">Apache Helm</span></div>
                 <div class="opdown"></div>
                 <div class="podbox">Pulsar pods<span>broker · bookie · zk</span></div>
               </div>
               <div class="opstack">
-                <div class="opbox"><span class="lo">🪶</span><div class="t">Woodpecker</div><span class="mgr">Woodpecker Operator</span></div>
+                <div class="opbox"><span class="lo">🪶</span><div class="t">Woodpecker</div><span class="mgr">Helm</span></div>
                 <div class="opdown"></div>
                 <div class="podbox">Woodpecker pods<span>WAL · 用对象存储</span></div>
               </div>
               <div class="opstack">
-                <div class="opbox"><span class="lo">🗄️</span><div class="t">etcd</div><span class="mgr">etcd-operator</span></div>
+                <div class="opbox"><span class="lo">🗄️</span><div class="t">etcd</div><span class="mgr">Bitnami Helm</span></div>
                 <div class="opdown"></div>
                 <div class="podbox">etcd pods<span>raft 集群</span></div>
               </div>
@@ -181,7 +181,7 @@
             </div>
             <div class="iso-note">
               🔗 组件之间的关系（Milvus 用哪个 MQ、连哪个对象存储）<b>由各自的 ConfigMap 决定</b>，不由 WebUI 持有 ——
-              WebUI 只是改配置并触发重启，从不在 operator 之间建立隐式依赖。
+              WebUI 只是改配置并触发重启，从不在各组件之间建立隐式依赖。
             </div>
           </div>
         </div>
@@ -193,8 +193,8 @@
         <div class="princ">
           <div class="p"><span class="n">1</span><div><h4>无状态 Stateless</h4>
             <p>不自带数据库、不持有集群与组件关系状态。视图实时读自 k8s 与各组件 ConfigMap，刷新即重建。唯一真相在集群里，不在本工具。</p></div></div>
-          <div class="p"><span class="n">2</span><div><h4>各管各 · operator 独立</h4>
-            <p>每个组件由它<b>自己的官方 operator</b> 独立安装与维护 pod。operator 之间互不依赖，每个只做自己的事；删除一个不会连带影响其它。</p></div></div>
+          <div class="p"><span class="n">2</span><div><h4>各管各 · 各装各的</h4>
+            <p>每个组件由它<b>自己的官方安装方式（operator / helm）</b> 独立安装与维护 pod。各组件之间互不依赖，每个只做自己的事；删除一个不会连带影响其它。</p></div></div>
           <div class="p"><span class="n">3</span><div><h4>关系由配置决定</h4>
             <p>Milvus 连哪个 MQ、用哪个对象存储，是各自 ConfigMap 的事。WebUI 只负责把配置改对、触发重启，<b>不编排隐式依赖</b>，也不越界代管别的组件。</p></div></div>
           <div class="p"><span class="n">4</span><div><h4>即装即用 · 只做可视化与运维</h4>

@@ -112,6 +112,10 @@ const Hub = (function () {
     { id:'plan-2',       label:'方案二 · 维持现状 · k8s hack',        icon:I.swap,   href:'plan-2.html' },
     { id:'plan-3',       label:'方案三 · WebUI（终态）',              icon:I.cube,   href:'plan-3.html' },
     { id:'summary',      label:'讨论小结 · 实施计划',                  icon:I.check,  href:'summary.html' },
+    { id:'design-arch',  label:'总体设计 · 架构/模块/流程',            icon:I.layers, href:'design-arch.html' },
+    { id:'design-runtime', label:'运行时 · 部署/状态/平台',            icon:I.rocket, href:'design-runtime.html' },
+    { id:'design-abstraction', label:'分层抽象 · 组件×平台',           icon:I.grid,   href:'design-abstraction.html' },
+    { id:'phase1-plan',   label:'阶段一 · 实施计划',                   icon:I.cube,   href:'phase1-plan.html' },
   ];
 
   /* ---------- shell render ---------- */

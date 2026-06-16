@@ -76,13 +76,13 @@
   //  - kind:'workload'  in-cluster k8s pods, have image tag + upgrade
   //  - kind:'binding'   external object-storage access (endpoint/bucket), creatable, NOT upgradable
   const GROUPS = [
-    { id:'woodpecker', kind:'workload', name:'Woodpecker', logo:'🪶', mgr:'Woodpecker Operator', repo:'milvusdb/woodpecker', latest:'v0.5.0',
+    { id:'woodpecker', kind:'workload', name:'Woodpecker', logo:'🪶', mgr:'Helm', repo:'milvusdb/woodpecker', latest:'v0.5.0',
       instances:[ {id:'woodpecker-svc-9d2e', ns:'milvus', tag:'v0.4.0', status:'ok', store:'minio-tenant-7f3c'} ] },
     { id:'kafka', kind:'workload', name:'Kafka', logo:'🌊', mgr:'Strimzi', repo:'quay.io/strimzi/kafka', latest:'3.7.0',
       instances:[ {id:'kafka-cluster-4b7a', ns:'milvus-stg', tag:'3.6.1', status:'ok'} ] },
-    { id:'pulsar', kind:'workload', name:'Pulsar', logo:'📡', mgr:'Pulsar Operator', repo:'apachepulsar/pulsar', latest:'3.0.6',
+    { id:'pulsar', kind:'workload', name:'Pulsar', logo:'📡', mgr:'Apache Helm', repo:'apachepulsar/pulsar', latest:'3.0.6',
       instances:[ {id:'pulsar-cluster-2c9f', ns:'milvus-ana', tag:'3.0.6', status:'ok'} ] },
-    { id:'etcd', kind:'workload', name:'etcd', logo:'🗄️', mgr:'etcd-operator', repo:'quay.io/coreos/etcd', latest:'v3.5.16',
+    { id:'etcd', kind:'workload', name:'etcd', logo:'🗄️', mgr:'Bitnami Helm', repo:'bitnami/etcd', latest:'v3.5.16',
       instances:[ {id:'etcd-cluster-a1b2', ns:'milvus',     tag:'v3.5.14', status:'ok'},
                   {id:'etcd-cluster-c3d4', ns:'milvus-stg', tag:'v3.5.16', status:'ok'},
                   {id:'etcd-cluster-e5f6', ns:'milvus-ana', tag:'v3.5.14', status:'ok'} ] },
@@ -205,7 +205,7 @@
   function doUpgrade(g, list){
     list=list.filter(Boolean); if(!list.length) return;
     const path={ woodpecker:'更新 StatefulSet 镜像并按序重启', kafka:'Strimzi 更新 Kafka CR',
-      pulsar:'Pulsar Operator 滚动升级', etcd:'etcd-operator 滚动升级', minio:'MinIO Operator 升级 tenant', attu:'更新 Deployment 镜像' }[g.id]||'走官方升级路径';
+      pulsar:'Apache Helm 滚动升级', etcd:'Bitnami Helm 滚动升级', minio:'MinIO Operator 升级 tenant', attu:'更新 Deployment 镜像' }[g.id]||'走官方升级路径';
     const many=list.length>1;
     Hub.modal({ title:`升级 ${g.name}${many?` · ${list.length} 个实例`:`：${list[0].id}`} → ${g.latest}`, icon:'info', confirmText:'开始升级', msg: path+'。',
       body:`<div class="depmap" style="margin-top:4px">${list.map(i=>`<div class="row"><span class="node mono">${i.id}</span><span class="arr mono">${i.tag} → ${g.latest}</span></div>`).join('')}</div>`,

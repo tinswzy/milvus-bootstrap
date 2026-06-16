@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阶段一 · 实施计划（架构搭建 → 逐组件接入）· Milvus Admin WebUI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  /* two-phase overview */
+  .ph2{ display:flex; align-items:stretch; gap:0; flex-wrap:wrap; }
+  .phb{ flex:1 1 0; min-width:150px; border:1.5px solid var(--line-2); border-radius:12px; background:var(--surface); padding:14px 15px; box-shadow:var(--shadow-sm); position:relative; }
+  .phb.scaf{ border-color:var(--indigo); background:linear-gradient(180deg,#fff,rgba(99,102,241,.06)); }
+  .phb.loop{ border-color:var(--accent); background:linear-gradient(180deg,#fff,var(--accent-soft)); }
+  .phb .tag{ font-family:var(--font-mono); font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; display:inline-block; }
+  .phb.scaf .tag{ background:rgba(99,102,241,.14); color:var(--indigo); } .phb.loop .tag{ background:var(--accent-soft); color:var(--accent-ink); }
+  .phb .t{ font-weight:700; font-size:14px; margin-top:8px; } .phb .d{ font-size:11.5px; color:var(--fg-3); margin-top:5px; line-height:1.6; }
+  .pharr{ flex:0 0 40px; display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:20px; font-weight:700; }
+  .pharr.loop{ flex-direction:column; font-size:13px; color:var(--accent-ink); } .pharr.loop span{ font-family:var(--font-mono); font-size:9px; color:var(--fg-faint); }
+  @media(max-width:820px){ .ph2{ flex-direction:column; } .pharr{ height:26px; transform:rotate(90deg); } }
+  /* tables */
+  .tbl td code,.tbl td .c2{ font-family:var(--font-mono); font-size:11px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:0 4px; color:var(--accent-ink); }
+  .tbl td .sig{ font-family:var(--font-mono); font-size:10.5px; color:var(--fg-3); display:block; margin-top:2px; }
+  .sid{ font-family:var(--font-mono); font-size:11px; font-weight:700; color:#fff; background:var(--indigo); padding:2px 7px; border-radius:6px; white-space:nowrap; }
+  .dep0{ font-family:var(--font-mono); font-size:10px; color:var(--fg-faint); }
+  /* template steps */
+  .tpl{ counter-reset:s; display:flex; flex-direction:column; gap:0; }
+  .tpls{ display:flex; align-items:flex-start; gap:13px; padding:10px 0; position:relative; }
+  .tpls:not(:last-child)::after{ content:''; position:absolute; left:15px; top:34px; bottom:-10px; width:2px; background:var(--line-2); }
+  .tpls .n{ counter-increment:s; flex:0 0 32px; height:32px; border-radius:9px; background:var(--accent); color:#fff; font-family:var(--font-mono); font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; z-index:1; }
+  .tpls .n::before{ content:counter(s); }
+  .tpls.start .n{ background:var(--warn); } .tpls.end .n{ background:var(--ok); }
+  .tpls .bd{ flex:1; padding-top:4px; } .tpls .bt{ font-weight:700; font-size:13px; } .tpls .bd p{ margin:4px 0 0; font-size:12px; color:var(--fg-3); line-height:1.6; }
+  .tpls .bd code{ font-family:var(--font-mono); font-size:11px; background:var(--surface-3); border:1px solid var(--line); border-radius:3px; padding:0 4px; color:var(--accent-ink); }
+  /* component cards */
+  .comp{ border:1px solid var(--line-2); border-radius:12px; background:var(--surface); padding:0; overflow:hidden; box-shadow:var(--shadow-sm); margin-top:14px; }
+  .comp .ch{ padding:12px 16px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,var(--surface-3),transparent); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .comp .ch .nm{ font-weight:700; font-size:14.5px; } .comp .ch .nm .e{ font-size:18px; margin-right:5px; }
+  .comp .ch .spacer{ flex:1; }
+  .bdg{ font-family:var(--font-mono); font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; white-space:nowrap; }
+  .b-pick{ background:var(--accent-soft); color:var(--accent-ink); }
+  .b-auth{ background:var(--err-soft); color:#b42318; } .b-cache{ background:var(--warn-soft); color:#92510a; } .b-core2{ background:var(--idle-soft); color:#5a657f; }
+  .b-m1{ background:var(--ok-soft); color:#0c6b46; } .b-m2{ background:var(--surface-3); color:var(--fg-3); border:1px solid var(--line-2); }
+  .comp .cb{ padding:13px 16px; }
+  .rsch{ font-size:12px; color:var(--fg-2); line-height:1.65; background:var(--surface-3); border:1px solid var(--line); border-radius:9px; padding:10px 12px; }
+  .rsch b{ color:var(--fg-1); } .rsch code{ font-family:var(--font-mono); font-size:11px; background:var(--surface); border:1px solid var(--line); border-radius:3px; padding:0 4px; color:var(--accent-ink); }
+  .rsch .pickline{ margin-top:6px; padding-top:6px; border-top:1px dashed var(--line); }
+  .chk{ list-style:none; margin:11px 0 0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:6px 18px; }
+  @media(max-width:720px){ .chk{ grid-template-columns:1fr; } }
+  .chk li{ font-size:12px; color:var(--fg-2); line-height:1.5; padding-left:22px; position:relative; }
+  .chk li::before{ content:'☐'; position:absolute; left:2px; top:-1px; color:var(--accent); font-size:13px; font-weight:700; }
+  .chk li code{ font-family:var(--font-mono); font-size:10.5px; background:var(--surface-3); border:1px solid var(--line); border-radius:3px; padding:0 4px; color:var(--accent-ink); }
+  .chk li b{ color:var(--fg-1); }
+  /* exit criteria */
+  .exit{ display:flex; flex-direction:column; gap:9px; }
+  .ex{ display:flex; align-items:center; gap:12px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface); padding:11px 14px; }
+  .ex .m{ font-family:var(--font-mono); font-size:11px; font-weight:700; color:#fff; background:var(--accent); padding:3px 9px; border-radius:6px; flex:none; }
+  .ex .x{ font-size:12.5px; color:var(--fg-2); line-height:1.5; } .ex .x b{ color:var(--fg-1); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>阶段一 · 实施计划</h1>
+          <p>把「调研」和「设计」合并成<strong>一条可执行的实施线</strong>：先搭好 <strong>CLI + core 架构骨架</strong>，再用<strong>统一的接入模板逐个把组件接进来</strong>。每个组件都从「调研官方安装方式 → 本次选型 → 接入各层 → 验证」这个循环走，循环跑完即阶段一完成。</p>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="design-arch.html">架构依据 →</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i1"></span>
+        <div>架构依据见 <a href="design-arch.html" style="color:var(--accent-ink);font-weight:600">总体设计</a> · <a href="design-runtime.html" style="color:var(--accent-ink);font-weight:600">运行时</a> · <a href="design-abstraction.html" style="color:var(--accent-ink);font-weight:600">分层抽象</a>；各组件的详细部署调研（pod 怎么管）见 <a href="deps-research.html" style="color:var(--accent-ink);font-weight:600">部署调研存档</a>。本页只讲<b>怎么一步步把它实现出来</b>。</div>
+      </div>
+
+      <!-- ===== overview ===== -->
+      <div class="card" data-rise>
+        <div class="card-head"><h3>怎么读这份计划 · 两段</h3><span class="sub">A 搭一次骨架，B 循环接组件</span></div>
+        <div class="card-pad">
+          <div class="ph2">
+            <div class="phb scaf">
+              <span class="tag">A · 一次性</span>
+              <div class="t">架构搭建（骨架）</div>
+              <div class="d">CLI 瘦客户端 + core daemon + 六引擎通用骨架 + ServiceDriver/PlatformAdapter 接口 + StateStore + Task 引擎。<b>先有骨架，组件才有地方接。</b></div>
+            </div>
+            <div class="pharr">→</div>
+            <div class="phb loop">
+              <span class="tag">B · 循环 ×N</span>
+              <div class="t">逐组件接入</div>
+              <div class="d">按统一模板把 etcd → minio → woodpecker → milvus(连) → pulsar → kafka 一个个接进来。每个组件一条循环。</div>
+            </div>
+            <div class="pharr loop">↻<span>每组件</span></div>
+            <div class="phb">
+              <span class="tag" style="background:var(--ok-soft);color:#0c6b46">完成</span>
+              <div class="t">阶段一达成</div>
+              <div class="d">五种依赖可独立装、milvus external 连通、升级/配置/<b>switch-mq</b> 打通、能纳管存量。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== A scaffolding ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>A · 架构搭建 · 骨架任务</h3><span class="sub">接组件前要先就位的一次性框架</span></div>
+        <table class="tbl">
+          <thead><tr><th>任务</th><th>产出</th><th>依赖</th></tr></thead>
+          <tbody>
+            <tr><td><span class="sid">S1</span> CLI 瘦客户端骨架</td><td>装/启停/更新 core、转发命令、连本地 socket、<b>自更新</b>机制（像 claude code/codex）</td><td class="dep0">—</td></tr>
+            <tr><td><span class="sid">S2</span> Core daemon 骨架</td><td>进程生命周期、<b>本地 socket API</b>、配置/凭据加载、连 kube</td><td class="dep0">S1</td></tr>
+            <tr><td><span class="sid">S3</span> ServiceDriver 接口 + Base + registry</td><td>统一方法集；<code>BaseServiceDriver</code> 吃 profile 实现通用；按 <code>kind</code> 分发</td><td class="dep0">S2</td></tr>
+            <tr><td><span class="sid">S4</span> PlatformAdapter 接口 + K8sAdapter</td><td><code>apply/get/delete/exec/logs/wait_ready/discover/state</code>；<b>K8s 先做</b>（docker 随平台）</td><td class="dep0">S2</td></tr>
+            <tr><td><span class="sid">S5</span> StateStore</td><td><code>K8sStateStore</code>（Secret/ConfigMap）先做；<b>可重建缓存</b>语义 + 落点随平台 + 自纠 hook</td><td class="dep0">S2</td></tr>
+            <tr><td><span class="sid">S6</span> Task / Orchestration 引擎</td><td>Step 四件套(precheck/do/verify/compensate)、状态机持久化、<b>dry-run / 回滚 / 并发锁 / 进度事件</b></td><td class="dep0">S2,S5</td></tr>
+            <tr><td><span class="sid">S7</span> 六引擎通用协调骨架</td><td>Discovery/Identification/Ownership/Provisioner/Lifecycle/State 的<b>通用部分</b>，统一调 driver</td><td class="dep0">S3,S4</td></tr>
+            <tr><td><span class="sid">S8</span> profile 加载器 + schema</td><td>声明式 profile 读取与校验（驱动 S3/S7）</td><td class="dep0">S3</td></tr>
+            <tr><td><span class="sid">S9</span> 横切：审计 / 日志 / dry-run 贯通</td><td>所有写操作留审计；dry-run 全链路可预演</td><td class="dep0">S6</td></tr>
+            <tr><td><span class="sid">S10</span> 后台 poller 骨架（daemon）</td><td>Discovery/Health/Image/Drift/Task-runner/GC 调度框架（逻辑随能力补）</td><td class="dep0">S6,S7</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:11.5px;padding:12px 20px;border-top:1px solid var(--line);color:var(--fg-3)">骨架阶段就用 <b>etcd</b> 当第一个"穿线"组件验证整条链路（S1–S10 是否真能跑通一个组件的 install→health→connect）。</div>
+      </div>
+
+      <!-- ===== B template ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>B · 逐组件接入 · 统一模板（每个组件都走这一遍）</h3><span class="sub">这就是循环体 —— 换组件只换内容、不换步骤</span></div>
+        <div class="card-pad">
+          <div class="tpl">
+            <div class="tpls start"><div class="n"></div><div class="bd"><div class="bt">调研官方安装方式</div><p>确认这个组件业界有哪些装法（operator / helm / compose / external），各自<b>怎么管 pod 资源</b>、<b>state-class</b> 是什么。（详见部署调研存档）</p></div></div>
+            <div class="tpls start"><div class="n"></div><div class="bd"><div class="bt">本次选型</div><p>定<b>这次接入哪种</b>安装方式 + 理由（给默认）。MVP 平台是 k8s。</p></div></div>
+            <div class="tpls"><div class="n"></div><div class="bd"><div class="bt">写 profile</div><p><code>detect</code> 检测签名 · <code>install_methods[平台]</code> · <code>state_class</code> · <code>health</code> · <code>scale_rules</code> · <code>connect</code>（Milvus 怎么 external 连它）。</p></div></div>
+            <div class="tpls"><div class="n"></div><div class="bd"><div class="bt">实现 ServiceDriver</div><p>继承 <code>BaseServiceDriver</code>，只 <b>override 特殊语义</b>（健康体检 / 扩缩护栏 / 备份 / 组件特有动作）。</p></div></div>
+            <div class="tpls"><div class="n"></div><div class="bd"><div class="bt">接入引擎各层</div><p>让它在 Discovery → Identification → Ownership(接管) → Provisioner(install) → Lifecycle(升级/扩缩/配置/删) → State 各层<b>按 kind 生效</b>。</p></div></div>
+            <div class="tpls"><div class="n"></div><div class="bd"><div class="bt">平台落地</div><p>走 <b>K8sAdapter</b> 路径（MVP）；DockerAdapter 路径排期到 docker 支持时。</p></div></div>
+            <div class="tpls end"><div class="n"></div><div class="bd"><div class="bt">端到端验证</div><p><code>install → health → connect</code> 跑通；<b>dry-run + 回滚</b>可用；纳入回归。</p></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== C per-component ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>C · 逐组件任务清单</h3><span class="sub">按 MVP 顺序：etcd 先穿线，最后 milvus 把它们连起来</span></div>
+        <div class="card-pad">
+
+          <!-- etcd -->
+          <div class="comp">
+            <div class="ch"><span class="nm"><span class="e">🗄️</span>etcd</span><span class="bdg b-pick">选型：Bitnami Helm</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg b-m1">M1 · 第一个穿线</span></div>
+            <div class="cb">
+              <div class="rsch"><b>调研结论：</b>官方无 operator（CoreOS etcd-operator 已归档）→ 主流是 <b>Bitnami Helm</b>（StatefulSet + headless + PVC，静态成员表凑 Raft 多数派）。<b>硬护栏</b>：识别时排除 kube-system 控制面 etcd。
+                <div class="pickline"><b>本次选型：</b><code>bitnami-helm</code> —— 与 milvus-helm/operator 今天同 chart 同镜像，纳管零摩擦。</div>
+              </div>
+              <ul class="chk">
+                <li>profile：detect(image/2379/helm 标记, 排除 control-plane) · install=bitnami-helm · <b>authoritative</b> · connect=<code>externalEtcd.endpoints</code></li>
+                <li>driver override：<code>health</code>=endpoint health 多数派 · <code>scale</code>=奇数/一次一个/member remove · <code>backup</code>=snapshot</li>
+                <li>接入各层：Discovery 签名 · install · 升级(immutable→orphan 重建) · State</li>
+                <li>验证：装 3 副本 → quorum 健康 → milvus 能 external 连</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- minio -->
+          <div class="comp">
+            <div class="ch"><span class="nm"><span class="e">🪣</span>MinIO</span><span class="bdg b-pick">选型：MinIO Operator（Tenant）</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg b-m1">M1</span></div>
+            <div class="cb">
+              <div class="rsch"><b>调研结论：</b>官方推荐 <b>MinIO Operator + <code>Tenant</code> CRD</b>（每 pool 一个 STS、operator 持有、纠删码对等）；milvus 今天用的是社区 helm subchart（distributed）。
+                <div class="pickline"><b>本次选型：</b><code>minio-operator</code>（贴合"各走官方方式"）；<code>helm-subchart</code> 留作回退。</div>
+              </div>
+              <ul class="chk">
+                <li>profile：detect(Tenant CR / STS / :9000) · install=minio-operator(apply Tenant) · <b>authoritative</b> · connect=<code>externalS3.*</code></li>
+                <li>driver override：<code>health</code>=/health/cluster 写 quorum · <code>scale</code>=加 pool（不可原地缩）· <code>backup</code>=mc mirror</li>
+                <li>接入各层：先确保 operator 就位 · install Tenant · 等 <code>.status</code> Initialized/green</li>
+                <li>验证：装 tenant → green → milvus 连 external S3 → 建 bucket</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- woodpecker -->
+          <div class="comp">
+            <div class="ch"><span class="nm"><span class="e">🪶</span>Woodpecker</span><span class="bdg b-pick">选型：Woodpecker Operator</span><span class="bdg b-cache">cache-backed</span><span class="spacer"></span><span class="bdg b-m1">M1 · MVP 的 MQ</span></div>
+            <div class="cb">
+              <div class="rsch"><b>调研结论：</b>woodpecker 仓库<b>自带 operator</b>（<code>woodpecker.zilliz.io/v1alpha1 · WoodpeckerCluster</code>）—— apply 一个 CR + configRef ConfigMap，operator 自动建 STS + 3 services + PDB，并<b>自动处理 scale-down decommission、滚动升级</b>。gossip 组网、元数据进 etcd、日志落对象存储 → pod 近无状态、PVC 仅缓存。milvus-helm 的手写 STS 作回退。
+                <div class="pickline"><b>本次选型：</b><code>woodpecker-operator</code> —— 官方既然给了 operator，就按「各走官方方式」用它；还白拿 decommission/rolling/PDB（手写 STS 这些得自己补）。注意 operator <b>不管 etcd/对象存储</b>，需把它俩 endpoints 渲染进 configRef ConfigMap。</div>
+              </div>
+              <ul class="chk">
+                <li>profile：detect(WoodpeckerCluster CR / STS / gossip SEEDS / :18080) · install=woodpecker-operator · <b>cache-backed</b> · connect=<code>streaming.woodpecker</code></li>
+                <li>driver override：<code>health</code>=/healthz · <code>scale-down</code> 由 operator 自动 decommission · 依赖：etcd+对象存储先就位</li>
+                <li>接入各层：确保 operator 就位 · 用已装 etcd/minio endpoints 渲染 ConfigMap + 下发 <code>WoodpeckerCluster</code> CR · State(缓存态)</li>
+                <li>验证：etcd+minio 就绪 → apply CR → 等 <code>.status</code> 就绪 → milvus 用 woodpecker 端到端</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- milvus -->
+          <div class="comp">
+            <div class="ch"><span class="nm"><span class="e">Ⓜ️</span>Milvus（连接方）</span><span class="bdg b-pick">选型：operator / helm + external</span><span class="bdg b-core2">连接目标</span><span class="spacer"></span><span class="bdg b-m1">M1 · 把三者连起来</span></div>
+            <div class="cb">
+              <div class="rsch"><b>调研结论：</b>milvus 自身经 milvus-operator(Milvus CR) 或 helm 安装；关键是<b>以 external 方式</b>连上前面装好的 etcd/对象存储/MQ（装/连分离的"连")。
+                <div class="pickline"><b>本次选型：</b>MVP 用 <code>helm + external*</code>（最直接，全控外部接线）；operator 路径并行支持。</div>
+              </div>
+              <ul class="chk">
+                <li>profile：detect(Milvus CR/STS/:19530) · install=helm/operator · connect 汇总三依赖 endpoints</li>
+                <li>driver override：<code>switch-mq</code>（<code>POST :9091 /management/wal/alter</code>）—— milvus 特有动作</li>
+                <li>接入各层：install(注入 external etcd/s3/mq) · 安装流程 F1 收口</li>
+                <li>验证：etcd+minio+wp+milvus 一套端到端跑通（M1 达成）</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- pulsar / kafka -->
+          <div class="comp">
+            <div class="ch"><span class="nm"><span class="e">📡🌊</span>Pulsar / Kafka</span><span class="bdg b-pick">Apache Helm / Strimzi</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg b-m2">M2 · 扩展 MQ</span></div>
+            <div class="cb">
+              <div class="rsch"><b>调研结论：</b>Pulsar=Apache Helm（STS/:6650）；Kafka=Strimzi operator（<code>Kafka</code> CR/:9092）。都是重 broker 集群，故排在 woodpecker 之后。
+                <div class="pickline"><b>本次选型：</b>Pulsar <code>apache-helm</code>、Kafka <code>strimzi</code>。各自一条同模板循环。</div>
+              </div>
+              <ul class="chk">
+                <li>profile ×2：detect / install_methods / authoritative / connect=<code>externalPulsar</code> · <code>externalKafka</code></li>
+                <li>driver override ×2：各自 health / scale 护栏</li>
+                <li>接入各层 + 验证：milvus 可任选三种 MQ 之一连接</li>
+                <li>打通后：<b>switch-mq</b> 三步（装新 MQ → wal/alter → 下线旧）即自然成立</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== D exit ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>D · 阶段一完成判据</h3><span class="sub">循环跑到这些都绿，阶段一即完成</span></div>
+        <div class="card-pad">
+          <div class="exit">
+            <div class="ex"><span class="m">M1</span><div class="x"><b>MVP 穿线：</b>etcd + minio + woodpecker 可独立装，milvus 以 external 连通三者，<b>端到端跑通一套</b>。</div></div>
+            <div class="ex"><span class="m">M2</span><div class="x"><b>扩展 MQ：</b>pulsar / kafka 接入，milvus 可任选其一连接。</div></div>
+            <div class="ex"><span class="m">M3</span><div class="x"><b>运维 + switch-mq：</b>各组件升级 / 配置可用；<b>切换 MQ</b> 三步护栏打通。</div></div>
+            <div class="ex"><span class="m">M4</span><div class="x"><b>纳管存量：</b>接管已有 milvus-helm / operator 装的实例（含 docker 平台接入排期）。</div></div>
+          </div>
+          <div class="why" style="margin-top:14px"><div>说明：每个组件的循环都是「<b>调研 → 选型 → profile → driver → 接各层 → 验证</b>」同一套——这正是分层抽象的收益：<b>骨架只搭一次，组件像填空一样接入</b>。M5（WebUI）属于阶段二，给已做好的命令套界面。</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-plan', crumbs:['方案讨论','阶段一 · 实施计划'] });
+  document.getElementById('i1').innerHTML = Hub.svg(Hub.I.info,18);
+</script>
+</body>
+</html>
