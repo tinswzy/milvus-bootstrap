@@ -1,0 +1,34 @@
+{
+  "id": "task-2b31b621",
+  "type": "install",
+  "target": "e2e-minio",
+  "dry_run": false,
+  "status": "succeeded",
+  "steps": [
+    {
+      "name": "precheck-operator",
+      "status": "ok",
+      "plan": "确认 Tenant CRD（tenants.minio.min.io）已注册（operator 就位）",
+      "detail": "Tenant CRD 已就位"
+    },
+    {
+      "name": "apply-cr",
+      "status": "ok",
+      "plan": "将 apply：\napiVersion: v1\nkind: Secret\nmetadata:\n  name: e2e-minio-env\n  namespace: mb-e2e\ntype: Opaque\nstringData:\n  config.env: 'export MINIO_ROOT_USER=\"minioadmin\"\n\n    export MINIO_ROOT_PASSWORD=\"minioadmin\"\n\n    '\n---\napiVersion: minio.min.io/v2\nkind: Tenant\nmetadata:\n  name: e2e-minio\n  namespace: mb-e2e\nspec:\n  image: minio/minio:RELEASE.2024-12-18T13-15-44Z\n  configuration:\n    name: e2e-minio-env\n  requestAutoCert: false\n  pools:\n  - name: pool-0\n    servers: 1\n    volumesPerServer: 1\n    volumeClaimTemplate:\n      metadata:\n        name: data\n      spec:\n        accessModes:\n        - ReadWriteOnce\n        resources:\n          requests:\n            storage: 2Gi",
+      "detail": "[k8s] created Secret/e2e-minio-env; created Tenant/e2e-minio"
+    },
+    {
+      "name": "wait-status",
+      "status": "ok",
+      "plan": "等待 Tenant.status.currentState == Initialized",
+      "detail": "[k8s] e2e-minio.status.currentState=Initialized"
+    },
+    {
+      "name": "register",
+      "status": "ok",
+      "plan": "写管理元数据 + 快照，标记 Managed",
+      "detail": "已登记实例 e2e-minio 为 Managed"
+    }
+  ],
+  "audit": []
+}

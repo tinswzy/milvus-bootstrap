@@ -1,0 +1,34 @@
+{
+  "id": "task-1086a0b5",
+  "type": "install",
+  "target": "e2e-etcd",
+  "dry_run": false,
+  "status": "succeeded",
+  "steps": [
+    {
+      "name": "render",
+      "status": "ok",
+      "plan": "按 bitnami-helm 渲染 etcd/e2e-etcd 安装清单（helm, chart=/Users/zilliz/workspace_zilliz/e2e_src/milvus-helm/charts/milvus/charts/etcd-6.3.3.tgz, params={'replicaCount': 3, 'persistence': {'size': '10Gi'}, 'auth': {'rbac': {'enabled': False}}, 'image.registry': 'docker.io', 'image.repository': 'milvusdb/etcd', 'image.tag': '3.5.18-r1'}）",
+      "detail": ""
+    },
+    {
+      "name": "apply",
+      "status": "ok",
+      "plan": "将执行：helm upgrade --install e2e-etcd /Users/zilliz/workspace_zilliz/e2e_src/milvus-helm/charts/milvus/charts/etcd-6.3.3.tgz -n mb-e2e --create-namespace --set replicaCount=3 --set persistence.size=10Gi --set auth.rbac.enabled=false --set image.registry=docker.io --set image.repository=milvusdb/etcd --set image.tag=3.5.18-r1",
+      "detail": "[k8s] helm 安装完成：e2e-etcd（ns=mb-e2e）"
+    },
+    {
+      "name": "wait-ready",
+      "status": "ok",
+      "plan": "等待就绪：sts.readyReplicas == replicas + etcdctl endpoint health --cluster (quorum)",
+      "detail": "[k8s] etcd/e2e-etcd ready（1 工作负载就绪 · 门槛：sts.readyReplicas == replicas + etcdctl endpoint health --cluster (quorum)）"
+    },
+    {
+      "name": "register",
+      "status": "ok",
+      "plan": "写管理元数据 + 快照，标记 Managed",
+      "detail": "已登记实例 e2e-etcd 为 Managed"
+    }
+  ],
+  "audit": []
+}

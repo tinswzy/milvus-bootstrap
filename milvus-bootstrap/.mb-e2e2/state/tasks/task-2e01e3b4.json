@@ -1,0 +1,34 @@
+{
+  "id": "task-2e01e3b4",
+  "type": "install",
+  "target": "e2e-wp",
+  "dry_run": false,
+  "status": "succeeded",
+  "steps": [
+    {
+      "name": "precheck-operator",
+      "status": "ok",
+      "plan": "确认 WoodpeckerCluster CRD（woodpeckerclusters.woodpecker.zilliz.io）已注册（operator 就位）",
+      "detail": "WoodpeckerCluster CRD 已就位"
+    },
+    {
+      "name": "apply-cr",
+      "status": "ok",
+      "plan": "将 apply：\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: e2e-wp-config\n  namespace: mb-e2e\ndata:\n  woodpecker.yaml: \"woodpecker:\\n  meta:\\n    type: etcd\\n  client:\\n    quorum:\\n\\\n    \\      quorumBufferPools:\\n      - name: default-region-pool\\n        seeds:\\n\\\n    \\        - e2e-wp-server-0.e2e-wp-server-headless.mb-e2e.svc:18080\\n        -\\\n    \\ e2e-wp-server-1.e2e-wp-server-headless.mb-e2e.svc:18080\\n        - e2e-wp-server-2.e2e-wp-server-headless.mb-e2e.svc:18080\\n\\\n    \\      quorumSelectStrategy:\\n        affinityMode: soft\\n        replicas: 3\\n\\\n    \\        strategy: random\\n  storage:\\n    type: service\\n    rootPath: /woodpecker/data\\n\\\n    log:\\n  level: info\\n  format: json\\n  stdout: true\\netcd:\\n  endpoints:\\n  -\\\n    \\ e2e-etcd.mb-e2e.svc:2379\\n  rootPath: by-dev\\nminio:\\n  address: minio.mb-e2e.svc\\n\\\n    \\  port: 80\\n  accessKeyID: minioadmin\\n  secretAccessKey: minioadmin\\n  bucketName:\\\n    \\ woodpecker\\n  rootPath: files\\n\"\n---\napiVersion: woodpecker.zilliz.io/v1alpha1\nkind: WoodpeckerCluster\nmetadata:\n  name: e2e-wp\n  namespace: mb-e2e\nspec:\n  image: milvusdb/woodpecker:latest\n  replicas: 3\n  storageSize: 10Gi\n  servicePort: 18080\n  gossipPort: 17946\n  metricsPort: 9091\n  configRef:\n    name: e2e-wp-config",
+      "detail": "[k8s] created ConfigMap/e2e-wp-config; created WoodpeckerCluster/e2e-wp"
+    },
+    {
+      "name": "wait-status",
+      "status": "ok",
+      "plan": "等待 WoodpeckerCluster.status.phase == Running",
+      "detail": "[k8s] e2e-wp.status.phase=Running"
+    },
+    {
+      "name": "register",
+      "status": "ok",
+      "plan": "写管理元数据 + 快照，标记 Managed",
+      "detail": "已登记实例 e2e-wp 为 Managed"
+    }
+  ],
+  "audit": []
+}

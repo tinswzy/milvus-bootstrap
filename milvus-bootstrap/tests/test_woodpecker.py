@@ -46,6 +46,11 @@ def test_woodpecker_build_manifests_shape() -> None:
     assert cluster["spec"]["configRef"]["name"] == "wp1-config"
     body = cm["data"]["woodpecker.yaml"]
     assert "etcd" in body and "minio" in body    # endpoints supplied to the operator
+    # service mode: the woodpecker SERVER also needs its quorum seeds, else it
+    # crashes "buffer pool must have at least one seed" (regression — found in live e2e)
+    assert "quorumBufferPools" in body
+    assert "wp1-server-0.wp1-server-headless" in body
+    assert "type: service" in body
 
 
 def test_install_woodpecker_apply_registers(core: Core) -> None:

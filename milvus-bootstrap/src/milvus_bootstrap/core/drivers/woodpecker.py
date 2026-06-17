@@ -20,9 +20,38 @@ class WoodpeckerDriver(BaseServiceDriver):
         if isinstance(etcd_eps, str):
             etcd_eps = [etcd_eps]
 
+        # In storage.type=service mode the woodpecker server validates that the
+        # quorum has a buffer pool with at least one seed (else it crashes with
+        # "buffer pool 'default-pool' must have at least one seed"). Seeds are the
+        # server quorum endpoints: <name>-server-<i>.<name>-server-headless.<ns>.svc:<port>.
+        replicas = int(params.get("replicas", 3))
+        service_port = int(params.get("servicePort", 18080))
+        pool_name = params.get("poolName", "default-region-pool")
+        quorum_seeds = params.get("quorumSeeds")
+        if quorum_seeds:
+            if isinstance(quorum_seeds, str):
+                quorum_seeds = [s.strip() for s in quorum_seeds.split(",") if s.strip()]
+        else:
+            quorum_seeds = [
+                f"{name}-server-{i}.{name}-server-headless.{ns}.svc:{service_port}"
+                for i in range(replicas)
+            ]
+
         wp_conf = {
             "woodpecker": {
                 "meta": {"type": "etcd"},
+                "client": {
+                    "quorum": {
+                        "quorumBufferPools": [
+                            {"name": pool_name, "seeds": quorum_seeds},
+                        ],
+                        "quorumSelectStrategy": {
+                            "affinityMode": "soft",
+                            "replicas": replicas,
+                            "strategy": "random",
+                        },
+                    },
+                },
                 "storage": {"type": "service", "rootPath": "/woodpecker/data"},
             },
             "log": {"level": "info", "format": "json", "stdout": True},

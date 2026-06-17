@@ -1,0 +1,30 @@
+{
+  "id": "e2e-minio",
+  "name": "e2e-minio",
+  "platform": "k8s",
+  "namespace": "mb-e2e",
+  "ownership": "managed",
+  "deps": [
+    {
+      "kind": "minio",
+      "install_method": "minio-operator",
+      "ownership": "managed",
+      "state_class": "authoritative",
+      "endpoints": [],
+      "ref": {}
+    }
+  ],
+  "spec_snapshot": {
+    "kind": "minio",
+    "name": "e2e-minio",
+    "platform": "k8s",
+    "method": null,
+    "namespace": "mb-e2e",
+    "params": {
+      "servers": "1",
+      "volumeSize": "2Gi",
+      "image": "minio/minio:RELEASE.2024-12-18T13-15-44Z"
+    },
+    "chart_override": null
+  }
+}

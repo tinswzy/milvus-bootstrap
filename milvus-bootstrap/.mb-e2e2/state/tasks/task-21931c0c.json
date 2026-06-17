@@ -1,0 +1,31 @@
+{
+  "id": "task-21931c0c",
+  "type": "install",
+  "target": "e2e-wp",
+  "dry_run": false,
+  "status": "rolled_back",
+  "steps": [
+    {
+      "name": "precheck-operator",
+      "status": "ok",
+      "plan": "确认 WoodpeckerCluster CRD（woodpeckerclusters.woodpecker.zilliz.io）已注册（operator 就位）",
+      "detail": "WoodpeckerCluster CRD 已就位"
+    },
+    {
+      "name": "apply-cr",
+      "status": "ok",
+      "plan": "将 apply：\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: e2e-wp-config\n  namespace: mb-e2e\ndata:\n  woodpecker.yaml: \"woodpecker:\\n  meta:\\n    type: etcd\\n  storage:\\n    type: service\\n\\\n    \\    rootPath: /woodpecker/data\\nlog:\\n  level: info\\n  format: json\\n  stdout:\\\n    \\ true\\netcd:\\n  endpoints:\\n  - e2e-etcd.mb-e2e.svc:2379\\n  rootPath: by-dev\\n\\\n    minio:\\n  address: minio.mb-e2e.svc\\n  port: 80\\n  accessKeyID: minioadmin\\n \\\n    \\ secretAccessKey: minioadmin\\n  bucketName: woodpecker\\n  rootPath: files\\n\"\n---\napiVersion: woodpecker.zilliz.io/v1alpha1\nkind: WoodpeckerCluster\nmetadata:\n  name: e2e-wp\n  namespace: mb-e2e\nspec:\n  image: milvusdb/woodpecker:latest\n  replicas: 3\n  storageSize: 10Gi\n  servicePort: 18080\n  gossipPort: 17946\n  metricsPort: 9091\n  configRef:\n    name: e2e-wp-config",
+      "detail": "[k8s] created ConfigMap/e2e-wp-config; created WoodpeckerCluster/e2e-wp"
+    },
+    {
+      "name": "wait-status",
+      "status": "failed",
+      "plan": "等待 WoodpeckerCluster.status.phase == Running",
+      "detail": "e2e-wp CR 未就绪（status.phase=Creating）"
+    }
+  ],
+  "audit": [
+    "step 'wait-status' failed: e2e-wp CR 未就绪（status.phase=Creating）",
+    "compensate 'apply-cr': [k8s] deleted woodpeckerclusters/e2e-wp"
+  ]
+}

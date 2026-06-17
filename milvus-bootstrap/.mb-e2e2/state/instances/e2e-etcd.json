@@ -1,0 +1,30 @@
+{
+  "id": "e2e-etcd",
+  "name": "e2e-etcd",
+  "platform": "k8s",
+  "namespace": "mb-e2e",
+  "ownership": "managed",
+  "deps": [
+    {
+      "kind": "etcd",
+      "install_method": "bitnami-helm",
+      "ownership": "managed",
+      "state_class": "authoritative",
+      "endpoints": [],
+      "ref": {}
+    }
+  ],
+  "spec_snapshot": {
+    "kind": "etcd",
+    "name": "e2e-etcd",
+    "platform": "k8s",
+    "method": null,
+    "namespace": "mb-e2e",
+    "params": {
+      "image.registry": "docker.io",
+      "image.repository": "milvusdb/etcd",
+      "image.tag": "3.5.18-r1"
+    },
+    "chart_override": "/Users/zilliz/workspace_zilliz/e2e_src/milvus-helm/charts/milvus/charts/etcd-6.3.3.tgz"
+  }
+}

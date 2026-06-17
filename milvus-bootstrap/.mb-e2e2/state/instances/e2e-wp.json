@@ -1,0 +1,32 @@
+{
+  "id": "e2e-wp",
+  "name": "e2e-wp",
+  "platform": "k8s",
+  "namespace": "mb-e2e",
+  "ownership": "managed",
+  "deps": [
+    {
+      "kind": "woodpecker",
+      "install_method": "woodpecker-operator",
+      "ownership": "managed",
+      "state_class": "cache_backed",
+      "endpoints": [],
+      "ref": {}
+    }
+  ],
+  "spec_snapshot": {
+    "kind": "woodpecker",
+    "name": "e2e-wp",
+    "platform": "k8s",
+    "method": null,
+    "namespace": "mb-e2e",
+    "params": {
+      "replicas": "3",
+      "etcdEndpoints": "e2e-etcd.mb-e2e.svc:2379",
+      "minioAddress": "minio.mb-e2e.svc",
+      "minioPort": "80",
+      "image": "milvusdb/woodpecker:latest"
+    },
+    "chart_override": null
+  }
+}
