@@ -112,3 +112,14 @@ class AdoptReq(BaseModel):
 @app.post("/adopt")
 def adopt(req: AdoptReq) -> dict[str, Any]:
     return _core().adopt(req.kind, req.name, dry_run=req.dry_run).model_dump()
+
+
+class SwitchMqReq(BaseModel):
+    instance: str
+    target_wal: str
+    dry_run: bool = True
+
+
+@app.post("/switch-mq")
+def switch_mq(req: SwitchMqReq) -> dict[str, Any]:
+    return _core().switch_mq(req.instance, req.target_wal, dry_run=req.dry_run).model_dump()

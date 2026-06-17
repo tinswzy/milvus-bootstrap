@@ -82,3 +82,6 @@ class FakeAdapter(PlatformAdapter):
 
     def delete_cr(self, *, group, version, plural, namespace, name):
         return f"[fake] deleted {plural}/{name}"
+
+    def exec(self, *, namespace, label_selector, command):
+        return f"[fake] exec @{label_selector} ({namespace}): {' '.join(command)}"

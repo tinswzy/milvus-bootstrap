@@ -55,3 +55,10 @@ class PlatformAdapter(ABC):
     @abstractmethod
     def delete_cr(self, *, group: str, version: str, plural: str,
                   namespace: str, name: str) -> str: ...
+
+    @abstractmethod
+    def exec(self, *, namespace: str, label_selector: str, command: list[str]) -> str:
+        """Run a command inside a pod matched by label_selector (e.g. kubectl exec).
+
+        Used by switch-mq to call Milvus's management API from inside the cluster.
+        """

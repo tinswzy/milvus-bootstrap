@@ -227,6 +227,16 @@ class K8sAdapter(PlatformAdapter):
         client.CustomObjectsApi().delete_namespaced_custom_object(group, version, namespace, plural, name)
         return f"[k8s] deleted {plural}/{name}"
 
+    def exec(self, *, namespace, label_selector, command):
+        self._ensure_client()
+        pods = self.core.list_namespaced_pod(namespace, label_selector=label_selector).items
+        running = [p for p in pods if p.status and p.status.phase == "Running"]
+        if not running:
+            raise RuntimeError(f"无可用 Running pod（{label_selector} in {namespace}）")
+        pod = running[0].metadata.name
+        out = self._run(["kubectl", "exec", pod, "-n", namespace, "--", *command])
+        return f"[k8s] exec {pod}: {out.strip()[:200]}"
+
     @staticmethod
     def _run(argv: list[str]) -> str:
         try:

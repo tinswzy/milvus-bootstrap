@@ -132,6 +132,17 @@ def delete(
     _print_task(client.request("POST", "/delete", json={"instance": instance, "dry_run": dry_run}, timeout=600))
 
 
+@app.command("switch-mq")
+def switch_mq(
+    instance: str = typer.Argument(..., help="milvus 实例名"),
+    to: str = typer.Option(..., "--to", help="目标 MQ/WAL：woodpecker / kafka / pulsar"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """切换 Milvus 的 MQ/WAL（管理 API wal/alter）。"""
+    _print_task(client.request("POST", "/switch-mq",
+                               json={"instance": instance, "target_wal": to, "dry_run": dry_run}, timeout=600))
+
+
 def _print_task(task: dict) -> None:
     mode = "DRY-RUN · 仅计划" if task["dry_run"] else "执行"
     color = "cyan" if task["dry_run"] else "green"

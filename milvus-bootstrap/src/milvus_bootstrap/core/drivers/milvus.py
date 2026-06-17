@@ -9,6 +9,9 @@ Requires the milvus-operator `feat/external-woodpecker` change (the
 """
 from __future__ import annotations
 
+import json
+
+from ..tasks.engine import Step
 from .base import BaseServiceDriver
 
 # woodpecker service port (gRPC) — see WoodpeckerCluster / smoke-test.sh
@@ -89,3 +92,25 @@ class MilvusDriver(BaseServiceDriver):
             },
         })
         return manifests
+
+    def plan_switch_mq_steps(self, spec, adapter, target_wal: str) -> list[Step]:
+        """Switch Milvus's WAL/MQ at runtime via the management API (the ★ flow).
+
+        Calls POST :9091/management/wal/alter inside a milvus pod.
+        """
+        ns, name = spec.namespace, spec.name
+        selector = f"app.kubernetes.io/instance={name}"
+        payload = json.dumps({"target_wal_name": target_wal})
+        curl = ["curl", "-s", "-X", "POST",
+                "http://localhost:9091/management/wal/alter", "-d", payload]
+        return [
+            Step(name="precheck-target",
+                 plan=f"确认目标 MQ（{target_wal}）服务已就位、milvus 可连"),
+            Step(name="wal-alter",
+                 plan="在 milvus pod 内执行：" + " ".join(curl),
+                 action=lambda: adapter.exec(namespace=ns, label_selector=selector, command=curl)),
+            Step(name="verify",
+                 plan=f"校验 WAL 已切到 {target_wal}、旧 MQ 写入已排空"),
+            Step(name="decommission-old",
+                 plan="下线旧 MQ（确认无残留写入后删除其资源）"),
+        ]

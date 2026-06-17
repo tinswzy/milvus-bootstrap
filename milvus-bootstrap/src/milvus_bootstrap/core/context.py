@@ -68,3 +68,17 @@ class Core:
         if not cands:
             raise KeyError(f"未发现可接管的 {kind}/{name}")
         return self.ownership.adopt(cands[0], dry_run=dry_run)
+
+    def switch_mq(self, instance_id: str, target_wal: str, dry_run: bool = True) -> Task:
+        inst = self.state.get_instance(instance_id)
+        if inst is None:
+            raise KeyError(f"未找到实例 {instance_id}")
+        if not inst.spec_snapshot:
+            raise ValueError(f"{instance_id} 无安装快照")
+        spec = InstallSpec.model_validate(inst.spec_snapshot)
+        if spec.kind != "milvus":
+            raise ValueError("switch-mq 仅适用于 milvus 实例")
+        steps = self.registry.get("milvus").plan_switch_mq_steps(spec, self.adapter, target_wal)
+        task = self.engine.run(type="switch-mq", target=instance_id, steps=steps, dry_run=dry_run)
+        self.state.put_task(task)
+        return task
