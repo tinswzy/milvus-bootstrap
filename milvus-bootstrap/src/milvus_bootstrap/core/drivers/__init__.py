@@ -1,5 +1,6 @@
 from .base import BaseServiceDriver, ServiceDriver
 from .etcd import EtcdDriver
+from .milvus import MilvusDriver
 from .minio import MinioDriver
 from .woodpecker import WoodpeckerDriver
 
@@ -8,9 +9,10 @@ DRIVER_CLASSES: dict[str, type[ServiceDriver]] = {
     "etcd": EtcdDriver,
     "minio": MinioDriver,
     "woodpecker": WoodpeckerDriver,
+    "milvus": MilvusDriver,
 }
 
 __all__ = [
     "ServiceDriver", "BaseServiceDriver",
-    "EtcdDriver", "MinioDriver", "WoodpeckerDriver", "DRIVER_CLASSES",
+    "EtcdDriver", "MinioDriver", "WoodpeckerDriver", "MilvusDriver", "DRIVER_CLASSES",
 ]

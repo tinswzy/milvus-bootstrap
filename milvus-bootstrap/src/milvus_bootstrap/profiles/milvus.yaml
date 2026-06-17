@@ -1,0 +1,35 @@
+# Milvus — the core; installed via milvus-operator with ALL deps external (the
+# 连 side of 装/连分离). Needs the operator's feat/external-woodpecker change.
+kind: milvus
+state_class: stateless              # milvus pods 无权威本地态，真相在 etcd/minio/mq
+
+detect:
+  image_match: ["milvusdb/milvus"]
+  ports: [19530, 9091]
+  crd: Milvus
+
+install_methods:
+  - id: milvus-operator             # default
+    platform: k8s
+    default: true
+    kind: operator-cr
+    cr: { group: milvus.io, version: v1beta1, plural: milvuses, kind: Milvus }
+    ready: { status_path: status.status, status_equals: Healthy }
+    params:
+      mode: standalone
+      image: milvusdb/milvus:v2.6.0
+      woodpeckerReplicas: 3
+  - id: helm                        # fallback
+    platform: k8s
+    kind: helm
+    chart: milvus/milvus
+  - id: docker-compose
+    platform: docker
+    kind: compose
+
+health:
+  workload_ready: "Milvus.status.status == Healthy"
+  cluster_check: ":9091/healthz"
+
+scale_rules:
+  step: rolling
