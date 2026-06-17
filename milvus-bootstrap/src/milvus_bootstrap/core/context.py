@@ -9,7 +9,7 @@ import os
 from typing import Any
 
 from .. import __version__
-from .engines import DiscoveryEngine, Provisioner
+from .engines import DiscoveryEngine, LifecycleEngine, OwnershipEngine, Provisioner
 from .models import Candidate, InstallSpec, Task
 from .platform.base import PlatformAdapter
 from .profile import load_profiles
@@ -36,6 +36,8 @@ class Core:
         self.engine = TaskEngine()
         self.discovery = DiscoveryEngine(self.adapter, self.registry)
         self.provisioner = Provisioner(self.registry, self.adapter, self.state, self.engine)
+        self.lifecycle = LifecycleEngine(self.registry, self.adapter, self.state, self.engine)
+        self.ownership = OwnershipEngine(self.registry, self.state, self.engine)
 
     def status(self) -> dict[str, Any]:
         return {
@@ -51,3 +53,18 @@ class Core:
 
     def install(self, spec: InstallSpec, dry_run: bool = True) -> Task:
         return self.provisioner.install(spec, dry_run=dry_run)
+
+    def delete(self, instance_id: str, dry_run: bool = True) -> Task:
+        return self.lifecycle.delete(instance_id, dry_run=dry_run)
+
+    def scale(self, instance_id: str, replicas: int, dry_run: bool = True) -> Task:
+        return self.lifecycle.scale(instance_id, replicas, dry_run=dry_run)
+
+    def upgrade(self, instance_id: str, image: str, dry_run: bool = True) -> Task:
+        return self.lifecycle.upgrade(instance_id, image, dry_run=dry_run)
+
+    def adopt(self, kind: str, name: str, dry_run: bool = True) -> Task:
+        cands = [c for c in self.discover() if c.kind == kind and c.name == name]
+        if not cands:
+            raise KeyError(f"未发现可接管的 {kind}/{name}")
+        return self.ownership.adopt(cands[0], dry_run=dry_run)

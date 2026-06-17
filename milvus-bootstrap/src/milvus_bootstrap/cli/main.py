@@ -93,6 +93,45 @@ def install(
     _print_task(client.request("POST", "/install", json=body, timeout=600))
 
 
+@app.command()
+def adopt(
+    kind: str = typer.Argument(..., help="组件类型，如 minio"),
+    name: str = typer.Option(..., "--name", "-n", help="要接管的实例名"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """接管一个已存在的（Adoptable）实例为 Managed。"""
+    _print_task(client.request("POST", "/adopt", json={"kind": kind, "name": name, "dry_run": dry_run}, timeout=600))
+
+
+@app.command()
+def scale(
+    instance: str = typer.Argument(..., help="实例名"),
+    replicas: int = typer.Argument(..., help="目标副本数"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """扩缩容（按组件护栏）。"""
+    _print_task(client.request("POST", "/scale", json={"instance": instance, "replicas": replicas, "dry_run": dry_run}, timeout=600))
+
+
+@app.command()
+def upgrade(
+    instance: str = typer.Argument(..., help="实例名"),
+    image: str = typer.Option(..., "--image", help="目标镜像"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """升级镜像（重新渲染并应用；权威态先备份）。"""
+    _print_task(client.request("POST", "/upgrade", json={"instance": instance, "image": image, "dry_run": dry_run}, timeout=600))
+
+
+@app.command()
+def delete(
+    instance: str = typer.Argument(..., help="实例名"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """删除实例（state-class 护栏；PVC 默认保留）。"""
+    _print_task(client.request("POST", "/delete", json={"instance": instance, "dry_run": dry_run}, timeout=600))
+
+
 def _print_task(task: dict) -> None:
     mode = "DRY-RUN · 仅计划" if task["dry_run"] else "执行"
     color = "cyan" if task["dry_run"] else "green"

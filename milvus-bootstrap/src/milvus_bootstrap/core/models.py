@@ -106,3 +106,5 @@ class Instance(BaseModel):
     namespace: str = "default"
     ownership: Ownership = Ownership.managed
     deps: list[DependencyBinding] = Field(default_factory=list)
+    # last-applied InstallSpec (the "snapshot") — lets lifecycle ops re-render.
+    spec_snapshot: dict[str, Any] = Field(default_factory=dict)

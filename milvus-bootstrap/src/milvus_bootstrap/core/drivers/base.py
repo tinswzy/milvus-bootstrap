@@ -170,3 +170,37 @@ class BaseServiceDriver(ServiceDriver):
 
     def build_cr_spec(self, spec, m, params) -> dict:
         return dict(params)
+
+    # ---- lifecycle ----
+    def replicas_param(self) -> str | None:
+        """Install-param key for replica count (for scale). None = not scalable."""
+        return None
+
+    def plan_delete_steps(self, spec: InstallSpec, adapter: PlatformAdapter) -> list[Step]:
+        m = self.profile.method(spec.method, spec.platform)
+        if m is None:
+            raise ValueError(f"{self.kind} 在 {spec.platform.value} 上没有可用的安装方式")
+        ns, name, kind = spec.namespace, spec.name, self.kind
+        steps: list[Step] = []
+        if self.state_class() == StateClass.authoritative:
+            steps.append(Step(
+                name="backup-note",
+                plan=f"权威有状态：删除前应先备份 {kind}/{name}；PVC 默认保留（不随删除清除）",
+            ))
+        if m.kind == "helm":
+            steps.append(Step(
+                name="uninstall",
+                plan=f"helm uninstall {name}（PVC 保留）",
+                action=lambda: adapter.delete_workload(kind=kind, name=name, namespace=ns),
+            ))
+        elif m.kind == "operator-cr":
+            cr = m.cr
+            steps.append(Step(
+                name="delete-cr",
+                plan=f"删除 {cr.kind}/{name}",
+                action=lambda: adapter.delete_cr(group=cr.group, version=cr.version,
+                                                 plural=cr.plural, namespace=ns, name=name),
+            ))
+        else:
+            steps.append(Step(name="noop", plan=f"{m.kind}：无集群内工作负载需删除"))
+        return steps

@@ -9,6 +9,9 @@ from .base import BaseServiceDriver
 
 
 class EtcdDriver(BaseServiceDriver):
+    def replicas_param(self) -> str:
+        return "replicaCount"
+
     def scale_plan(self, current: int, target: int) -> str:
         notes = ["副本保持奇数（quorum）", "一次只增/减一个成员"]
         if target < current:

@@ -31,6 +31,7 @@ class Provisioner:
                     kind=spec.kind, install_method=method_id,
                     ownership=Ownership.managed, state_class=driver.state_class(),
                 )],
+                spec_snapshot=spec.model_dump(mode="json"),
             )
             self.state.put_instance(inst)
             return f"已登记实例 {spec.name} 为 Managed"

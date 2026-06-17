@@ -69,3 +69,46 @@ def install(req: InstallReq) -> dict[str, Any]:
         chart_override=req.chart_override,
     )
     return _core().install(spec, dry_run=req.dry_run).model_dump()
+
+
+class DeleteReq(BaseModel):
+    instance: str
+    dry_run: bool = True
+
+
+@app.post("/delete")
+def delete(req: DeleteReq) -> dict[str, Any]:
+    return _core().delete(req.instance, dry_run=req.dry_run).model_dump()
+
+
+class ScaleReq(BaseModel):
+    instance: str
+    replicas: int
+    dry_run: bool = True
+
+
+@app.post("/scale")
+def scale(req: ScaleReq) -> dict[str, Any]:
+    return _core().scale(req.instance, req.replicas, dry_run=req.dry_run).model_dump()
+
+
+class UpgradeReq(BaseModel):
+    instance: str
+    image: str
+    dry_run: bool = True
+
+
+@app.post("/upgrade")
+def upgrade(req: UpgradeReq) -> dict[str, Any]:
+    return _core().upgrade(req.instance, req.image, dry_run=req.dry_run).model_dump()
+
+
+class AdoptReq(BaseModel):
+    kind: str
+    name: str
+    dry_run: bool = True
+
+
+@app.post("/adopt")
+def adopt(req: AdoptReq) -> dict[str, Any]:
+    return _core().adopt(req.kind, req.name, dry_run=req.dry_run).model_dump()

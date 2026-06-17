@@ -58,6 +58,9 @@ class WoodpeckerDriver(BaseServiceDriver):
         }
         return [configmap, cluster]
 
+    def replicas_param(self) -> str:
+        return "replicas"
+
     def scale_plan(self, current: int, target: int) -> str:
         if target < current:
             return f"woodpecker {current}→{target}：缩容前 operator 自动 decommission（flush 段到对象存储）"

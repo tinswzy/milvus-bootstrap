@@ -46,6 +46,9 @@ class MinioDriver(BaseServiceDriver):
         }
         return [secret, tenant]
 
+    def replicas_param(self) -> str:
+        return "servers"
+
     def scale_plan(self, current: int, target: int) -> str:
         return ("MinIO 不能原地缩；扩容=往 spec.pools[] 追加新 pool；"
                 "下线需先 mc admin decommission 迁移数据")
