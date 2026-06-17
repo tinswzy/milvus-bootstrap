@@ -1,0 +1,36 @@
+# Kafka — installed as an external MQ for Milvus. See phase1-plan.html.
+# NOTE: the "official" path is the Strimzi operator (Kafka CR); that needs a
+# KafkaDriver to build the Strimzi Kafka + KafkaNodePool CRs (TODO). For now the
+# default is bitnami helm, which is simpler and gives milvus a brokerList.
+kind: kafka
+state_class: authoritative
+
+detect:
+  image_match: ["kafka"]
+  ports: [9092]
+  crd: Kafka
+
+install_methods:
+  - id: bitnami-helm
+    platform: k8s
+    default: true
+    kind: helm
+    chart: bitnami/kafka
+    params:
+      controller: { replicaCount: 3 }
+  - id: external
+    platform: k8s
+    kind: external
+  - id: docker-compose
+    platform: docker
+    kind: compose
+
+health:
+  workload_ready: "sts.readyReplicas == replicas"
+  cluster_check: ":9092 reachable"
+
+scale_rules:
+  step: rolling
+
+connect:
+  milvus_values: "externalKafka.brokerList"

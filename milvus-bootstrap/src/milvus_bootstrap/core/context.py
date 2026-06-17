@@ -90,6 +90,10 @@ class Core:
         self.state.put_task(task)
         return task
 
+    def mq_options(self, milvus_version: str, mode: str = "standalone") -> list[dict]:
+        from . import compat
+        return compat.mq_options(milvus_version, mode)
+
     def config_get(self, instance_id: str) -> dict[str, str]:
         return self.config.get(instance_id)
 

@@ -1,0 +1,30 @@
+# Pulsar — installed as an external MQ for Milvus (Apache Helm). See phase1-plan.html.
+kind: pulsar
+state_class: authoritative
+
+detect:
+  image_match: ["pulsar"]
+  ports: [6650]
+
+install_methods:
+  - id: apache-helm
+    platform: k8s
+    default: true
+    kind: helm
+    chart: apache/pulsar
+  - id: external
+    platform: k8s
+    kind: external
+  - id: docker-compose
+    platform: docker
+    kind: compose
+
+health:
+  workload_ready: "sts.readyReplicas == replicas"
+  cluster_check: ":6650 reachable"
+
+scale_rules:
+  step: rolling
+
+connect:
+  milvus_values: "externalPulsar.endpoint"

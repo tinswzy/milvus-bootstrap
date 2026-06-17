@@ -134,6 +134,25 @@ def delete(
     _print_task(client.request("POST", "/delete", json={"instance": instance, "dry_run": dry_run}, timeout=600))
 
 
+@app.command("mq-options")
+def mq_options(
+    milvus_version: str = typer.Option(..., "--milvus-version", "-v",
+                                       help="milvus 版本或镜像，如 v2.6.3 或 milvusdb/milvus:v3.0.0"),
+    mode: str = typer.Option("standalone", "--mode", help="standalone / cluster"),
+) -> None:
+    """查看某 milvus 版本可选 / 不可选的 MQ（版本兼容矩阵）。"""
+    data = client.request("POST", "/mq-options",
+                          json={"milvus_version": milvus_version, "mode": mode})
+    table = Table(title=f"milvus {milvus_version} ({mode}) 的 MQ 选项")
+    for col in ("MQ 选项", "WAL", "依赖组件", "可选", "说明"):
+        table.add_column(col)
+    for o in data["options"]:
+        sel = "[green]✓ 可选[/]" if o["supported"] else "[red]✗ 不可选[/]"
+        table.add_row(o["label"], o["wal"], o.get("dep_kind") or "嵌入", sel,
+                      o["reason"] or o["note"], style=None if o["supported"] else "dim")
+    console.print(table)
+
+
 @app.command("switch-mq")
 def switch_mq(
     instance: str = typer.Argument(..., help="milvus 实例名"),

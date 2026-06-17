@@ -17,7 +17,10 @@ install_methods:
     ready: { status_path: status.status, status_equals: Healthy }
     params:
       mode: standalone
-      image: milvusdb/milvus:v2.6.0
+      # default MQ is woodpecker-service, which needs milvus >= 3.0 (master/switch-fix
+      # build). For kafka/pulsar on 2.6.x, pass --set image=milvusdb/milvus:v2.6.x --set mq=kafka.
+      image: milvusdb/milvus:v3.0.0
+      mq: woodpecker-service
       woodpeckerReplicas: 3
   - id: helm                        # fallback
     platform: k8s

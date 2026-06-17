@@ -125,6 +125,16 @@ def switch_mq(req: SwitchMqReq) -> dict[str, Any]:
     return _core().switch_mq(req.instance, req.target_wal, dry_run=req.dry_run).model_dump()
 
 
+class MqOptionsReq(BaseModel):
+    milvus_version: str
+    mode: str = "standalone"
+
+
+@app.post("/mq-options")
+def mq_options(req: MqOptionsReq) -> dict[str, Any]:
+    return {"options": _core().mq_options(req.milvus_version, req.mode)}
+
+
 class ConfigGetReq(BaseModel):
     instance: str
 
