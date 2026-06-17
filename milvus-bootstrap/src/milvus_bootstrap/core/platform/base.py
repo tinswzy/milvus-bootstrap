@@ -62,3 +62,11 @@ class PlatformAdapter(ABC):
 
         Used by switch-mq to call Milvus's management API from inside the cluster.
         """
+
+    @abstractmethod
+    def get_configmap(self, *, namespace: str, name: str) -> dict[str, str]:
+        """Return a ConfigMap's data."""
+
+    @abstractmethod
+    def restart(self, *, namespace: str, label_selector: str) -> str:
+        """Rolling-restart the workloads matched by label_selector."""

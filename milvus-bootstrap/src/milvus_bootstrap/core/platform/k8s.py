@@ -237,6 +237,22 @@ class K8sAdapter(PlatformAdapter):
         out = self._run(["kubectl", "exec", pod, "-n", namespace, "--", *command])
         return f"[k8s] exec {pod}: {out.strip()[:200]}"
 
+    def get_configmap(self, *, namespace, name):
+        self._ensure_client()
+        from kubernetes.client.exceptions import ApiException
+        try:
+            cm = self.core.read_namespaced_config_map(name, namespace)
+            return dict(cm.data or {})
+        except ApiException as exc:
+            if exc.status == 404:
+                raise RuntimeError(f"configmap {name} 不存在（ns={namespace}）") from exc
+            raise
+
+    def restart(self, *, namespace, label_selector):
+        out = self._run(["kubectl", "rollout", "restart", "deployment,statefulset",
+                         "-n", namespace, "-l", label_selector])
+        return f"[k8s] {out.strip()[:200]}"
+
     @staticmethod
     def _run(argv: list[str]) -> str:
         try:

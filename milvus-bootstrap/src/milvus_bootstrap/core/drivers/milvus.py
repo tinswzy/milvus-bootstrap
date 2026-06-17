@@ -71,27 +71,39 @@ class MilvusDriver(BaseServiceDriver):
                 },
             })
 
+        cr_spec = {
+            "mode": params.get("mode", "standalone"),
+            "components": {"image": params.get("image", "milvusdb/milvus:v2.6.0")},
+            "dependencies": {
+                "msgStreamType": "woodpecker",
+                "etcd": {"external": True, "endpoints": etcd_eps},
+                "storage": {
+                    "external": True, "type": "MinIO",
+                    "endpoint": storage_endpoint, "secretRef": secret_ref,
+                },
+                "woodpecker": {
+                    "external": {"endpoints": wp_eps, "replicaCount": wp_replicas},
+                },
+            },
+        }
+        # config overrides (from `config set`) go into the Milvus CR spec.conf.data,
+        # which milvus-operator merges into milvus.yaml.
+        conf = params.get("_conf")
+        if conf:
+            cr_spec["conf"] = {"data": conf}
+
         manifests.append({
             "apiVersion": f"{cr.group}/{cr.version}",
             "kind": cr.kind,
             "metadata": {"name": name, "namespace": ns},
-            "spec": {
-                "mode": params.get("mode", "standalone"),
-                "components": {"image": params.get("image", "milvusdb/milvus:v2.6.0")},
-                "dependencies": {
-                    "msgStreamType": "woodpecker",
-                    "etcd": {"external": True, "endpoints": etcd_eps},
-                    "storage": {
-                        "external": True, "type": "MinIO",
-                        "endpoint": storage_endpoint, "secretRef": secret_ref,
-                    },
-                    "woodpecker": {
-                        "external": {"endpoints": wp_eps, "replicaCount": wp_replicas},
-                    },
-                },
-            },
+            "spec": cr_spec,
         })
         return manifests
+
+    def config_apply_params(self, params: dict, kv: dict) -> dict:
+        # milvus config lives in spec.conf.data, not install params
+        merged_conf = {**params.get("_conf", {}), **kv}
+        return {**params, "_conf": merged_conf}
 
     def plan_switch_mq_steps(self, spec, adapter, target_wal: str) -> list[Step]:
         """Switch Milvus's WAL/MQ at runtime via the management API (the ★ flow).

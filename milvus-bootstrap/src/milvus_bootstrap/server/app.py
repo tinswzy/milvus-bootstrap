@@ -123,3 +123,33 @@ class SwitchMqReq(BaseModel):
 @app.post("/switch-mq")
 def switch_mq(req: SwitchMqReq) -> dict[str, Any]:
     return _core().switch_mq(req.instance, req.target_wal, dry_run=req.dry_run).model_dump()
+
+
+class ConfigGetReq(BaseModel):
+    instance: str
+
+
+@app.post("/config/get")
+def config_get(req: ConfigGetReq) -> dict[str, Any]:
+    return {"config": _core().config_get(req.instance)}
+
+
+class ConfigSetReq(BaseModel):
+    instance: str
+    kv: dict[str, Any] = {}
+    dry_run: bool = True
+
+
+@app.post("/config/set")
+def config_set(req: ConfigSetReq) -> dict[str, Any]:
+    return _core().config_set(req.instance, req.kv, dry_run=req.dry_run).model_dump()
+
+
+class ConfigRestartReq(BaseModel):
+    instance: str
+    dry_run: bool = True
+
+
+@app.post("/config/restart")
+def config_restart(req: ConfigRestartReq) -> dict[str, Any]:
+    return _core().config_restart(req.instance, dry_run=req.dry_run).model_dump()

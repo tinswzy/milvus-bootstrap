@@ -9,7 +9,13 @@ import os
 from typing import Any
 
 from .. import __version__
-from .engines import DiscoveryEngine, LifecycleEngine, OwnershipEngine, Provisioner
+from .engines import (
+    ConfigEngine,
+    DiscoveryEngine,
+    LifecycleEngine,
+    OwnershipEngine,
+    Provisioner,
+)
 from .models import Candidate, InstallSpec, Task
 from .platform.base import PlatformAdapter
 from .profile import load_profiles
@@ -38,6 +44,7 @@ class Core:
         self.provisioner = Provisioner(self.registry, self.adapter, self.state, self.engine)
         self.lifecycle = LifecycleEngine(self.registry, self.adapter, self.state, self.engine)
         self.ownership = OwnershipEngine(self.registry, self.state, self.engine)
+        self.config = ConfigEngine(self.registry, self.adapter, self.state, self.engine)
 
     def status(self) -> dict[str, Any]:
         return {
@@ -82,3 +89,12 @@ class Core:
         task = self.engine.run(type="switch-mq", target=instance_id, steps=steps, dry_run=dry_run)
         self.state.put_task(task)
         return task
+
+    def config_get(self, instance_id: str) -> dict[str, str]:
+        return self.config.get(instance_id)
+
+    def config_set(self, instance_id: str, kv: dict, dry_run: bool = True) -> Task:
+        return self.config.set(instance_id, kv, dry_run=dry_run)
+
+    def config_restart(self, instance_id: str, dry_run: bool = True) -> Task:
+        return self.config.restart(instance_id, dry_run=dry_run)

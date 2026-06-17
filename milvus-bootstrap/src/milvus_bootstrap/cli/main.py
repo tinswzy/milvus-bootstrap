@@ -18,6 +18,8 @@ app = typer.Typer(
 )
 core_app = typer.Typer(help="管理 core daemon：启停 / 状态 / 更新", no_args_is_help=True)
 app.add_typer(core_app, name="core")
+config_app = typer.Typer(help="配置管理：get / set / restart", no_args_is_help=True)
+app.add_typer(config_app, name="config")
 
 console = Console()
 client = DaemonClient()
@@ -158,6 +160,39 @@ def _print_task(task: dict) -> None:
     console.print(table)
     for a in task.get("audit", []):
         console.print(f"  · {a}", style="dim")
+
+
+@config_app.command("get")
+def config_get(instance: str = typer.Argument(..., help="实例名")) -> None:
+    """查看实例的有效配置。"""
+    data = client.request("POST", "/config/get", json={"instance": instance})
+    console.print_json(data=data["config"])
+
+
+@config_app.command("set")
+def config_set(
+    instance: str = typer.Argument(..., help="实例名"),
+    kv: list[str] = typer.Option(None, "--set", help="配置项 key=val（可重复）"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """改配置（milvus→CR spec.conf；其它→helm values），随后自动滚动。"""
+    overrides: dict[str, str] = {}
+    for item in kv or []:
+        if "=" in item:
+            k, v = item.split("=", 1)
+            overrides[k] = v
+    _print_task(client.request("POST", "/config/set",
+                               json={"instance": instance, "kv": overrides, "dry_run": dry_run}, timeout=600))
+
+
+@config_app.command("restart")
+def config_restart(
+    instance: str = typer.Argument(..., help="实例名"),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """滚动重启实例的工作负载。"""
+    _print_task(client.request("POST", "/config/restart",
+                               json={"instance": instance, "dry_run": dry_run}, timeout=600))
 
 
 def main() -> None:

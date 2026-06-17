@@ -85,3 +85,9 @@ class FakeAdapter(PlatformAdapter):
 
     def exec(self, *, namespace, label_selector, command):
         return f"[fake] exec @{label_selector} ({namespace}): {' '.join(command)}"
+
+    def get_configmap(self, *, namespace, name):
+        return {"user.yaml": f"# [fake] effective config of {name} in {namespace}\n"}
+
+    def restart(self, *, namespace, label_selector):
+        return f"[fake] rollout restart @{label_selector} ({namespace})"

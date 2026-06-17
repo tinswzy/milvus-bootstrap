@@ -204,3 +204,14 @@ class BaseServiceDriver(ServiceDriver):
         else:
             steps.append(Step(name="noop", plan=f"{m.kind}：无集群内工作负载需删除"))
         return steps
+
+    # ---- config ----
+    def config_cm_name(self, spec: InstallSpec) -> str:
+        """Name of the ConfigMap holding the effective config (for `config get`)."""
+        return spec.name
+
+    def config_apply_params(self, params: dict, kv: dict) -> dict:
+        """Fold config key/values into install params (default: treat as install
+        params, i.e. helm --set). Components whose config is separate (e.g. milvus
+        spec.conf) override this."""
+        return {**params, **kv}
