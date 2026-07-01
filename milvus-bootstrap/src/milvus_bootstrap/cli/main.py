@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ..client import DaemonClient
+from ..core import doctor as _doctor
 
 app = typer.Typer(
     help="milvus-bootstrap — 瘦 CLI 客户端（真正的逻辑都在 core daemon）",
@@ -50,6 +51,45 @@ def core_status() -> None:
 def core_update() -> None:
     """自更新 core（stub）。"""
     console.print("[dim]自更新（stub）：后续用 pip / registry 更新 core 包，像 claude code / codex。[/]")
+
+
+@app.command()
+def doctor(
+    json_out: bool = typer.Option(False, "--json", help="机器可读 JSON 输出"),
+) -> None:
+    """环境自检 + 版本/兼容矩阵 + 工具版本（本地运行，不依赖 daemon）。"""
+    report = _doctor.run()
+    if json_out:
+        console.print_json(data=report.to_json())
+        raise typer.Exit(code=report.exit_code())
+
+    lvl = {"PASS": "[green]PASS[/]", "WARN": "[yellow]WARN[/]",
+           "FAIL": "[red]FAIL[/]", "SKIP": "[dim]SKIP[/]"}
+    env_t = Table(title="环境", show_header=True, header_style="bold")
+    for c in ("检查", "结果", "详情"):
+        env_t.add_column(c)
+    for f in report.env:
+        env_t.add_row(f.rule or f.component, lvl.get(f.level, f.level), f.reason)
+    console.print(env_t)
+
+    ver_t = Table(title="版本", show_header=True, header_style="bold")
+    for c in ("组件", "版本"):
+        ver_t.add_column(c)
+    for k, v in report.versions.items():
+        ver_t.add_row(k, str(v))
+    console.print(ver_t)
+
+    cmp_t = Table(title="兼容", show_header=True, header_style="bold")
+    for c in ("组件", "结果", "规则", "详情"):
+        cmp_t.add_column(c)
+    for f in report.compat:
+        cmp_t.add_row(f.component, lvl.get(f.level, f.level), f.rule, f.reason)
+    console.print(cmp_t)
+
+    t = report.tool
+    console.print(f"[bold]工具[/] mb {t['version']} "
+                  f"(git {t.get('commit') or '—'})  更新检查: {t.get('update')}")
+    raise typer.Exit(code=report.exit_code())
 
 
 # ---- forwarded commands (logic runs in the daemon) ----
