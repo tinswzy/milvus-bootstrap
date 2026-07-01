@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 from dataclasses import dataclass
 
 from .. import __version__
@@ -39,7 +40,10 @@ def check_environment(run, no_proxy: str, daemon_up: bool) -> list[Finding]:
     else:
         out.append(Finding("FAIL", "kubectl", "kubectl 可用", "未找到 kubectl"))
 
-    rc, o, e = run(["version", "-o", "json"])
+    try:
+        rc, o, e = run(["version", "-o", "json"])
+    except Exception as ex:
+        rc, o, e = 1, "", str(ex)
     out.append(Finding("PASS", "cluster", "集群可达", "apiserver responded")
                if rc == 0 else Finding("FAIL", "cluster", "集群可达", (e or "unreachable").strip()[:120]))
 
@@ -53,17 +57,19 @@ def check_environment(run, no_proxy: str, daemon_up: bool) -> list[Finding]:
     out.append(Finding("PASS", "daemon", "core daemon 运行", "running")
                if daemon_up else Finding("WARN", "daemon", "core daemon 运行", "未运行（doctor 仍可预检）"))
 
-    rc, o, _ = run(["get", "crd", "milvuses.milvus.io", "-o", "name"])
+    try:
+        rc, o, _ = run(["get", "crd", "milvuses.milvus.io", "-o", "name"])
+    except Exception as ex:
+        rc, o, _ = 1, "", str(ex)
     out.append(Finding("PASS", "operator", "Milvus CRD 就位", "milvuses.milvus.io present")
                if rc == 0 and o.strip() else Finding("WARN", "operator", "Milvus CRD 就位", "未探测到 Milvus CRD"))
 
     return out
 
 
-def tool_info(run=probe.run_kubectl) -> dict:
+def tool_info() -> dict:
     commit = None
     try:
-        import subprocess
         p = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                            capture_output=True, text=True, timeout=10)
         commit = p.stdout.strip() if p.returncode == 0 else None
@@ -90,4 +96,4 @@ def run(run=probe.run_kubectl, no_proxy: str | None = None,
     env = check_environment(run, no_proxy, daemon_up)
     versions = probe.detect_versions(run=run).as_compat_dict()
     findings = compat.evaluate(versions)
-    return DoctorReport(env=env, versions=versions, compat=findings, tool=tool_info(run))
+    return DoctorReport(env=env, versions=versions, compat=findings, tool=tool_info())
