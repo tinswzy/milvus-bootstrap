@@ -118,11 +118,12 @@ class SwitchMqReq(BaseModel):
     instance: str
     target_wal: str
     dry_run: bool = True
+    force: bool = False
 
 
 @app.post("/switch-mq")
 def switch_mq(req: SwitchMqReq) -> dict[str, Any]:
-    return _core().switch_mq(req.instance, req.target_wal, dry_run=req.dry_run).model_dump()
+    return _core().switch_mq(req.instance, req.target_wal, dry_run=req.dry_run, force=req.force).model_dump()
 
 
 class MqOptionsReq(BaseModel):

@@ -198,10 +198,11 @@ def switch_mq(
     instance: str = typer.Argument(..., help="milvus 实例名"),
     to: str = typer.Option(..., "--to", help="目标 MQ/WAL：woodpecker / kafka / pulsar"),
     dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+    force: bool = typer.Option(False, "--force", help="跳过兼容门禁（自担风险）"),
 ) -> None:
     """切换 Milvus 的 MQ/WAL（管理 API wal/alter）。"""
     _print_task(client.request("POST", "/switch-mq",
-                               json={"instance": instance, "target_wal": to, "dry_run": dry_run}, timeout=600))
+                               json={"instance": instance, "target_wal": to, "dry_run": dry_run, "force": force}, timeout=600))
 
 
 def _print_task(task: dict) -> None:

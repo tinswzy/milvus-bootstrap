@@ -76,7 +76,7 @@ class Core:
             raise KeyError(f"未发现可接管的 {kind}/{name}")
         return self.ownership.adopt(cands[0], dry_run=dry_run)
 
-    def switch_mq(self, instance_id: str, target_wal: str, dry_run: bool = True) -> Task:
+    def switch_mq(self, instance_id: str, target_wal: str, dry_run: bool = True, force: bool = False) -> Task:
         inst = self.state.get_instance(instance_id)
         if inst is None:
             raise KeyError(f"未找到实例 {instance_id}")
@@ -85,6 +85,11 @@ class Core:
         spec = InstallSpec.model_validate(inst.spec_snapshot)
         if spec.kind != "milvus":
             raise ValueError("switch-mq 仅适用于 milvus 实例")
+        from . import compat
+        cur_mq = spec.params.get("mq", "")
+        cur_opt = compat.get_option(cur_mq)
+        current_wal = cur_opt.wal if cur_opt else cur_mq
+        compat.gate("switch-mq", {"current_wal": current_wal, "target_wal": target_wal}, force=force)
         steps = self.registry.get("milvus").plan_switch_mq_steps(spec, self.adapter, target_wal)
         task = self.engine.run(type="switch-mq", target=instance_id, steps=steps, dry_run=dry_run)
         self.state.put_task(task)
