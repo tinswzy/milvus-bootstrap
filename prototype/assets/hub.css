@@ -233,6 +233,34 @@ a { color:inherit; text-decoration:none; }
 .tbl .cell-name { display:flex; align-items:center; gap:10px; font-weight:600; }
 .tbl .cell-name .lo { width:28px;height:28px;border-radius:7px; display:grid;place-items:center; background:var(--surface-3); border:1px solid var(--line); font-size:14px;}
 
+/* ===================== phase-1 step pages ===================== */
+.stepmeta{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:11px; }
+.gear{ font-family:var(--font-mono); font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; border:1px solid var(--line-2); background:var(--surface); color:var(--fg-2); }
+.gear.unit{ background:var(--ok-soft); color:#0c6b46; border-color:transparent; }
+.gear.dry{ background:var(--accent-soft); color:var(--accent-ink); border-color:transparent; }
+.gear.live{ background:var(--warn-soft); color:#92510a; border-color:transparent; }
+.deprow{ display:flex; gap:10px; flex-wrap:wrap; }
+.depchip{ font-size:12px; padding:6px 11px; border-radius:8px; border:1px solid var(--line-2); background:var(--surface-3); color:var(--fg-2); display:flex; gap:7px; align-items:center; }
+.depchip .dot{ width:7px;height:7px;border-radius:50%; background:var(--ok); }
+.dt{ counter-reset:d; margin:0; padding:0; list-style:none; }
+.dt li{ counter-increment:d; position:relative; padding:9px 0 9px 34px; border-bottom:1px dashed var(--line); font-size:13px; color:var(--fg-2); line-height:1.65; }
+.dt li:last-child{ border-bottom:none; }
+.dt li::before{ content:counter(d); position:absolute; left:0; top:8px; width:22px;height:22px; border-radius:7px; background:var(--accent); color:#fff; font-family:var(--font-mono); font-size:11px; font-weight:700; display:grid; place-items:center; }
+.dt li b{ color:var(--fg-1); } .dt li code,.exp code,.dod li code,.term-note code{ font-family:var(--font-mono); font-size:11.5px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:1px 5px; color:var(--accent-ink); }
+.term{ background:#0f1117; border:1px solid #20242e; border-radius:11px; overflow:hidden; box-shadow:var(--shadow-sm); margin-top:6px; } .term + .term{ margin-top:12px; }
+.term .tbar{ display:flex; align-items:center; gap:7px; padding:9px 13px; border-bottom:1px solid #20242e; background:#141821; }
+.term .tbar .tdot{ width:11px;height:11px;border-radius:50%; } .td1{background:#ff5f57}.td2{background:#febc2e}.td3{background:#28c840}
+.term .tbar .tt{ margin-left:8px; font-family:var(--font-mono); font-size:11px; color:#8b93a7; }
+.term .body{ padding:13px 15px; font-family:var(--font-mono); font-size:12.5px; line-height:1.85; color:#cdd3e0; overflow-x:auto; }
+.term .body .c{ color:#7ee787; } .term .body .c::before{ content:'$ '; color:#5a647a; }
+.term .body .o{ color:#9aa3b6; white-space:pre-wrap; } .term .body .ok{ color:#7ee787; font-weight:600; } .term .body .hl{ color:#ffd479; } .term .body .cm{ color:#5a647a; } .term .body .err{ color:#ff7b72; font-weight:600; } .term .body .warn{ color:#ffd479; font-weight:600; }
+.exp{ margin-top:12px; border:1px solid var(--ok); border-radius:10px; background:var(--ok-soft); padding:11px 14px; font-size:12.5px; color:#0c6b46; line-height:1.7; } .exp b{ color:#094d33; } .exp code{ background:#fff; border-color:#bfe3d0; color:#0c6b46; }
+.exp.pending{ border-color:var(--warn); background:var(--warn-soft); color:#92510a; } .exp.pending b{ color:#7a4209; } .exp.pending code{ border-color:#e8d3a8; color:#92510a; }
+.term-note{ font-size:11.5px; color:var(--fg-3); margin-top:8px; line-height:1.6; }
+.dod{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.dod li{ font-size:13px; color:var(--fg-2); padding-left:26px; position:relative; line-height:1.5; } .dod li::before{ content:'☐'; position:absolute; left:2px; top:-1px; color:var(--accent); font-weight:700; font-size:15px; }
+.pnav{ display:flex; gap:10px; align-items:center; margin:20px 0 8px; } .pnav .grow{ flex:1; }
+
 /* grids */
 .grid { display:grid; gap:16px; }
 .g-2 { grid-template-columns:1fr 1fr; } .g-3 { grid-template-columns:repeat(3,1fr); }

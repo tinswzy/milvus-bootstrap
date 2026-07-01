@@ -116,6 +116,19 @@ const Hub = (function () {
     { id:'design-runtime', label:'运行时 · 部署/状态/平台',            icon:I.rocket, href:'design-runtime.html' },
     { id:'design-abstraction', label:'分层抽象 · 组件×平台',           icon:I.grid,   href:'design-abstraction.html' },
     { id:'phase1-plan',   label:'阶段一 · 实施计划',                   icon:I.cube,   href:'phase1-plan.html' },
+    { grp:'阶段一 · 逐步验收' },
+    { id:'phase1-setup',  label:'环境准备 · 远程 minikube',  icon:I.rocket,  href:'phase1-setup.html' },
+    { id:'phase1-step1',  label:'① kafka/pulsar dry-run',   icon:I.sliders, href:'phase1-step1.html' },
+    { id:'phase1-step2',  label:'② kafka/pulsar live',      icon:I.install, href:'phase1-step2.html' },
+    { id:'phase1-step3',  label:'③ milvus 连 kafka dry-run', icon:I.sliders, href:'phase1-step3.html' },
+    { id:'phase1-step4',  label:'④ milvus 连 kafka live',    icon:I.install, href:'phase1-step4.html' },
+    { id:'phase1-step5',  label:'⑤ milvus 连 pulsar live',   icon:I.install, href:'phase1-step5.html' },
+    { id:'phase1-step6',  label:'⑥ switch kafka→pulsar',     icon:I.swap,    href:'phase1-step6.html' },
+    { id:'phase1-step7',  label:'⑦ kafka 独立升级',          icon:I.upgrade, href:'phase1-step7.html' },
+    { id:'phase1-step8',  label:'⑧ milvus 升级',             icon:I.upgrade, href:'phase1-step8.html' },
+    { id:'phase1-step9',  label:'⑨ 兼容矩阵',                icon:I.layers,  href:'phase1-step9.html' },
+    { grp:'工具打磨' },
+    { id:'mb-doctor',     label:'mb doctor · 环境/版本/兼容', icon:I.info,   href:'mb-doctor.html' },
   ];
 
   /* ---------- shell render ---------- */

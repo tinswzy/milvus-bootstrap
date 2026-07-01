@@ -1,0 +1,42 @@
+# Editable compatibility constraints. severity: hard=block / soft=warn-only.
+# source: confident | best-effort | user-table.
+# operator/helm/k8s ↔ milvus: min/max intentionally EMPTY until the authoritative
+# table is provided. Empty bounds => unknown => WARN/info, never a hard block.
+# (milvus ↔ kafka/pulsar/woodpecker hard rules live in compat.py MQ_OPTIONS, not here.)
+constraints:
+  - component: milvus-operator
+    requires: milvus
+    rule: "milvus 2.6.x 需要 operator 版本区间"
+    milvus_range: ">=2.6.0,<3.0.0"
+    min: ""
+    max: ""
+    severity: soft
+    source: user-table
+    reason: ""
+  - component: milvus-operator
+    requires: milvus
+    rule: "milvus 3.0.x 需要 operator 版本区间"
+    milvus_range: ">=3.0.0"
+    min: ""
+    max: ""
+    severity: soft
+    source: user-table
+    reason: ""
+  - component: milvus-helm
+    requires: milvus
+    rule: "milvus-helm 与 milvus 版本对应"
+    milvus_range: ">=2.6.0"
+    min: ""
+    max: ""
+    severity: soft
+    source: user-table
+    reason: ""
+  - component: k8s
+    requires: milvus
+    rule: "k8s 版本下限"
+    milvus_range: ""
+    min: ""
+    max: ""
+    severity: soft
+    source: user-table
+    reason: ""

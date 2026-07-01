@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mb doctor · 环境自检 + 版本/兼容矩阵 · 设计</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>mb doctor · 环境自检 + 版本/兼容矩阵 + 操作门禁</h1>
+          <p>一个命令回答两件事：<b>我这套环境能不能跑</b>、<b>各组件版本兼不兼容</b>；并据兼容关系<b>限制不安全操作</b>。</p>
+          <div class="stepmeta"><span class="gear">📋 设计</span><span class="gear">打磨现有版本</span><span class="badge b-accent"><span class="d"></span>设计已确认 · 待实现</span></div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 阶段一计划</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px"><div><b>范围：</b>打磨现有版本，<b>不</b>新增 switch-mq / woodpecker 的功能支持（仅复用已有兼容规则做展示与门禁）。Spec: <code>docs/superpowers/specs/2026-07-01-mb-doctor-design.md</code>。</div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🎛️ mb doctor 输出预览</h3><span class="sub">四段式 · rich 表 + --json · 本地优先降级</span></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">$ mb doctor</span></div><div class="body">
+          <div class="c">mb doctor</div>
+          <div class="o"><b>环境</b>   kubectl <span class="ok">✓</span>   cluster 可达 <span class="ok">✓</span>   NO_PROXY 含 minikube IP <span class="ok">✓</span></div>
+          <div class="o">        daemon <span class="ok">✓</span>   operator <span class="ok">✓</span>   Milvus CRD <span class="ok">✓</span></div>
+          <div class="o">        镜像 milvusdb/milvus:v2.6.18  registry <span class="ok">✓</span> / 节点缓存 <span class="ok">✓</span></div>
+          <div class="o">              bitnamilegacy/kafka   registry <span class="err">✗ 代理/网络?</span></div>
+          <div class="o"><b>版本</b>   k8s 1.34.0 <span class="ok">✓</span>   operator 1.3.6 <span class="ok">✓</span>   minio ✓   kafka 32.4.3 ✓</div>
+          <div class="o">        milvus-dev v2.6.18 <span class="ok">✓</span>   milvus-pulsar v2.6.18 <span class="ok">✓</span></div>
+          <div class="o"><b>兼容</b>   <span class="ok">✓</span> milvus 2.6.x 支持 kafka/pulsar/woodpecker(embed)</div>
+          <div class="o">        <span class="warn">⚠</span> operator↔milvus 约束未配置（best-effort，待权威表）</div>
+          <div class="o"><b>工具</b>   mb 0.0.1 (git a1b2c3d)   更新检查 <span class="ok">✓ 已是最新</span></div>
+          <div class="c">mb doctor --json <span class="cm"># 同结构机读输出，供脚本/CI</span></div>
+        </div></div>
+        <div class="term-note"><b>降级：</b>daemon/集群未就绪时相关项标 <code>SKIP</code>、不报错崩；<b>退出码：</b>有任一 <code>FAIL</code> → 非 0（可做 CI 预检门）。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🧭 关键决策</h3></div><div class="card-pad"><ol class="dt">
+        <li><b>命令形态：</b>单命令 <code>mb doctor</code> 全包（环境 / 版本 / 兼容 / 工具四段）。</li>
+        <li><b>镜像检查：</b>manifest 轻量探测（registry 可达）+ 节点缓存检查，<b>不真拉</b>。</li>
+        <li><b>兼容权威：</b>数据驱动可编辑；milvus↔MQ/woodpecker = 有把握的<b>硬约束</b>；operator/helm/k8s↔milvus 由用户<b>权威表</b>填入，未填=只提示不硬拦。</li>
+        <li><b>工具更新：</b>显示版本 + git commit，能访问 remote 时比对最新 tag/commit，访不到=不可用。</li>
+        <li><b>门禁：</b>hard 冲突→拦截 + <code>--force</code> 逃生口；soft/未知→只 WARN；switch-mq 同类切换=硬拦。</li>
+        <li><b>输出：</b>rich 表 + <code>--json</code>，本地优先、优雅降级。</li>
+      </ol></div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🏗️ 架构 · 模块划分</h3><span class="sub">兼容判定单一真相，doctor 与门禁共用</span></div><div class="card-pad">
+        <table class="tbl">
+          <thead><tr><th>模块</th><th>职责</th></tr></thead>
+          <tbody>
+            <tr><td><code>core/compat.py</code>（扩展）</td><td>兼容判定唯一真相：加载 YAML 矩阵 + 保留现有 MQ 硬规则；暴露 <code>evaluate(versions)</code> 与 <code>gate(op, ctx)</code></td></tr>
+            <tr><td><code>core/compat.yaml</code>（新·可编辑）</td><td>数据驱动版本约束表（component × milvus 版本区间 × min/max × severity × source）</td></tr>
+            <tr><td><code>core/probe.py</code>（新）</td><td>只读版本探测：k8s / operator / helm / minio / kafka/pulsar / milvus 实例 / woodpecker，best-effort，探不到→None</td></tr>
+            <tr><td><code>core/doctor.py</code>（新）</td><td>编排：环境检查 + probe + compat.evaluate + 工具版本 → <code>DoctorReport</code></td></tr>
+            <tr><td><code>cli/main.py</code>（改）</td><td>新增 <code>doctor</code> 命令（rich / --json）；给 install/upgrade/switch-mq 加 <code>--force</code> 接线门禁</td></tr>
+          </tbody>
+        </table>
+        <div class="term-note"><b>边界：</b><code>doctor</code> 直接只读探测、<b>不经 daemon</b>；daemon 自身作为"环境"里的一个被检查项 → 预检在 daemon 未起时仍可用。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🧩 兼容矩阵数据模型（compat.yaml）</h3></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">core/compat.yaml</span></div><div class="body">
+          <div class="o">constraints:</div>
+          <div class="o">  - component: milvus-operator   <span class="cm"># 被约束的组件</span></div>
+          <div class="o">    requires: milvus</div>
+          <div class="o">    milvus_range: "&gt;=2.6.0,&lt;3.0.0"</div>
+          <div class="o">    min: ""            <span class="cm"># ← 待权威表填；留空=未知→只提示不硬拦</span></div>
+          <div class="o">    severity: soft     <span class="cm"># hard=硬拦 / soft=只WARN</span></div>
+          <div class="o">    source: user-table <span class="cm"># confident / best-effort / user-table</span></div>
+        </div></div>
+        <div class="term-note">milvus↔kafka/pulsar/woodpecker 的硬规则（含 <b>2.6 embed / 3.0 service</b>、kafka/pulsar 下限）仍由 <code>compat.py</code> 的 <code>MQ_OPTIONS</code> 承载，YAML 不重复。operator/helm/k8s 建好槽位待你的<b>权威表</b>。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>⛔ 门禁示例</h3></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">硬拦 + --force 逃生口</span></div><div class="body">
+          <div class="c">mb install milvus --set image=milvusdb/milvus:v2.5.20 --set mq=woodpecker-service</div>
+          <div class="o"><span class="err">✗ FAIL</span> woodpecker-service 需 milvus ≥ 3.0.0（当前 2.5.20）→ 已拦截</div>
+          <div class="o"><span class="cm"># --force 打印警告后放行（自担风险）</span></div>
+          <div class="c">mb switch-mq milvus-dev --to kafka <span class="cm"># 当前已是 kafka</span></div>
+          <div class="o"><span class="err">✗</span> 目标 MQ 与当前同类，switch-mq 不允许同类切换</div>
+        </div></div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>☑️ 验收（DoD）</h3></div><div class="card-pad"><ul class="dod">
+        <li><code>mb doctor</code> 真集群跑出四段表；<code>--json</code> 可解析；有 FAIL 时退出码非 0</li>
+        <li>至少一条真实约束（milvus 2.5 + woodpecker-service）被门禁硬拦、<code>--force</code> 可放行</li>
+        <li>switch-mq 同类切换被拒</li>
+        <li>纯单测全过（矩阵加载 / evaluate / gate / 版本解析 / doctor 分段 + 退出码）</li>
+      </ul></div></div>
+
+      <div class="callout co-warn" data-rise><div><b>待你补：</b>operator / helm / k8s ↔ milvus 的权威版本数字。给我后填入 <code>compat.yaml</code> 并把对应项转 <code>severity: hard</code>；在此之前这些项按"未知→只提示"运行。</div></div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'mb-doctor', crumbs:['工具打磨','mb doctor · 环境/版本/兼容'] });
+</script>
+</body>
+</html>
