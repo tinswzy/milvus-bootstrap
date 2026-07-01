@@ -199,3 +199,37 @@ def check(mq_id: str, milvus_version: str, mode: str = "standalone") -> MqOption
         raise ValueError(
             f"milvus {milvus_version} 不支持 MQ '{mq_id}'：{status['reason']} —— 该依赖不可选")
     return o
+
+
+class CompatError(ValueError):
+    """A compatibility rule blocks the operation."""
+
+
+def gate(op: str, ctx: dict, force: bool = False) -> list[Finding]:
+    warns: list[Finding] = []
+
+    def _block(f: Finding) -> None:
+        if not force:
+            raise CompatError(f"{f.component}: {f.reason}")
+        warns.append(Finding("WARN", f.component, f.rule, f.reason + "（--force 放行）"))
+
+    if op == "switch-mq":
+        cur, tgt = ctx.get("current_wal"), ctx.get("target_wal")
+        if cur and tgt and cur == tgt:
+            _block(Finding("FAIL", "milvus", "switch-mq 同类切换",
+                           f"目标 MQ({tgt}) 与当前相同，无意义"))
+        return warns
+
+    if op in ("install", "upgrade"):
+        mq = ctx.get("mq")
+        if mq:
+            try:
+                check(mq, ctx.get("image", ""), ctx.get("mode", "standalone"))
+            except ValueError as e:
+                _block(Finding("FAIL", "milvus", "MQ 版本门", str(e)))
+        for f in evaluate(ctx.get("versions", {})):
+            if f.level == "FAIL":
+                _block(f)
+            elif f.level == "WARN":
+                warns.append(f)
+    return warns

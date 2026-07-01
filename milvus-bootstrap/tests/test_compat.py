@@ -106,3 +106,28 @@ def test_evaluate_constraint_out_of_milvus_range_is_dropped():
     cons = [_c.Constraint("milvus-operator", "milvus", "r", ">=3.0.0",
                           "1.4.0", "", "hard", "user-table", "")]
     assert _c.evaluate({"milvus": "2.6.3", "milvus-operator": "1.3.6"}, cons) == []
+
+
+def test_gate_switch_mq_same_type_blocks():
+    with pytest.raises(_c.CompatError):
+        _c.gate("switch-mq", {"current_wal": "kafka", "target_wal": "kafka"})
+
+
+def test_gate_switch_mq_same_type_force_warns():
+    out = _c.gate("switch-mq", {"current_wal": "kafka", "target_wal": "kafka"}, force=True)
+    assert out and out[0].level == "WARN"
+
+
+def test_gate_switch_mq_different_ok():
+    assert _c.gate("switch-mq", {"current_wal": "kafka", "target_wal": "pulsar"}) == []
+
+
+def test_gate_install_incompatible_mq_blocks():
+    with pytest.raises(_c.CompatError):
+        _c.gate("install", {"mq": "woodpecker-service", "image": "v2.6.3", "mode": "standalone"})
+
+
+def test_gate_install_force_bypasses_mq():
+    out = _c.gate("install", {"mq": "woodpecker-service", "image": "v2.6.3",
+                              "mode": "standalone"}, force=True)
+    assert any(f.level == "WARN" for f in out)
