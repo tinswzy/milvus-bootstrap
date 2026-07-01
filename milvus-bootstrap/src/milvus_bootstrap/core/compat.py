@@ -144,6 +144,30 @@ def load_constraints(path: pathlib.Path | None = None) -> list[Constraint]:
     return out
 
 
+def evaluate(versions: dict, constraints: list[Constraint] | None = None) -> list[Finding]:
+    constraints = load_constraints() if constraints is None else constraints
+    milvus_v = versions.get("milvus", "")
+    out: list[Finding] = []
+    for c in constraints:
+        if c.requires == "milvus" and milvus_v and not version_in_range(milvus_v, c.milvus_range):
+            continue
+        comp_v = versions.get(c.component)
+        if not comp_v:
+            out.append(Finding("SKIP", c.component, c.rule, "版本未探测到"))
+            continue
+        ok = version_ok(comp_v, c.min, c.max)
+        if ok is None:
+            out.append(Finding("WARN", c.component, c.rule,
+                               f"约束未配置（{c.source}），仅提示"))
+        elif ok:
+            out.append(Finding("PASS", c.component, c.rule, f"{comp_v} 满足"))
+        else:
+            lvl = "FAIL" if c.severity == "hard" else "WARN"
+            out.append(Finding(lvl, c.component, c.rule,
+                               f"{comp_v} 不满足 [{c.min or '·'}..{c.max or '∞'}]"))
+    return out
+
+
 def get_option(mq_id: str) -> MqOption | None:
     return next((o for o in MQ_OPTIONS if o.id == mq_id), None)
 

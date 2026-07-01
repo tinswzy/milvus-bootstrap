@@ -79,3 +79,30 @@ def test_load_constraints_reads_yaml():
     for c in cons:
         assert c.severity in ("hard", "soft")
         assert c.source in ("confident", "best-effort", "user-table")
+
+
+def test_evaluate_unknown_bounds_is_warn_not_fail():
+    cons = [_c.Constraint("milvus-operator", "milvus", "r", ">=2.6.0,<3.0.0",
+                          "", "", "soft", "user-table", "")]
+    out = _c.evaluate({"milvus": "2.6.3", "milvus-operator": "1.3.6"}, cons)
+    assert [f.level for f in out] == ["WARN"]
+
+
+def test_evaluate_hard_fail_when_below_min():
+    cons = [_c.Constraint("milvus-operator", "milvus", "r", ">=2.6.0,<3.0.0",
+                          "1.4.0", "", "hard", "user-table", "")]
+    out = _c.evaluate({"milvus": "2.6.3", "milvus-operator": "1.3.6"}, cons)
+    assert out and out[0].level == "FAIL" and out[0].component == "milvus-operator"
+
+
+def test_evaluate_pass_and_skip():
+    cons = [_c.Constraint("milvus-operator", "milvus", "r", ">=2.6.0,<3.0.0",
+                          "1.0.0", "", "hard", "user-table", "")]
+    assert _c.evaluate({"milvus": "2.6.3", "milvus-operator": "1.3.6"}, cons)[0].level == "PASS"
+    assert _c.evaluate({"milvus": "2.6.3"}, cons)[0].level == "SKIP"   # operator absent
+
+
+def test_evaluate_constraint_out_of_milvus_range_is_dropped():
+    cons = [_c.Constraint("milvus-operator", "milvus", "r", ">=3.0.0",
+                          "1.4.0", "", "hard", "user-table", "")]
+    assert _c.evaluate({"milvus": "2.6.3", "milvus-operator": "1.3.6"}, cons) == []
