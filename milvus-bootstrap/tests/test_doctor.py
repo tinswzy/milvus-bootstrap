@@ -32,3 +32,18 @@ def test_run_builds_all_sections(monkeypatch):
     assert r.versions["milvus-operator"] == "1.3.6"
     assert isinstance(r.compat, list) and isinstance(r.env, list)
     assert r.tool["version"]
+
+
+def test_check_cpu_simd_pass_and_fail_and_skip():
+    ok = doctor.check_cpu_simd(read=lambda: "flags : fpu vme sse4_2 avx2 ht\n")
+    assert ok.level == "PASS" and ok.component == "cpu-simd"
+    bad = doctor.check_cpu_simd(read=lambda: "flags : fpu vme ht\n")
+    assert bad.level == "FAIL"
+    def _boom():
+        raise OSError("no /proc")
+    assert doctor.check_cpu_simd(read=_boom).level == "SKIP"
+
+
+def test_check_environment_includes_cpu_simd():
+    env = doctor.check_environment(lambda a: (1, "", ""), no_proxy="", daemon_up=False)
+    assert any(f.component == "cpu-simd" for f in env)

@@ -64,7 +64,31 @@ def check_environment(run, no_proxy: str, daemon_up: bool) -> list[Finding]:
     out.append(Finding("PASS", "operator", "Milvus CRD 就位", "milvuses.milvus.io present")
                if rc == 0 and o.strip() else Finding("WARN", "operator", "Milvus CRD 就位", "未探测到 Milvus CRD"))
 
+    out.append(check_cpu_simd())
+
     return out
+
+
+_SIMD_FLAGS = ("sse4_2", "avx", "avx2", "avx512f")
+
+
+def _read_cpuinfo() -> str:
+    with open("/proc/cpuinfo", encoding="utf-8") as fh:
+        return fh.read()
+
+
+def check_cpu_simd(read=_read_cpuinfo) -> Finding:
+    try:
+        text = read()
+    except Exception:
+        return Finding("SKIP", "cpu-simd", "CPU SIMD 指令集",
+                       "无法读取 /proc/cpuinfo（非 Linux 或受限）")
+    flags = text.lower()
+    have = [f for f in _SIMD_FLAGS if f in flags]
+    if have:
+        return Finding("PASS", "cpu-simd", "CPU SIMD 指令集", "本机: " + ", ".join(have))
+    return Finding("FAIL", "cpu-simd", "CPU SIMD 指令集",
+                   "本机 CPU 缺 SSE4.2/AVX/AVX2/AVX-512（milvus 需其一；注：检测的是本机非集群节点）")
 
 
 def tool_info() -> dict:
