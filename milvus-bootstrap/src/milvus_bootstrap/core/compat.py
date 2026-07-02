@@ -153,6 +153,11 @@ def _compat_yaml_path() -> pathlib.Path:
     return pathlib.Path(__file__).with_name("compat.yaml")
 
 
+def load_upgrade_paths(path: pathlib.Path | None = None) -> list[dict]:
+    data = yaml.safe_load((path or _compat_yaml_path()).read_text()) or {}
+    return list(data.get("upgrade_paths", []))
+
+
 def load_constraints(path: pathlib.Path | None = None) -> list[Constraint]:
     data = yaml.safe_load((path or _compat_yaml_path()).read_text()) or {}
     out: list[Constraint] = []
@@ -246,6 +251,15 @@ def gate(op: str, ctx: dict, force: bool = False) -> list[Finding]:
         return warns
 
     if op in ("install", "upgrade"):
+        if op == "upgrade":
+            cur, tgt = ctx.get("current", ""), ctx.get("target", "")
+            for rule in load_upgrade_paths():
+                hits = version_ok(tgt, rule["target_min"], "") if tgt else None
+                prereq = version_ok(cur, rule["requires_current_min"], "") if cur else True
+                if hits and prereq is False:
+                    _block(Finding("FAIL", "milvus", "升级路径",
+                                   f"目标 {tgt} 需先升到 {rule['requires_current_min']}+"
+                                   f"（当前 {cur}）：{rule['reason']}"))
         mq = ctx.get("mq")
         if mq:
             try:

@@ -175,3 +175,22 @@ def test_evaluate_minio_release_kind():
     assert below and below[0].level == "WARN"      # soft
     ok = _c.evaluate({"milvus": "2.6.18", "minio": "RELEASE.2025-01-01T00-00-00Z"}, cons)
     assert ok[0].level == "PASS"
+
+
+def test_gate_upgrade_path_blocks_big_jump():
+    with pytest.raises(_c.CompatError):
+        _c.gate("upgrade", {"current": "2.5.10", "target": "2.6.18"})   # need >=2.5.16
+
+
+def test_gate_upgrade_path_ok_when_prereq_met():
+    assert _c.gate("upgrade", {"current": "2.5.16", "target": "2.6.18"}) == []
+
+
+def test_gate_upgrade_path_to_3_0_needs_2_5_16():
+    with pytest.raises(_c.CompatError):
+        _c.gate("upgrade", {"current": "2.4.9", "target": "3.0.0"})
+
+
+def test_gate_upgrade_path_force_warns():
+    out = _c.gate("upgrade", {"current": "2.5.10", "target": "2.6.18"}, force=True)
+    assert any(f.level == "WARN" for f in out)

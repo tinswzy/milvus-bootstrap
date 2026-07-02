@@ -82,3 +82,10 @@ constraints:
     kind: minio-release
 # NOTE: "MQ choice is frozen during an upgrade to milvus 2.6.9" is documented but
 # intentionally NOT enforced as a gate rule here.
+upgrade_paths:
+  - target_min: "2.6.10"
+    requires_current_min: "2.5.16"
+    reason: "升级到 milvus 2.6.10+ 前需先在 2.5.16+"
+  - target_min: "3.0.0"
+    requires_current_min: "2.5.16"
+    reason: "升级到 milvus 3.0+ 前需先在 2.5.16+ 并启用 mixCoordinator"
