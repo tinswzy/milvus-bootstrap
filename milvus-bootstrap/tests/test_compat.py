@@ -78,7 +78,7 @@ def test_load_constraints_reads_yaml():
     assert {"milvus-operator", "milvus-helm", "k8s"} <= comps
     for c in cons:
         assert c.severity in ("hard", "soft")
-        assert c.source in ("confident", "best-effort", "user-table")
+        assert c.source in ("confident", "best-effort", "user-table", "docs-tested")
 
 
 def test_evaluate_unknown_bounds_is_warn_not_fail():
@@ -131,3 +131,24 @@ def test_gate_install_force_bypasses_mq():
     out = _c.gate("install", {"mq": "woodpecker-service", "image": "v2.6.3",
                               "mode": "standalone"}, force=True)
     assert any(f.level == "WARN" for f in out)
+
+
+def test_yaml_has_soft_semver_floors():
+    cons = {(c.component, c.min): c for c in _c.load_constraints()}
+    etcd = next(c for (comp, _), c in cons.items() if comp == "etcd")
+    assert etcd.min == "3.5.0" and etcd.severity == "soft"
+    pulsar = next(c for (comp, _), c in cons.items() if comp == "pulsar")
+    assert pulsar.min == "2.8.2" and pulsar.severity == "soft"
+    k8s = next(c for (comp, _), c in cons.items() if comp == "k8s")
+    assert k8s.min == "1.16.0" and k8s.severity == "soft"
+    helm = next(c for (comp, _), c in cons.items() if comp == "helm")
+    assert helm.min == "3.0.0" and helm.severity == "soft"
+
+
+def test_evaluate_soft_floor_warns_when_below():
+    cons = _c.load_constraints()
+    out = _c.evaluate({"milvus": "2.6.18", "etcd": "3.4.0"}, cons)
+    etcd = [f for f in out if f.component == "etcd"]
+    assert etcd and etcd[0].level == "WARN"   # soft floor, below min -> WARN not FAIL
+    out2 = _c.evaluate({"milvus": "2.6.18", "etcd": "3.5.25"}, cons)
+    assert [f for f in out2 if f.component == "etcd"][0].level == "PASS"

@@ -33,10 +33,40 @@ constraints:
     reason: ""
   - component: k8s
     requires: milvus
-    rule: "k8s 版本下限"
+    rule: "k8s 版本下限（≥1.16）"
     milvus_range: ""
-    min: ""
+    min: "1.16.0"
     max: ""
     severity: soft
-    source: user-table
-    reason: ""
+    source: docs-tested
+    reason: "prerequisite-helm: Kubernetes 1.16+"
+  # --- SOFT semver floors (docs-tested; below => WARN, never block) ---
+  - component: etcd
+    requires: milvus
+    rule: "etcd 版本下限（docs 测试 3.5.0，operator 默认 3.5.25）"
+    milvus_range: ""
+    min: "3.5.0"
+    max: ""
+    severity: soft
+    source: docs-tested
+    reason: "milvus.io/docs prerequisite: etcd 3.5.x"
+  - component: pulsar
+    requires: milvus
+    rule: "pulsar 版本下限（docs 测试 2.8.2，operator 默认 3.0.7，2.x 亦可）"
+    milvus_range: ""
+    min: "2.8.2"
+    max: ""
+    severity: soft
+    source: docs-tested
+    reason: "milvus.io/docs prerequisite: pulsar 2.8.2"
+  - component: helm
+    requires: milvus
+    rule: "Helm 版本下限（≥3.0；用 pulsar-v3 chart 需 ≥3.14）"
+    milvus_range: ""
+    min: "3.0.0"
+    max: ""
+    severity: soft
+    source: docs-tested
+    reason: "prerequisite-helm: Helm 3.0.0+"
+# NOTE: "MQ choice is frozen during an upgrade to milvus 2.6.9" is documented but
+# intentionally NOT enforced as a gate rule here.
