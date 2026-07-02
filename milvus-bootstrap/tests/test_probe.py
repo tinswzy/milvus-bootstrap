@@ -29,3 +29,23 @@ def test_detect_missing_is_none():
     dv = probe.detect_versions(run=lambda a: (1, "", "err"))
     assert dv.k8s is None and dv.operator is None and dv.milvus == {}
     assert "k8s" not in dv.as_compat_dict()
+
+
+def test_detect_dependency_versions_from_pod_images():
+    pods = "\n".join([
+        "etcd-0\tdocker.io/bitnamilegacy/etcd:3.5.25",
+        "minio-pool-0-0\tminio/minio:RELEASE.2024-12-18T13-15-44Z",
+        "kafka-dev-controller-0\tbitnamilegacy/kafka:3.9.0",
+        "pulsar-dev-broker-0\tapachepulsar/pulsar:3.0.7",
+    ])
+    run = _fake_run({
+        "version": (0, '{"serverVersion":{"gitVersion":"v1.34.0"}}', ""),
+        "get pods": (0, pods, ""),
+    })
+    dv = probe.detect_versions(run=run)
+    assert dv.etcd == "3.5.25"
+    assert dv.minio == "RELEASE.2024-12-18T13-15-44Z"   # full tag, not semver
+    assert dv.kafka == "3.9.0"
+    assert dv.pulsar == "3.0.7"
+    d = dv.as_compat_dict()
+    assert d["etcd"] == "3.5.25" and d["minio"].startswith("RELEASE.")

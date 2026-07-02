@@ -25,9 +25,20 @@ def _tag(image: str) -> str | None:
     return m[1] if m else tag or None
 
 
+def _image_tag(image: str) -> str | None:
+    """Return the raw tag after ':' (keeps minio RELEASE.* verbatim)."""
+    if not image or ":" not in image:
+        return None
+    return image.rsplit(":", 1)[-1].split("@", 1)[0] or None
+
+
+_DEP_MATCH = [("etcd", "etcd"), ("minio", "minio"), ("kafka", "kafka"), ("pulsar", "pulsar")]
+
+
 @dataclass
 class DetectedVersions:
     k8s: str | None = None
+    etcd: str | None = None
     operator: str | None = None
     minio: str | None = None
     kafka: str | None = None
@@ -38,6 +49,8 @@ class DetectedVersions:
         d = {}
         if self.k8s:
             d["k8s"] = self.k8s
+        if self.etcd:
+            d["etcd"] = self.etcd
         if self.operator:
             d["milvus-operator"] = self.operator
         if self.minio:
@@ -82,5 +95,22 @@ def detect_versions(run=run_kubectl) -> DetectedVersions:
                 v = _tag(image)
                 if v:
                     dv.milvus[name] = v
+
+    rc, out, _ = run(["get", "pods", "-A",
+                      "-o", "jsonpath={range .items[*]}{.metadata.name}{\"\\t\"}"
+                      "{.spec.containers[0].image}{\"\\n\"}{end}"])
+    if rc == 0:
+        for line in out.splitlines():
+            if "\t" not in line:
+                continue
+            _name, image = line.split("\t", 1)
+            low = image.lower()
+            for field, needle in _DEP_MATCH:
+                if needle in low and getattr(dv, field) is None:
+                    tag = _image_tag(image)
+                    if field == "minio":
+                        setattr(dv, field, tag)               # keep RELEASE.* verbatim
+                    else:
+                        setattr(dv, field, _tag(image) or tag)  # semver-reduce others
 
     return dv
