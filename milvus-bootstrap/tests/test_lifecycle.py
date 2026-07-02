@@ -67,3 +67,26 @@ def test_scale_milvus_unsupported(core: Core) -> None:
 def test_lifecycle_on_unknown_instance(core: Core) -> None:
     with pytest.raises(KeyError):
         core.delete("does-not-exist", dry_run=True)
+
+
+@pytest.fixture()
+def core_milvus_2_5_10(tmp_path, monkeypatch) -> Core:
+    monkeypatch.setenv("MB_HOME", str(tmp_path))
+    monkeypatch.setenv("MB_ADAPTER", "fake")
+    c = Core()
+    c.install(InstallSpec(kind="milvus", name="milvus-dev",
+                          params={"mq": "kafka", "image": "milvusdb/milvus:v2.5.10"}),
+              dry_run=False)
+    return c
+
+
+def test_upgrade_blocked_by_upgrade_path(core_milvus_2_5_10: Core) -> None:
+    from milvus_bootstrap.core.compat import CompatError
+    with pytest.raises(CompatError):
+        core_milvus_2_5_10.upgrade("milvus-dev", "milvusdb/milvus:v2.6.18", dry_run=True)
+
+
+def test_upgrade_path_force_proceeds(core_milvus_2_5_10: Core) -> None:
+    task = core_milvus_2_5_10.upgrade("milvus-dev", "milvusdb/milvus:v2.6.18",
+                                      dry_run=True, force=True)
+    assert task.type == "upgrade"

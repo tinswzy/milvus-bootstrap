@@ -123,6 +123,7 @@ def install(
     set_: list[str] = typer.Option(None, "--set", help="覆盖安装参数 key=val（可重复）"),
     chart: str | None = typer.Option(None, "--chart", help="覆盖 chart 源（如本地 .tgz 路径）"),
     dry_run: bool = typer.Option(True, "--dry-run/--apply", help="默认 dry-run 仅出计划；--apply 真正执行"),
+    force: bool = typer.Option(False, "--force", help="跳过兼容门禁（自担风险）"),
 ) -> None:
     """安装一个组件（默认 dry-run 预演）。"""
     params: dict[str, str] = {}
@@ -131,7 +132,7 @@ def install(
             k, v = item.split("=", 1)
             params[k] = v
     body = {"kind": kind, "name": name, "method": method, "namespace": namespace,
-            "params": params, "chart_override": chart, "dry_run": dry_run}
+            "params": params, "chart_override": chart, "dry_run": dry_run, "force": force}
     _print_task(client.request("POST", "/install", json=body, timeout=600))
 
 
@@ -160,9 +161,10 @@ def upgrade(
     instance: str = typer.Argument(..., help="实例名"),
     image: str = typer.Option(..., "--image", help="目标镜像"),
     dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+    force: bool = typer.Option(False, "--force", help="跳过兼容门禁（自担风险）"),
 ) -> None:
     """升级镜像（重新渲染并应用；权威态先备份）。"""
-    _print_task(client.request("POST", "/upgrade", json={"instance": instance, "image": image, "dry_run": dry_run}, timeout=600))
+    _print_task(client.request("POST", "/upgrade", json={"instance": instance, "image": image, "dry_run": dry_run, "force": force}, timeout=600))
 
 
 @app.command()

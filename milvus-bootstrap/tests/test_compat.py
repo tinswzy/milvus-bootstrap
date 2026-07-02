@@ -194,3 +194,25 @@ def test_gate_upgrade_path_to_3_0_needs_2_5_16():
 def test_gate_upgrade_path_force_warns():
     out = _c.gate("upgrade", {"current": "2.5.10", "target": "2.6.18"}, force=True)
     assert any(f.level == "WARN" for f in out)
+
+
+def test_gate_install_woodpecker_minio_too_old_blocks():
+    with pytest.raises(_c.CompatError):
+        _c.gate("install", {"mq": "woodpecker-embedded", "image": "v2.6.18",
+                            "versions": {"milvus": "2.6.18",
+                                         "minio": "RELEASE.2024-06-01T00-00-00Z"}})
+
+
+def test_gate_install_woodpecker_minio_new_ok():
+    out = _c.gate("install", {"mq": "woodpecker-embedded", "image": "v2.6.18",
+                              "versions": {"milvus": "2.6.18",
+                                           "minio": "RELEASE.2025-01-01T00-00-00Z"}})
+    assert all(f.level != "FAIL" for f in out)
+
+
+def test_gate_install_kafka_minio_old_not_blocked():
+    # non-woodpecker mq => the minio date rule does not hard-block
+    out = _c.gate("install", {"mq": "kafka", "image": "v2.6.18",
+                              "versions": {"milvus": "2.6.18",
+                                           "minio": "RELEASE.2024-06-01T00-00-00Z"}})
+    assert all(f.level != "FAIL" for f in out)

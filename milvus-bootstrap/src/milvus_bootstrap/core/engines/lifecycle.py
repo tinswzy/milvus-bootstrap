@@ -57,8 +57,25 @@ class LifecycleEngine:
             self.state.put_instance(inst)
         return task
 
-    def upgrade(self, instance_id: str, image: str, dry_run: bool = True) -> Task:
+    def upgrade(self, instance_id: str, image: str, dry_run: bool = True, force: bool = False) -> Task:
         inst, spec, driver = self._load(instance_id)
+        if spec.kind == "milvus":
+            from .. import compat
+            versions: dict = {}
+            try:
+                if getattr(self.adapter, "name", "") == "k8s":
+                    from .. import probe
+                    versions = probe.detect_versions().as_compat_dict()
+            except Exception:
+                versions = {}
+            compat.gate("upgrade", {
+                "mq": spec.params.get("mq"),
+                "image": image,
+                "mode": spec.params.get("mode", "standalone"),
+                "current": spec.params.get("image", ""),
+                "target": image,
+                "versions": versions,
+            }, force=force)
         steps: list[Step] = []
         if driver.state_class() == StateClass.authoritative:
             steps.append(Step(

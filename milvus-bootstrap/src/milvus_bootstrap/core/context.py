@@ -58,8 +58,8 @@ class Core:
     def discover(self) -> list[Candidate]:
         return self.discovery.discover()
 
-    def install(self, spec: InstallSpec, dry_run: bool = True) -> Task:
-        return self.provisioner.install(spec, dry_run=dry_run)
+    def install(self, spec: InstallSpec, dry_run: bool = True, force: bool = False) -> Task:
+        return self.provisioner.install(spec, dry_run=dry_run, force=force)
 
     def delete(self, instance_id: str, dry_run: bool = True) -> Task:
         return self.lifecycle.delete(instance_id, dry_run=dry_run)
@@ -67,8 +67,8 @@ class Core:
     def scale(self, instance_id: str, replicas: int, dry_run: bool = True) -> Task:
         return self.lifecycle.scale(instance_id, replicas, dry_run=dry_run)
 
-    def upgrade(self, instance_id: str, image: str, dry_run: bool = True) -> Task:
-        return self.lifecycle.upgrade(instance_id, image, dry_run=dry_run)
+    def upgrade(self, instance_id: str, image: str, dry_run: bool = True, force: bool = False) -> Task:
+        return self.lifecycle.upgrade(instance_id, image, dry_run=dry_run, force=force)
 
     def adopt(self, kind: str, name: str, dry_run: bool = True) -> Task:
         cands = [c for c in self.discover() if c.kind == kind and c.name == name]

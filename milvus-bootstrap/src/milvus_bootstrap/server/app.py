@@ -59,6 +59,7 @@ class InstallReq(BaseModel):
     params: dict[str, Any] = {}
     chart_override: str | None = None
     dry_run: bool = True
+    force: bool = False
 
 
 @app.post("/install")
@@ -68,7 +69,7 @@ def install(req: InstallReq) -> dict[str, Any]:
         method=req.method, namespace=req.namespace, params=req.params,
         chart_override=req.chart_override,
     )
-    return _core().install(spec, dry_run=req.dry_run).model_dump()
+    return _core().install(spec, dry_run=req.dry_run, force=req.force).model_dump()
 
 
 class DeleteReq(BaseModel):
@@ -96,11 +97,12 @@ class UpgradeReq(BaseModel):
     instance: str
     image: str
     dry_run: bool = True
+    force: bool = False
 
 
 @app.post("/upgrade")
 def upgrade(req: UpgradeReq) -> dict[str, Any]:
-    return _core().upgrade(req.instance, req.image, dry_run=req.dry_run).model_dump()
+    return _core().upgrade(req.instance, req.image, dry_run=req.dry_run, force=req.force).model_dump()
 
 
 class AdoptReq(BaseModel):

@@ -16,7 +16,22 @@ class Provisioner:
         self.state = state
         self.engine = engine
 
-    def install(self, spec: InstallSpec, dry_run: bool = True) -> Task:
+    def install(self, spec: InstallSpec, dry_run: bool = True, force: bool = False) -> Task:
+        if spec.kind == "milvus":
+            from .. import compat
+            versions: dict = {}
+            try:
+                if getattr(self.adapter, "name", "") == "k8s":
+                    from .. import probe
+                    versions = probe.detect_versions().as_compat_dict()
+            except Exception:
+                versions = {}
+            compat.gate("install", {
+                "mq": spec.params.get("mq"),
+                "image": spec.params.get("image", ""),
+                "mode": spec.params.get("mode", "standalone"),
+                "versions": versions,
+            }, force=force)
         driver = self.registry.get(spec.kind)
         steps = driver.plan_install_steps(spec, self.adapter)
 

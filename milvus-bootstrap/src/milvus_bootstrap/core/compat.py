@@ -266,6 +266,11 @@ def gate(op: str, ctx: dict, force: bool = False) -> list[Finding]:
                 check(mq, ctx.get("image", ""), ctx.get("mode", "standalone"))
             except ValueError as e:
                 _block(Finding("FAIL", "milvus", "MQ 版本门", str(e)))
+        if op == "install" and (mq or "").startswith("woodpecker"):
+            minio_v = ctx.get("versions", {}).get("minio")
+            if minio_v and minio_release_ok(minio_v, "RELEASE.2024-12-18T13-15-44Z", "") is False:
+                _block(Finding("FAIL", "minio", "woodpecker+minio 版本门",
+                               f"woodpecker 需 MinIO ≥ 2024-12-18（当前 {minio_v}）"))
         for f in evaluate(ctx.get("versions", {})):
             if f.level == "FAIL":
                 _block(f)
