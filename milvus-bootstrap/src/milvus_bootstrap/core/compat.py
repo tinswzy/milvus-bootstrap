@@ -80,6 +80,7 @@ class Constraint:
     severity: str     # hard | soft
     source: str       # confident | best-effort | user-table
     reason: str
+    kind: str = "semver"  # semver | minio-release
 
 
 _NEWEST = (9999, 9999, 9999)
@@ -106,6 +107,28 @@ def version_in_range(version: str, range_str: str) -> bool:
         c = _cmp(cur, bound)
         ok = {">=": c >= 0, "<=": c <= 0, ">": c > 0, "<": c < 0, "==": c == 0}[m[1]]
         if not ok:
+            return False
+    return True
+
+
+def parse_minio_release(s: str) -> tuple[int, int, int, int, int, int] | None:
+    m = re.match(r"RELEASE\.(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})Z", s or "")
+    return tuple(int(m[i]) for i in range(1, 7)) if m else None
+
+
+def minio_release_ok(version: str, min_v: str, max_v: str) -> bool | None:
+    if not min_v and not max_v:
+        return None
+    cur = parse_minio_release(version)
+    if cur is None:
+        return None                     # unparseable -> unknown (don't false-fail)
+    if min_v:
+        mn = parse_minio_release(min_v)
+        if mn and cur < mn:
+            return False
+    if max_v:
+        mx = parse_minio_release(max_v)
+        if mx and cur > mx:
             return False
     return True
 
@@ -140,6 +163,7 @@ def load_constraints(path: pathlib.Path | None = None) -> list[Constraint]:
             min=str(c.get("min", "") or ""), max=str(c.get("max", "") or ""),
             severity=c.get("severity", "soft"), source=c.get("source", "user-table"),
             reason=c.get("reason", "") or "",
+            kind=c.get("kind", "semver"),
         ))
     return out
 
@@ -155,7 +179,8 @@ def evaluate(versions: dict, constraints: list[Constraint] | None = None) -> lis
         if not comp_v:
             out.append(Finding("SKIP", c.component, c.rule, "版本未探测到"))
             continue
-        ok = version_ok(comp_v, c.min, c.max)
+        checker = minio_release_ok if c.kind == "minio-release" else version_ok
+        ok = checker(comp_v, c.min, c.max)
         if ok is None:
             out.append(Finding("WARN", c.component, c.rule,
                                f"约束未配置（{c.source}），仅提示"))

@@ -152,3 +152,26 @@ def test_evaluate_soft_floor_warns_when_below():
     assert etcd and etcd[0].level == "WARN"   # soft floor, below min -> WARN not FAIL
     out2 = _c.evaluate({"milvus": "2.6.18", "etcd": "3.5.25"}, cons)
     assert [f for f in out2 if f.component == "etcd"][0].level == "PASS"
+
+
+def test_parse_minio_release():
+    assert _c.parse_minio_release("RELEASE.2024-12-18T13-15-44Z") == (2024, 12, 18, 13, 15, 44)
+    assert _c.parse_minio_release("3.5.0") is None
+
+
+def test_minio_release_ok():
+    m = "RELEASE.2024-12-18T13-15-44Z"
+    assert _c.minio_release_ok("RELEASE.2025-01-01T00-00-00Z", m, "") is True
+    assert _c.minio_release_ok("RELEASE.2024-06-01T00-00-00Z", m, "") is False
+    assert _c.minio_release_ok("RELEASE.2024-12-18T13-15-44Z", m, "") is True
+    assert _c.minio_release_ok("garbage", m, "") is None   # unparseable -> unknown
+
+
+def test_evaluate_minio_release_kind():
+    cons = [_c.Constraint("minio", "milvus", "wp+minio S3 conditional write",
+                          ">=2.6.0", "RELEASE.2024-12-18T13-15-44Z", "", "soft",
+                          "docs-tested", "", kind="minio-release")]
+    below = _c.evaluate({"milvus": "2.6.18", "minio": "RELEASE.2024-06-01T00-00-00Z"}, cons)
+    assert below and below[0].level == "WARN"      # soft
+    ok = _c.evaluate({"milvus": "2.6.18", "minio": "RELEASE.2025-01-01T00-00-00Z"}, cons)
+    assert ok[0].level == "PASS"

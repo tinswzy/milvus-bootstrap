@@ -68,5 +68,17 @@ constraints:
     severity: soft
     source: docs-tested
     reason: "prerequisite-helm: Helm 3.0.0+"
+  # SOFT here (matrix has no per-instance mq context); HARD is enforced in
+  # gate("install") when the chosen mq is a woodpecker option (see gate).
+  - component: minio
+    requires: milvus
+    rule: "woodpecker+minio 需 MinIO ≥ 2024-12-18（S3 Conditional Write）"
+    milvus_range: ">=2.6.0"
+    min: "RELEASE.2024-12-18T13-15-44Z"
+    max: ""
+    severity: soft
+    source: docs-tested
+    reason: "use-woodpecker: self-hosted MinIO RELEASE.2024-12-18T13-15-44Z+"
+    kind: minio-release
 # NOTE: "MQ choice is frozen during an upgrade to milvus 2.6.9" is documented but
 # intentionally NOT enforced as a gate rule here.
