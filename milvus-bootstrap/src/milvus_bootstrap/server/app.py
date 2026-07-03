@@ -187,3 +187,11 @@ class ConfigRestartReq(BaseModel):
 @app.post("/config/restart")
 def config_restart(req: ConfigRestartReq) -> dict[str, Any]:
     return _core().config_restart(req.instance, dry_run=req.dry_run).model_dump()
+
+
+# --- WebUI static frontend (registered LAST so /api/* and /status win) ---
+import pathlib
+from fastapi.staticfiles import StaticFiles
+
+_WEBUI_DIR = pathlib.Path(__file__).resolve().parent.parent / "webui"
+app.mount("/", StaticFiles(directory=str(_WEBUI_DIR), html=True), name="webui")
