@@ -100,6 +100,16 @@ def status() -> None:
 
 
 @app.command()
+def web(
+    host: str = typer.Option("127.0.0.1", "--host", help="绑定地址；0.0.0.0 = 局域网可访（会暴露可变更 API）"),
+    port: int = typer.Option(8080, "--port", help="端口"),
+) -> None:
+    """启动 WebUI（TCP 服务，浏览器打开 http://<host>:<port>/）。"""
+    from ..server.__main__ import run_web
+    run_web(host, port)
+
+
+@app.command()
 def discover() -> None:
     """发现集群里疑似的组件（只读，发现→待确认）。"""
     cands = client.request("POST", "/discover")["candidates"]
