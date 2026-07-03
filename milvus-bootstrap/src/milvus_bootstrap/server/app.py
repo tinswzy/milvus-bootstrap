@@ -9,6 +9,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from .. import paths
+from ..core import doctor
+from ..core import webapi
 from ..core.context import Core
 from ..core.models import InstallSpec, Platform
 
@@ -43,6 +45,25 @@ def healthz() -> dict[str, bool]:
 @app.get("/status")
 def status() -> dict[str, Any]:
     return _core().status()
+
+
+@app.get("/api/doctor")
+def api_doctor() -> dict[str, Any]:
+    return doctor.run().to_json()
+
+
+@app.get("/api/instances")
+def api_instances() -> dict[str, Any]:
+    out = []
+    for i in _core().state.list_instances():
+        out.append({"name": i.name, "kind": i.kind, "namespace": i.namespace,
+                    "ownership": i.ownership.value})
+    return {"instances": out}
+
+
+@app.get("/api/compat-rules")
+def api_compat_rules() -> dict[str, Any]:
+    return webapi.compat_rules()
 
 
 @app.post("/discover")
