@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>版本依赖 · Milvus Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/web.css">
+</head><body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+      <div class="page-head"><div class="h-l"><h1>版本依赖关系限制</h1>
+        <p>静态规则参考（来自 compat 矩阵 + MQ 规则 + 升级路径）</p></div></div>
+      <div id="err" class="callout co-err" style="display:none;margin-bottom:14px"></div>
+      <div class="card"><div class="card-head"><h3>MQ ↔ milvus</h3></div>
+        <div class="card-pad"><div id="mq-rules">加载中…</div></div></div>
+      <div class="card"><div class="card-head"><h3>组件版本约束</h3></div>
+        <div class="card-pad"><div id="constraints">加载中…</div></div></div>
+      <div class="card"><div class="card-head"><h3>升级路径</h3></div>
+        <div class="card-pad"><div id="upgrade-paths">加载中…</div></div></div>
+    </div>
+  </div>
+</div>
+<script src="assets/web.js"></script>
+<script>renderCompat();</script>
+</body></html>

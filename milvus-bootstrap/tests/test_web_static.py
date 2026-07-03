@@ -28,3 +28,10 @@ def test_assets_served(client):
 def test_api_routes_win_over_static(client):
     # /healthz is a real route, must not be shadowed by the static mount at "/"
     assert client.get("/healthz").json() == {"ok": True}
+
+
+def test_compat_page_served(client):
+    r = client.get("/compat.html")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert 'id="mq-rules"' in r.text and 'id="constraints"' in r.text and 'id="upgrade-paths"' in r.text
+    assert "renderCompat" in client.get("/assets/web.js").text

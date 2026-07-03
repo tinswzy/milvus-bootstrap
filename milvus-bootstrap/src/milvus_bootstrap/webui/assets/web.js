@@ -29,6 +29,32 @@ function badge(level, text) {
   return `<span class="badge b-${LVL[level] || 'idle'}"><span class="d"></span>${esc(text || level)}</span>`;
 }
 
+async function renderCompat() {
+  shell('compat');
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  try {
+    const r = await getJSON('api/compat-rules');
+    document.getElementById('mq-rules').innerHTML =
+      '<table class="tbl"><thead><tr><th>MQ</th><th>WAL</th><th>最低 milvus</th><th>依赖</th><th>说明</th></tr></thead><tbody>' +
+      r.mq_rules.map(m => `<tr><td>${esc(m.label)}</td><td>${esc(m.wal)}</td><td class="mono">${esc(m.min_milvus)}</td>` +
+        `<td>${esc(m.dep_kind || '嵌入')}${m.standalone_only ? ' · 仅standalone' : ''}</td><td class="muted">${esc(m.note)}</td></tr>`).join('') +
+      '</tbody></table>';
+    document.getElementById('constraints').innerHTML =
+      '<table class="tbl"><thead><tr><th>组件</th><th>规则</th><th>下限</th><th>milvus 区间</th><th>强度</th><th>来源</th></tr></thead><tbody>' +
+      r.constraints.map(c => `<tr><td>${esc(c.component)}</td><td>${esc(c.rule)}</td><td class="mono">${esc(c.min || '—')}</td>` +
+        `<td class="mono">${esc(c.milvus_range || '任意')}</td><td>${badge(c.severity === 'hard' ? 'FAIL' : 'WARN', c.severity)}</td><td class="muted">${esc(c.source)}</td></tr>`).join('') +
+      '</tbody></table>';
+    document.getElementById('upgrade-paths').innerHTML =
+      '<table class="tbl"><thead><tr><th>目标 ≥</th><th>需当前 ≥</th><th>说明</th></tr></thead><tbody>' +
+      r.upgrade_paths.map(u => `<tr><td class="mono">${esc(u.target_min)}</td><td class="mono">${esc(u.requires_current_min)}</td><td class="muted">${esc(u.reason)}</td></tr>`).join('') +
+      '</tbody></table>';
+  } catch (e) {
+    err.style.display = 'block';
+    err.textContent = '加载失败：' + e.message;
+  }
+}
+
 async function renderOverview() {
   shell('overview');
   const err = document.getElementById('err');
