@@ -80,6 +80,16 @@
         <div>架构依据见 <a href="design-arch.html" style="color:var(--accent-ink);font-weight:600">总体设计</a> · <a href="design-runtime.html" style="color:var(--accent-ink);font-weight:600">运行时</a> · <a href="design-abstraction.html" style="color:var(--accent-ink);font-weight:600">分层抽象</a>；各组件的详细部署调研（pod 怎么管）见 <a href="deps-research.html" style="color:var(--accent-ink);font-weight:600">部署调研存档</a>。本页只讲<b>怎么一步步把它实现出来</b>。</div>
       </div>
 
+      <div class="callout co-warn" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i2"></span>
+        <div><b>优先级调整：</b>先把<b>不依赖 woodpecker</b> 的链路闭环 —— <b>milvus(operator) external 连 kafka/pulsar</b>、<b>kafka↔pulsar switch-mq</b>、kafka/pulsar 与 milvus <b>各自独立升级</b>。<b>woodpecker service 排到最后</b>：milvus-operator 对 external woodpecker service 的支持<b>由外部同事负责、不在本项目范围</b>，待其就绪后再启动对接。</div>
+      </div>
+
+      <div class="callout co-ok" data-rise style="margin-bottom:18px">
+        <span class="ic" id="i3"></span>
+        <div><b>验证原则（每个事项都自带"绿灯"）：</b>每一项的<b>完成判据 = 一条可跑的检查</b>，分三档由轻到重 —— <b>🧪 单测</b>（pytest，无需集群）→ <b>📋 dry-run</b>（<code>mb … --dry-run</code> 看渲染对不对）→ <b>☸️ 实测</b>（kubectl/mb 在真集群断言）。每步独立可验、独立提交，<b>循序渐进、不攒大包</b>。<b>验证节奏：我先执行一遍 → 绿灯 → 清理/复位 → 你照步骤复跑一遍确认顺畅</b>（每步页都带「🧹 清理/复位」）。骨架 A 由 pytest 套件覆盖（61 项通过）；逐步检查见下方 <b>E · 逐步验收清单</b>。</div>
+      </div>
+
       <!-- ===== overview ===== -->
       <div class="card" data-rise>
         <div class="card-head"><h3>怎么读这份计划 · 两段</h3><span class="sub">A 搭一次骨架，B 循环接组件</span></div>
@@ -94,13 +104,13 @@
             <div class="phb loop">
               <span class="tag">B · 循环 ×N</span>
               <div class="t">逐组件接入</div>
-              <div class="d">按统一模板把 etcd → minio → woodpecker → milvus(连) → pulsar → kafka 一个个接进来。每个组件一条循环。</div>
+              <div class="d">按统一模板把 etcd → minio → <b>kafka / pulsar</b> → milvus(连) 一个个接进来，先把<b>不依赖 woodpecker</b> 的链路闭环；<b>woodpecker 放最后</b>（待外部依赖）。</div>
             </div>
             <div class="pharr loop">↻<span>每组件</span></div>
             <div class="phb">
               <span class="tag" style="background:var(--ok-soft);color:#0c6b46">完成</span>
               <div class="t">阶段一达成</div>
-              <div class="d">五种依赖可独立装、milvus external 连通、升级/配置/<b>switch-mq</b> 打通、能纳管存量。</div>
+              <div class="d">etcd/minio/kafka/pulsar 可独立装、milvus operator external 连通、<b>kafka↔pulsar switch-mq</b> + 各自独立升级打通、能纳管存量；woodpecker service 待外部依赖就绪后补齐。</div>
             </div>
           </div>
         </div>
@@ -145,12 +155,12 @@
 
       <!-- ===== C per-component ===== -->
       <div class="card" data-rise style="margin-top:18px">
-        <div class="card-head"><h3>C · 逐组件任务清单</h3><span class="sub">按 MVP 顺序：etcd 先穿线，最后 milvus 把它们连起来</span></div>
+        <div class="card-head"><h3>C · 逐组件任务清单</h3><span class="sub">新顺序：etcd → minio → kafka/pulsar → milvus(连) → switch/升级；woodpecker 最后（待外部依赖）</span></div>
         <div class="card-pad">
 
           <!-- etcd -->
           <div class="comp">
-            <div class="ch"><span class="nm"><span class="e">🗄️</span>etcd</span><span class="bdg b-pick">选型：Bitnami Helm</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg b-m1">M1 · 第一个穿线</span></div>
+            <div class="ch"><span class="nm"><span class="e">🗄️</span>etcd</span><span class="bdg b-pick">选型：Bitnami Helm</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg" style="background:var(--ok-soft);color:#0c6b46">✅ 已实现</span></div>
             <div class="cb">
               <div class="rsch"><b>调研结论：</b>官方无 operator（CoreOS etcd-operator 已归档）→ 主流是 <b>Bitnami Helm</b>（StatefulSet + headless + PVC，静态成员表凑 Raft 多数派）。<b>硬护栏</b>：识别时排除 kube-system 控制面 etcd。
                 <div class="pickline"><b>本次选型：</b><code>bitnami-helm</code> —— 与 milvus-helm/operator 今天同 chart 同镜像，纳管零摩擦。</div>
@@ -166,7 +176,7 @@
 
           <!-- minio -->
           <div class="comp">
-            <div class="ch"><span class="nm"><span class="e">🪣</span>MinIO</span><span class="bdg b-pick">选型：MinIO Operator（Tenant）</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg b-m1">M1</span></div>
+            <div class="ch"><span class="nm"><span class="e">🪣</span>MinIO</span><span class="bdg b-pick">选型：MinIO Operator（Tenant）</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg" style="background:var(--ok-soft);color:#0c6b46">✅ 已实现</span></div>
             <div class="cb">
               <div class="rsch"><b>调研结论：</b>官方推荐 <b>MinIO Operator + <code>Tenant</code> CRD</b>（每 pool 一个 STS、operator 持有、纠删码对等）；milvus 今天用的是社区 helm subchart（distributed）。
                 <div class="pickline"><b>本次选型：</b><code>minio-operator</code>（贴合"各走官方方式"）；<code>helm-subchart</code> 留作回退。</div>
@@ -180,50 +190,50 @@
             </div>
           </div>
 
-          <!-- woodpecker -->
+          <!-- ① kafka / pulsar · 先闭环的 MQ -->
           <div class="comp">
-            <div class="ch"><span class="nm"><span class="e">🪶</span>Woodpecker</span><span class="bdg b-pick">选型：Woodpecker Operator</span><span class="bdg b-cache">cache-backed</span><span class="spacer"></span><span class="bdg b-m1">M1 · MVP 的 MQ</span></div>
+            <div class="ch"><span class="nm"><span class="e">📡🌊</span>Kafka / Pulsar</span><span class="bdg b-pick">Kafka=Helm(默认)·Strimzi / Pulsar=Apache Helm</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg" style="background:var(--ok-soft);color:#0c6b46">✅ 已实现</span><span class="bdg b-m1">① 先闭环的 MQ</span></div>
             <div class="cb">
-              <div class="rsch"><b>调研结论：</b>woodpecker 仓库<b>自带 operator</b>（<code>woodpecker.zilliz.io/v1alpha1 · WoodpeckerCluster</code>）—— apply 一个 CR + configRef ConfigMap，operator 自动建 STS + 3 services + PDB，并<b>自动处理 scale-down decommission、滚动升级</b>。gossip 组网、元数据进 etcd、日志落对象存储 → pod 近无状态、PVC 仅缓存。milvus-helm 的手写 STS 作回退。
-                <div class="pickline"><b>本次选型：</b><code>woodpecker-operator</code> —— 官方既然给了 operator，就按「各走官方方式」用它；还白拿 decommission/rolling/PDB（手写 STS 这些得自己补）。注意 operator <b>不管 etcd/对象存储</b>，需把它俩 endpoints 渲染进 configRef ConfigMap。</div>
+              <div class="rsch"><b>调研结论：</b>Kafka=Strimzi operator（<code>Kafka</code> CR/:9092）或 Bitnami Helm；Pulsar=Apache Helm（STS/:6650）。<b>不依赖 woodpecker —— 先用它们把整条链路闭环。</b>
+                <div class="pickline"><b>本次选型：</b>Pulsar <code>apache-helm</code>、Kafka <code>bitnami-helm</code>（最快闭环；Strimzi operator 留作后续官方化）。各自一条同模板循环，可<b>独立升级</b>。</div>
               </div>
               <ul class="chk">
-                <li>profile：detect(WoodpeckerCluster CR / STS / gossip SEEDS / :18080) · install=woodpecker-operator · <b>cache-backed</b> · connect=<code>streaming.woodpecker</code></li>
-                <li>driver override：<code>health</code>=/healthz · <code>scale-down</code> 由 operator 自动 decommission · 依赖：etcd+对象存储先就位</li>
-                <li>接入各层：确保 operator 就位 · 用已装 etcd/minio endpoints 渲染 ConfigMap + 下发 <code>WoodpeckerCluster</code> CR · State(缓存态)</li>
-                <li>验证：etcd+minio 就绪 → apply CR → 等 <code>.status</code> 就绪 → milvus 用 woodpecker 端到端</li>
+                <li>profile ×2：detect / install_methods / <b>authoritative</b> / connect=<code>externalKafka.brokerList</code> · <code>externalPulsar.endpoint</code></li>
+                <li>driver override ×2：各自 health / scale 护栏；<b>独立升级</b>（与 milvus 解耦）</li>
+                <li>接入各层 + 验证：milvus 经 operator 以 external 连 kafka 或 pulsar</li>
+                <li><b>switch-mq（核心）：</b>kafka ↔ pulsar 三步（装新 MQ → <code>wal/alter</code> → 下线旧）真集群跑通</li>
               </ul>
             </div>
           </div>
 
-          <!-- milvus -->
+          <!-- ② milvus(operator) 连 kafka/pulsar -->
           <div class="comp">
-            <div class="ch"><span class="nm"><span class="e">Ⓜ️</span>Milvus（连接方）</span><span class="bdg b-pick">选型：operator / helm + external</span><span class="bdg b-core2">连接目标</span><span class="spacer"></span><span class="bdg b-m1">M1 · 把三者连起来</span></div>
+            <div class="ch"><span class="nm"><span class="e">Ⓜ️</span>Milvus（连接方）</span><span class="bdg b-pick">选型：milvus-operator + external</span><span class="bdg b-core2">连接目标</span><span class="spacer"></span><span class="bdg" style="background:var(--ok-soft);color:#0c6b46">✅ 已实现</span><span class="bdg b-m1">② operator 连 kafka/pulsar</span></div>
             <div class="cb">
-              <div class="rsch"><b>调研结论：</b>milvus 自身经 milvus-operator(Milvus CR) 或 helm 安装；关键是<b>以 external 方式</b>连上前面装好的 etcd/对象存储/MQ（装/连分离的"连")。
-                <div class="pickline"><b>本次选型：</b>MVP 用 <code>helm + external*</code>（最直接，全控外部接线）；operator 路径并行支持。</div>
+              <div class="rsch"><b>调研结论：</b>milvus 经 milvus-operator(Milvus CR) 或 helm 安装；关键是<b>以 external 方式</b>连上前面装好的 etcd/对象存储/MQ（装/连分离的"连")。
+                <div class="pickline"><b>本次选型：</b><code>milvus-operator</code>（Milvus CR，<code>dependencies.*.external</code> 注入外部 etcd/minio/kafka|pulsar，milvus 不装任何依赖 pod）；helm 路径作回退。</div>
               </div>
               <ul class="chk">
-                <li>profile：detect(Milvus CR/STS/:19530) · install=helm/operator · connect 汇总三依赖 endpoints</li>
-                <li>driver override：<code>switch-mq</code>（<code>POST :9091 /management/wal/alter</code>）—— milvus 特有动作</li>
-                <li>接入各层：install(注入 external etcd/s3/mq) · 安装流程 F1 收口</li>
-                <li>验证：etcd+minio+wp+milvus 一套端到端跑通（M1 达成）</li>
+                <li>profile：detect(Milvus CR/STS/:19530) · install=operator-cr/helm · connect 汇总依赖 endpoints</li>
+                <li>driver override：<code>switch-mq</code>（<code>POST :9091 /management/wal/alter</code>）· <b>升级</b>（镜像滚动）—— milvus 特有动作</li>
+                <li>接入各层：install(CR 注入 external etcd/s3/mq) · 升级/扩缩/配置/删 · 安装流程收口</li>
+                <li>验证：etcd+minio+(kafka|pulsar)+milvus 一套端到端跑通（M1 达成）</li>
               </ul>
             </div>
           </div>
 
-          <!-- pulsar / kafka -->
+          <!-- ④ woodpecker(service) · 排到最后 · 待外部依赖 -->
           <div class="comp">
-            <div class="ch"><span class="nm"><span class="e">📡🌊</span>Pulsar / Kafka</span><span class="bdg b-pick">Apache Helm / Strimzi</span><span class="bdg b-auth">authoritative</span><span class="spacer"></span><span class="bdg b-m2">M2 · 扩展 MQ</span></div>
+            <div class="ch"><span class="nm"><span class="e">🪶</span>Woodpecker（service）</span><span class="bdg b-pick">选型：Woodpecker Operator</span><span class="bdg b-cache">cache-backed</span><span class="spacer"></span><span class="bdg" style="background:var(--warn-soft);color:#92510a">⏸ 暂缓 · 待外部依赖</span></div>
             <div class="cb">
-              <div class="rsch"><b>调研结论：</b>Pulsar=Apache Helm（STS/:6650）；Kafka=Strimzi operator（<code>Kafka</code> CR/:9092）。都是重 broker 集群，故排在 woodpecker 之后。
-                <div class="pickline"><b>本次选型：</b>Pulsar <code>apache-helm</code>、Kafka <code>strimzi</code>。各自一条同模板循环。</div>
+              <div class="rsch"><b>为何排最后：</b>milvus-operator 对 <b>external woodpecker service</b> 的支持<b>由外部同事负责、不在本项目范围</b>；在它就绪前这条线无法闭环，故放到最后、等依赖落地再启动对接。（早前为打通临时改过 operator <code>feat/external-woodpecker</code> 分支，仅作交接参考，不并入本项目主线。）
+                <div class="pickline"><b>本次选型：</b><code>woodpecker-operator</code>（<code>woodpecker.zilliz.io/v1alpha1 · WoodpeckerCluster</code>）—— 白拿 decommission/rolling/PDB；operator <b>不管 etcd/对象存储</b>，需把二者 endpoints 渲染进 configRef ConfigMap，且 service 模式服务端需<b>自带 quorum seeds</b>。</div>
               </div>
               <ul class="chk">
-                <li>profile ×2：detect / install_methods / authoritative / connect=<code>externalPulsar</code> · <code>externalKafka</code></li>
-                <li>driver override ×2：各自 health / scale 护栏</li>
-                <li>接入各层 + 验证：milvus 可任选三种 MQ 之一连接</li>
-                <li>打通后：<b>switch-mq</b> 三步（装新 MQ → wal/alter → 下线旧）即自然成立</li>
+                <li><b>前置（外部）：</b>milvus-operator 支持 <code>dependencies.woodpecker.external</code>(service) 就绪</li>
+                <li>profile：detect(WoodpeckerCluster CR / gossip SEEDS / :18080) · install=woodpecker-operator · <b>cache-backed</b> · connect=<code>woodpecker.external</code></li>
+                <li>接入各层：用已装 etcd/minio endpoints 渲染 ConfigMap + 下发 <code>WoodpeckerCluster</code> CR · State(缓存态)</li>
+                <li>验证：依赖就绪 → apply CR → service 3/3 → milvus(≥3.0) 用 woodpecker service 端到端</li>
               </ul>
             </div>
           </div>
@@ -236,12 +246,41 @@
         <div class="card-head"><h3>D · 阶段一完成判据</h3><span class="sub">循环跑到这些都绿，阶段一即完成</span></div>
         <div class="card-pad">
           <div class="exit">
-            <div class="ex"><span class="m">M1</span><div class="x"><b>MVP 穿线：</b>etcd + minio + woodpecker 可独立装，milvus 以 external 连通三者，<b>端到端跑通一套</b>。</div></div>
-            <div class="ex"><span class="m">M2</span><div class="x"><b>扩展 MQ：</b>pulsar / kafka 接入，milvus 可任选其一连接。</div></div>
-            <div class="ex"><span class="m">M3</span><div class="x"><b>运维 + switch-mq：</b>各组件升级 / 配置可用；<b>切换 MQ</b> 三步护栏打通。</div></div>
+            <div class="ex"><span class="m">M1</span><div class="x"><b>MVP 穿线（不依赖 woodpecker）：</b>etcd + minio + <b>(kafka 或 pulsar)</b> 可独立装，milvus 经 <b>operator</b> 以 external 连通，<b>端到端跑通一套</b>。</div></div>
+            <div class="ex"><span class="m">M2</span><div class="x"><b>双 MQ + 切换：</b>kafka 与 pulsar 都接入，milvus 可任选；<b>kafka ↔ pulsar switch-mq</b> 三步护栏真集群打通。</div></div>
+            <div class="ex"><span class="m">M3</span><div class="x"><b>运维闭环：</b>kafka/pulsar <b>各自独立升级</b>、milvus 升级、配置 get/set/restart 可用。</div></div>
             <div class="ex"><span class="m">M4</span><div class="x"><b>纳管存量：</b>接管已有 milvus-helm / operator 装的实例（含 docker 平台接入排期）。</div></div>
+            <div class="ex"><span class="m" style="background:var(--warn)">M5</span><div class="x"><b>woodpecker service（最后 · 待外部依赖）：</b>外部同事把 milvus-operator 的 external woodpecker service 支持做完后，接入 woodpecker-operator service 模式并端到端验证。</div></div>
           </div>
-          <div class="why" style="margin-top:14px"><div>说明：每个组件的循环都是「<b>调研 → 选型 → profile → driver → 接各层 → 验证</b>」同一套——这正是分层抽象的收益：<b>骨架只搭一次，组件像填空一样接入</b>。M5（WebUI）属于阶段二，给已做好的命令套界面。</div></div>
+          <div class="why" style="margin-top:14px"><div>说明：每个组件的循环都是「<b>调研 → 选型 → profile → driver → 接各层 → 验证</b>」同一套——骨架只搭一次，组件像填空一样接入。<b>本次调整：M1–M3 先做（kafka/pulsar 闭环 + switch + 升级），M5 woodpecker 放最后、由外部依赖驱动。</b>WebUI 属于阶段二，给已做好的命令套界面。</div></div>
+        </div>
+      </div>
+
+      <!-- ===== E verification ===== -->
+      <div class="card" data-rise style="margin-top:18px">
+        <div class="card-head"><h3>E · 逐步验收清单</h3><span class="sub">每步一条绿灯检查 —— 按顺序推进，绿一格走下一格</span></div>
+        <div class="card-pad">
+          <div class="callout co-warn" style="margin:0 0 14px"><div><b>🛠 环境准备：</b>推荐 <b>远程 minikube（32G/16core）+ SSH 隧道</b> —— 详见 <a href="phase1-setup.html" style="color:var(--accent-ink);font-weight:700">环境准备页</a>（窗口 A 起集群 · B 开隧道常开 · C 接 mb + 装 etcd/minio foundation）。要点：<code>KUBECONFIG</code> 指向远程 + <code>export MB_ADAPTER=k8s</code> 都要在 <code>mb core start</code> <b>之前</b>（改了要 stop 再 start，否则 daemon 还是旧的/fake、<code>--apply</code> 空跑）；装 MQ 需 <code>helm repo add bitnami/apache</code>。<b>每个步骤页都内置幂等「🚀 前置」块，可从头跑到尾、反复观察。</b></div></div>
+          <table class="tbl">
+            <thead><tr><th>步骤</th><th>事项</th><th>怎么验</th><th>绿灯判据</th></tr></thead>
+            <tbody>
+              <tr><td><span class="sid" style="background:var(--indigo)">⚙</span></td><td><a href="phase1-setup.html" style="color:var(--accent-ink);font-weight:600">环境准备（远程 minikube + SSH 隧道）</a></td><td>🛠 一次性</td><td><code>kubectl get nodes</code> Ready · <code>mb status</code> adapter=k8s · etcd/minio Running</td></tr>
+              <tr><td><span class="sid" style="background:var(--ok)">✓</span></td><td>骨架 A（S1–S10）</td><td>🧪 <code>uv run pytest</code></td><td>61 项全过</td></tr>
+              <tr><td><span class="sid" style="background:var(--ok)">✓</span></td><td>etcd 装（helm）</td><td>☸️ <code>mb install etcd --apply</code></td><td><code>kubectl get sts</code> etcd 3/3；<code>mb discover</code> 显示 Managed</td></tr>
+              <tr><td><span class="sid" style="background:var(--ok)">✓</span></td><td>minio 装（operator Tenant）</td><td>📋 dry-run + ☸️ crd 守卫</td><td>渲染出 Tenant CR；无 operator 时 precheck 干净失败、零创建</td></tr>
+              <tr><td><span class="sid">1</span></td><td><a href="phase1-step1.html" style="color:var(--accent-ink);font-weight:600">kafka / pulsar 装（dry-run）</a></td><td>🧪 <code>test_kafka_pulsar</code> · 📋 <code>mb install kafka --dry-run</code></td><td>渲染出 <code>bitnami/kafka</code> / <code>apache/pulsar</code> helm 命令</td></tr>
+              <tr><td><span class="sid">2</span></td><td><a href="phase1-step2.html" style="color:var(--accent-ink);font-weight:600">kafka / pulsar 装（live）</a></td><td>☸️ <code>mb install kafka --apply</code>（pulsar 同）</td><td>broker pod Running；<code>mb discover</code> 显示 Managed · authoritative</td></tr>
+              <tr><td><span class="sid">3</span></td><td><a href="phase1-step3.html" style="color:var(--accent-ink);font-weight:600">milvus(operator) 连 kafka（dry-run）</a></td><td>🧪 <code>test_milvus_mq</code> · 📋 <code>mb install milvus --set mq=kafka --dry-run</code></td><td>CR 含 <code>msgStreamType: kafka</code> + <code>kafka.external.brokerList</code></td></tr>
+              <tr><td><span class="sid">4</span></td><td><a href="phase1-step4.html" style="color:var(--accent-ink);font-weight:600">milvus 连 kafka（live）</a></td><td>☸️ <code>--apply</code> 后看 <code>.status</code></td><td>Milvus <code>.status.status==Healthy</code>，<code>MsgStreamReady=True</code></td></tr>
+              <tr><td><span class="sid">5</span></td><td><a href="phase1-step5.html" style="color:var(--accent-ink);font-weight:600">milvus 连 pulsar（live）</a></td><td>☸️ 同 4，<code>--set mq=pulsar</code></td><td>Milvus Healthy（连 pulsar）</td></tr>
+              <tr><td><span class="sid">6</span></td><td><a href="phase1-step6.html" style="color:var(--accent-ink);font-weight:600"><b>switch-mq：kafka → pulsar</b></a></td><td>☸️ <code>mb switch-mq &lt;inst&gt; --to pulsar</code></td><td>wal/alter 返回 ok；milvus 仍 Healthy；新写入走 pulsar</td></tr>
+              <tr><td><span class="sid">7</span></td><td><a href="phase1-step7.html" style="color:var(--accent-ink);font-weight:600">kafka <b>独立升级</b></a></td><td>☸️ <code>mb upgrade kafka-dev --image &lt;newver&gt;</code></td><td>kafka 滚动到新版；<b>milvus 不受影响、仍 Healthy</b></td></tr>
+              <tr><td><span class="sid">8</span></td><td><a href="phase1-step8.html" style="color:var(--accent-ink);font-weight:600">milvus <b>升级</b></a></td><td>☸️ <code>mb upgrade milvus-dev --image &lt;newver&gt;</code></td><td>milvus 滚动；<code>.status</code> 回到 Healthy</td></tr>
+              <tr><td><span class="sid">9</span></td><td><a href="phase1-step9.html" style="color:var(--accent-ink);font-weight:600">兼容矩阵可见性</a></td><td>📋 <code>mb mq-options --milvus-version 2.6.x</code></td><td>kafka/pulsar 可选；<b>woodpecker-service 显示不可选</b>（带原因）</td></tr>
+              <tr><td><span class="sid" style="background:var(--warn)">⏸</span></td><td>woodpecker service</td><td>—（待外部依赖）</td><td>外部 operator 支持就绪后再排 live 验收</td></tr>
+            </tbody>
+          </table>
+          <div style="font-size:11.5px;padding:12px 4px 0;color:var(--fg-3)">先 🧪/📋（无需集群、可立即跑），再 ☸️（一套 minikube e2e 串起 1→9）。每格独立提交、独立回归。</div>
         </div>
       </div>
 
@@ -253,6 +292,8 @@
 <script>
   Hub.mount({ page:'phase1-plan', crumbs:['方案讨论','阶段一 · 实施计划'] });
   document.getElementById('i1').innerHTML = Hub.svg(Hub.I.info,18);
+  document.getElementById('i2').innerHTML = Hub.svg(Hub.I.warn,18);
+  document.getElementById('i3').innerHTML = Hub.svg(Hub.I.check,18);
 </script>
 </body>
 </html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>步骤 ⑤ · milvus 连 pulsar（live） · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>步骤 ⑤ · milvus 连 pulsar（live · Healthy 验收）</h1>
+          <p>同一套"连"的能力换 MQ 后端验证：milvus 全 external 连 etcd+minio+pulsar，达到 <code>Healthy</code> 即过。</p>
+          <div class="stepmeta"><span class="gear live">☸️ 实测</span><span class="gear">需 minikube</span><span class="badge b-ok"><span class="d"></span>已验收 · 绿</span></div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="callout co-ok" data-rise style="margin-bottom:14px"><div><b>✅ 实测结论（2026-07-01）：</b>milvus <code>2.6.3</code>（实例名 milvus-pulsar）全 external 连 etcd+minio+pulsar，<code>Healthy</code>、<code>MsgStreamReady=True</code>、mb 登记 Managed，与 milvus-dev(kafka) 并存。同一 <code>MINIO_ADDRESS</code> 修复（见步骤④）对 pulsar 路径自动复用。</div></div>
+
+      <div class="callout co-warn" data-rise style="margin-bottom:18px"><div><b>⚠️ 两个 pulsar 实战坑：</b><br>① <b>端点用 broker、不用 proxy</b>：<code>pulsar-dev-proxy.default.svc:6650</code> 会触发 pulsar 客户端 DNS 搜索域重复（解析成 <code>...default.svc.default.svc.cluster.local</code> 失败）；改用 <code>pulsar-dev-broker.default.svc:6650</code> 干净。<br>② <b>pulsar 之前被「磁盘曾打满」拖死</b>：bookie 的 ledger/journal 目录在节点 overlay 盘（minikube hostPath PVC），宿主盘曾 100% → BookKeeper 把 bookie 标记 faulty，2 bookie 无备补 → <code>Not enough non-faulty bookies available</code>、produce 超时。<b>恢复</b>：<code>kubectl delete pod pulsar-dev-bookie-0 pulsar-dev-bookie-1 pulsar-dev-broker-0</code> 重启即清除 wedge（数据在 PVC 上，重启不丢）。</div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🎯 目标 &amp; 前置</h3></div><div class="card-pad">
+        <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 12px">证明 pulsar 这条 MQ 路径同样跑通——为步骤⑥的 kafka↔pulsar 切换做好两端。</p>
+        <div class="deprow"><span class="depchip"><span class="dot"></span>etcd + minio 已就绪</span><span class="depchip"><span class="dot"></span>步骤 ② pulsar-dev Running</span></div>
+      </div></div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🚀 前置（幂等 · 可重复跑）</h3><span class="sub">从干净或脏状态都能从头跑到尾</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🚀 环境（每条都幂等）</span></div><div class="body"><div class="c">cd milvus-bootstrap &amp;&amp; source .venv/bin/activate</div><div class="c">export MB_ADAPTER=k8s <span class="cm"># 真集群；改 adapter 要 mb core stop 再 start</span></div><div class="c">mb core start <span class="cm"># 幂等：已运行则跳过</span></div><div class="c">mb status <span class="cm"># 确认 adapter=k8s 再往下</span></div></div></div>
+          <div class="term-note"><b>前序产物：</b>需 etcd + minio + <b>pulsar-dev（步骤②）</b>已在。<b>幂等说明：</b><code>mb install --apply</code>=operator apply（重复=覆盖）、<code>mb delete</code> 不在也安全 → <b>可从头到尾反复执行观察</b>。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise><div class="card-head"><h3>📋 任务细则</h3></div><div class="card-pad"><ol class="dt">
+        <li><b>装 milvus(pulsar)：</b><code>_mq_deps('pulsar')</code> → <code>msgStreamType: pulsar</code> + <code>pulsar.external.endpoint</code>（<code>--set pulsarEndpoint=pulsar-dev-broker.default.svc:6650</code>，用 broker 不用 proxy）。</li>
+        <li><b>就绪门：</b><code>.status.status == Healthy</code>、<code>MsgStreamReady=True</code>。</li>
+        <li>可与 milvus-dev(kafka) 并存于不同实例名，便于对比。</li>
+      </ol></div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>✅ 验收命令</h3><span class="sub">在 minikube 上跑</span></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">☸️ 安装 + 校验 Healthy</span></div><div class="body"><div class="c">mb install milvus --name milvus-pulsar \
+  --set mq=pulsar --set image=milvusdb/milvus:v2.6.3 \
+  --set storageEndpoint=minio.default.svc:80 \
+  --set pulsarEndpoint=pulsar-dev-broker.default.svc:6650 --apply</div><div class="o">precheck-operator ok · apply-cr ok · <span class="ok">wait-status ok (Healthy)</span> · register ok（Managed）</div><div class="c">kubectl get milvus milvus-pulsar -o jsonpath='{.status.status}'</div><div class="o"><span class="ok">Healthy</span></div><div class="c">kubectl get milvus <span class="cm"># milvus-dev(kafka)+milvus-pulsar 两者并存 Healthy</span></div></div></div>
+        <div class="exp ok"><b>🟢 绿灯判据（已实测通过 2026-07-01）：</b>milvus-pulsar <code>.status.status == Healthy</code> 且 <code>MsgStreamReady == True</code>（连 pulsar），mb 登记 Managed → 两端 MQ 就绪，可进 <b>步骤⑥</b> switch-mq。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🧹 清理 / 复位</h3></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧹 复位</span></div><div class="body"><div class="c">mb delete milvus-pulsar --apply</div></div></div>
+        <div class="term-note">依赖保留；复跑即重装。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>☑️ 完成标记（DoD）</h3></div><div class="card-pad"><ul class="dod"><li>✅ milvus-pulsar <code>Healthy</code></li><li>✅ <code>MsgStreamReady == True</code>（连 pulsar）</li><li>✅ <code>mb status</code> instances 含 milvus-pulsar · Managed（与 milvus-dev/kafka 并存）</li></ul></div></div>
+
+      <div class="pnav" data-rise><a class="btn btn-ghost" href="phase1-step4.html">← 步骤 ④</a><span class="grow"></span><a class="btn btn-primary" href="phase1-step6.html">下一步 ⑥ · switch-mq kafka→pulsar →</a></div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-step5', crumbs:['阶段一 · 实施计划','⑤ milvus 连 pulsar live'] });
+</script>
+</body>
+</html>

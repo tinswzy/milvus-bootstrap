@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>环境准备 · 远程 minikube + SSH 隧道 · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  .topo{ display:flex; align-items:center; gap:0; flex-wrap:wrap; font-family:var(--font-mono); font-size:12px; }
+  .topo .box{ border:1.5px solid var(--line-2); border-radius:10px; padding:10px 13px; background:var(--surface); text-align:center; line-height:1.5; }
+  .topo .box b{ font-family:var(--font-sans); }
+  .topo .box.l{ border-color:var(--accent); background:var(--accent-soft); } .topo .box.r{ border-color:var(--ok); background:var(--ok-soft); }
+  .topo .lnk{ flex:0 0 auto; padding:0 12px; color:var(--accent-ink); font-size:11px; text-align:center; }
+  .topo .lnk b{ display:block; font-size:16px; color:var(--accent); }
+  .win{ font-family:var(--font-mono); font-size:10px; font-weight:700; padding:2px 9px; border-radius:20px; background:var(--indigo); color:#fff; margin-left:8px; }
+  @media(max-width:780px){ .topo{ flex-direction:column; } .topo .lnk{ transform:rotate(90deg); padding:8px 0; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>环境准备 · 远程 minikube + SSH 隧道</h1>
+          <p>本地资源有限 → 把集群放到 <b>远程主机（32G / 16core）</b>，本地 <code>kubectl</code> / <code>mb</code> 经 <b>SSH 隧道</b>连过去。三段式：A 远程起集群 · B 本地开隧道（常开）· C 本地跑 mb。</p>
+          <div class="stepmeta"><span class="gear">一次性准备</span><span class="gear live">远程 minikube</span><span class="badge b-ok"><span class="d"></span>推荐验证环境</span></div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🗺 拓扑</h3></div>
+        <div class="card-pad">
+          <div class="topo">
+            <div class="box l"><b>本地笔记本</b><br>mb daemon · kubectl · helm</div>
+            <div class="lnk"><b>⇄</b>SSH 隧道<br>127.0.0.1:8443</div>
+            <div class="box r"><b>远程主机 32G/16core</b><br>minikube（docker 驱动）<br>apiserver 127.0.0.1:8443</div>
+          </div>
+          <p style="font-size:12px;color:var(--fg-3);line-height:1.7;margin:12px 0 0">两端都用 <code>127.0.0.1:8443</code>，所以 kubeconfig <b>不用改 server、不用 skip TLS</b>（证书 SAN 自带 127.0.0.1）。固定 <code>--apiserver-port=8443</code> 让端口不随重启变。</p>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>窗口 A · 远程起 minikube<span class="win">远程 shell</span></h3><span class="sub">在远程主机上执行（幂等：已起则跳过）</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">ssh user@&lt;远程IP&gt; 后</span></div><div class="body"><div class="c">minikube start --driver=docker --apiserver-port=8443 --memory=24g --cpus=12</div><div class="o">😄 minikube ... Done! kubectl is now configured</div><div class="c">kubectl config view --flatten --minify &gt; ~/mk-remote.yaml <span class="cm"># 证书内嵌，给本地用</span></div><div class="c">kubectl get nodes <span class="cm"># 远程本机自检</span></div><div class="o">NAME       STATUS   ROLES           AGE   VERSION
+minikube   Ready    control-plane   1m    v1.3x</div></div></div>
+          <div class="term-note">32G/16core 给 minikube 留足（<code>--memory=24g --cpus=12</code>，余量留宿主）。<code>--apiserver-port=8443</code> 固定端口，隧道永远连 8443。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>窗口 B · 本地开 SSH 隧道<span class="win">本地 · 常开</span></h3><span class="sub">这个隧道要一直开着；断了 kubectl/mb 就连不上</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">本地 shell（专用于隧道）</span></div><div class="body"><div class="c">scp user@&lt;远程IP&gt;:~/mk-remote.yaml ~/.kube/mk-remote.yaml <span class="cm"># 拿 config（一次）</span></div><div class="c">ssh -N -L 8443:127.0.0.1:8443 user@&lt;远程IP&gt; -o ServerAliveInterval=30 -o ServerAliveCountMax=3</div><div class="o cm"># 不返回、保持前台 = 隧道在工作；想后台加 -f</div></div></div>
+          <div class="term-note">本地 <code>127.0.0.1:8443</code> ⇄ 远程 <code>127.0.0.1:8443</code>。隧道挂了重跑这条即可（幂等）。更稳用 <code>autossh</code>。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>窗口 C · 本地接 mb<span class="win">本地 · 跑命令</span></h3><span class="sub">所有 mb/kubectl 命令都在这个 shell 跑</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">本地 shell（跑 mb，每条幂等）</span></div><div class="body"><div class="c">export KUBECONFIG=~/.kube/mk-remote.yaml <span class="cm"># 指向远程集群（本 shell 一次）</span></div><div class="c">kubectl get nodes <span class="cm"># 经隧道直连远程，应 Ready</span></div><div class="c">cd milvus-bootstrap && source .venv/bin/activate</div><div class="c">export MB_ADAPTER=k8s</div><div class="c">mb core stop && mb core start <span class="cm"># daemon 继承 KUBECONFIG+adapter，必须在此之后起</span></div><div class="c">mb status <span class="cm"># 确认 adapter=k8s</span></div><div class="c">helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo add apache https://pulsar.apache.org/charts && helm repo update</div></div></div>
+          <div class="term-note"><b>顺序要点：</b><code>KUBECONFIG</code> 和 <code>MB_ADAPTER=k8s</code> 必须在 <code>mb core start</code> <b>之前</b> export（daemon 启动时定死）。改了任一个都要 <code>mb core stop && mb core start</code>。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>装 foundation（全新集群需要）</h3><span class="sub">远程是全新 minikube → 先装 etcd + minio，milvus 才有依赖可连</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">本地窗口 C</span></div><div class="body"><div class="c">mb install etcd  --name etcd  --apply <span class="cm"># 命名 etcd → 服务 etcd.default.svc:2379（贴合 milvus 默认）</span></div><div class="c">mb install minio --name minio --apply</div><div class="c">kubectl get pods <span class="cm"># 期望 etcd / minio Running</span></div></div></div>
+          <div class="term-note">命名为 <code>etcd</code>/<code>minio</code> 让 milvus 默认 endpoint（<code>etcd.default.svc</code>/<code>minio.default.svc</code>）直接解析。装完 <code>kubectl get svc</code> 确认服务名；不符则步骤④用 <code>--set etcdEndpoints=… --set storageEndpoint=…</code> 指向实际服务。<b>全部装在 <code>default</code> ns，后续步骤命令（不带 -N）原样可用。</b></div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>✅ 就绪检查</h3></div>
+        <div class="card-pad">
+          <ul class="dod">
+            <li><code>kubectl get nodes</code> → minikube Ready（经隧道）</li>
+            <li><code>mb status</code> → adapter = <b>k8s</b></li>
+            <li><code>kubectl get pods</code> → etcd / minio Running</li>
+            <li>helm repo 有 <code>bitnami</code> / <code>apache</code></li>
+          </ul>
+          <div class="exp" style="margin-top:14px"><b>🟢 四项都对 → 环境就绪，去 <a href="phase1-step1.html" style="color:#0c6b46;font-weight:700">步骤 ①</a> 开跑。</b>远程 32G/16core，前面担心的 pulsar/switch 资源问题都不再是瓶颈。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🧹 复位 / 重来</h3></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">复位</span></div><div class="body"><div class="c cm"># 清单个组件：mb delete &lt;name&gt; --apply</div><div class="c cm"># 整个集群重来（远程）：minikube delete && minikube start --apiserver-port=8443 --memory=24g --cpus=12</div><div class="c cm"># 隧道重开（本地）：重跑窗口 B 那条 ssh -L</div></div></div>
+          <div class="term-note">隧道/集群都可随时重来；<code>minikube start</code> 幂等，端口固定 8443 不变 → 隧道和 config 不用动。</div>
+        </div>
+      </div>
+
+      <div class="pnav" data-rise>
+        <a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a>
+        <span class="grow"></span>
+        <a class="btn btn-primary" href="phase1-step1.html">环境就绪 → 步骤 ① 开跑 →</a>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-setup', crumbs:['阶段一 · 实施计划','环境准备 · 远程 minikube'] });
+</script>
+</body>
+</html>

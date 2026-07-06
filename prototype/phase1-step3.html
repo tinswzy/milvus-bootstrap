@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>步骤 ③ · milvus 连 kafka（dry-run） · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>步骤 ③ · milvus(operator) 连 kafka（dry-run 验收）</h1>
+          <p>验证 milvus operator 的 CR 能把 kafka 作为 external MQ 正确接线（<code>msgStreamType</code> + <code>brokerList</code>）—— 无需集群。</p>
+          <div class="stepmeta"><span class="gear unit">🧪 单测</span><span class="gear dry">📋 dry-run</span><span class="gear">无需集群</span><span class="badge b-ok"><span class="d"></span>已验收 ✓</span></div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px"><div><b>🔁 验证节奏：</b>① 我执行 → 绿灯 → ② 清理/复位 → ③ 你照「✅ 验收命令」复跑确认顺畅。</div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🎯 目标 &amp; 前置</h3></div><div class="card-pad">
+        <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 12px">证明"连"这一侧的渲染：milvus CR 全 external（etcd/minio/kafka），MQ 选 kafka，镜像用 2.6.x（kafka 在 2.6.x 可选，见 ⑨）。</p>
+        <div class="deprow"><span class="depchip"><span class="dot"></span>步骤 ① 绿</span><span class="depchip"><span class="dot"></span>compat：kafka@2.6.x 可选</span><span class="depchip" style="background:var(--surface)"><span class="dot" style="background:var(--idle)"></span>集群：不需要</span></div>
+      </div></div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🚀 前置（幂等 · 可重复跑）</h3><span class="sub">无需集群</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🚀 环境（幂等）</span></div><div class="body"><div class="c">cd milvus-bootstrap &amp;&amp; source .venv/bin/activate</div><div class="c"><span class="cm"># 无集群步骤：fake adapter 默认即可（不必 export MB_ADAPTER=k8s）</span></div></div></div>
+          <div class="term-note"><b>幂等说明：</b>纯单测 / dry-run，无副作用，可反复跑 → 从头到尾随便观察。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise><div class="card-head"><h3>📋 任务细则</h3></div><div class="card-pad"><ol class="dt">
+        <li><b>operator-cr：</b>MilvusDriver 走 operator-cr，渲染 <code>Milvus</code> CR（<code>milvus.io/v1beta1</code>）+ minio secret。</li>
+        <li><b>MQ 接线：</b><code>_mq_deps('kafka')</code> → <code>msgStreamType: kafka</code> + <code>kafka.external.brokerList</code>（默认 <code>kafka.&lt;ns&gt;.svc:9092</code>，可 <code>--set kafkaBrokers=</code> 覆盖指向 kafka-dev）。</li>
+        <li><b>全 external：</b>etcd / storage 都 external，milvus 不装任何依赖 pod。</li>
+        <li><b>版本门：</b><code>compat.check(kafka, v2.6.3)</code> 通过（kafka 最低 2.0.0）。</li>
+      </ol></div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>✅ 验收命令</h3><span class="sub">输出为实跑结果</span></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧪 单测 · milvus × MQ 矩阵接线</span></div><div class="body"><div class="c">uv run pytest tests/test_milvus_mq.py -q</div><div class="o"><span class="ok">passed</span></div></div></div>
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">📋 dry-run · 渲染 Milvus CR（apply-cr 步骤）</span></div><div class="body"><div class="c">uv run mb install milvus --name milvus-dev --set mq=kafka --set image=milvusdb/milvus:v2.6.3 --dry-run</div><div class="o">spec:
+  mode: standalone
+  components: { image: milvusdb/milvus:v2.6.3 }
+  dependencies:
+    etcd:    { external: true, endpoints: [etcd.default.svc:2379] }
+    storage: { external: true, type: MinIO, endpoint: minio.default.svc:9000 }
+    <span class="ok">msgStreamType: kafka</span>
+    <span class="ok">kafka: { external: true, brokerList: [kafka.default.svc:9092] }</span></div></div></div>
+        <div class="exp"><b>🟢 绿灯判据：</b>CR 渲染出 <code>msgStreamType: kafka</code> + <code>kafka.external.brokerList</code>；test_milvus_mq 过 → 进 <b>步骤④（live）</b>。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🧹 清理 / 复位</h3></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧹 复位</span></div><div class="body"><div class="c">uv run mb core stop</div><div class="c">rm -rf /tmp/mbx <span class="cm"># dry-run 临时态</span></div></div></div>
+        <div class="term-note">无集群资源，复位即停 daemon。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>☑️ 完成标记（DoD）</h3></div><div class="card-pad"><ul class="dod"><li><code>test_milvus_mq</code> 过</li><li>CR 含 <code>msgStreamType: kafka</code></li><li>CR 含 <code>kafka.external.brokerList</code></li></ul></div></div>
+
+      <div class="pnav" data-rise><a class="btn btn-ghost" href="phase1-step2.html">← 步骤 ②</a><span class="grow"></span><a class="btn btn-primary" href="phase1-step4.html">下一步 ④ · milvus 连 kafka（live）→</a></div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-step3', crumbs:['阶段一 · 实施计划','③ milvus 连 kafka dry-run'] });
+</script>
+</body>
+</html>

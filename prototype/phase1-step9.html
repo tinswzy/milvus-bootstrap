@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>步骤 ⑨ · 兼容矩阵可见性 · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>步骤 ⑨ · 兼容矩阵可见性（不可选 = 可见不可点）</h1>
+          <p>验证某 milvus 版本下，可选 / 不可选的 MQ 一目了然 —— 尤其 2.6.x 的 woodpecker-service 必须"可见但不可选"。无需集群。</p>
+          <div class="stepmeta"><span class="gear unit">🧪 单测</span><span class="gear dry">📋 命令</span><span class="gear">无需集群</span><span class="badge b-ok"><span class="d"></span>已验收 ✓</span></div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px"><div><b>🔁 验证节奏：</b>① 我执行 → 绿灯 → ② 无需清理（只读）→ ③ 你复跑确认顺畅。</div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🎯 目标 &amp; 前置</h3></div><div class="card-pad">
+        <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 12px">这条护栏保证我们<b>不会选一个该版本不支持的依赖</b>。它也是"woodpecker-service 排最后"的程序化体现：在 2.6.x 上它就是不可选。</p>
+        <div class="deprow"><span class="depchip" style="background:var(--surface)"><span class="dot" style="background:var(--idle)"></span>集群：不需要（纯矩阵查询）</span></div>
+      </div></div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🚀 前置（幂等 · 可重复跑）</h3><span class="sub">无需集群</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🚀 环境（幂等）</span></div><div class="body"><div class="c">cd milvus-bootstrap &amp;&amp; source .venv/bin/activate</div><div class="c"><span class="cm"># 只读矩阵查询：fake adapter 默认即可</span></div></div></div>
+          <div class="term-note"><b>幂等说明：</b>只读查询，无副作用，可反复跑 → 从头到尾随便观察。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise><div class="card-head"><h3>📋 任务细则</h3></div><div class="card-pad"><ol class="dt">
+        <li><b>矩阵：</b><code>core/compat.py</code> 的 MQ × milvus 版本表，给出每个 MQ 的 <code>supported</code> + <code>reason</code>。</li>
+        <li><b>可见不可选：</b>不支持的 MQ 仍列出，但标"不可选"并附原因（如 woodpecker-service 需 ≥3.0.0）。</li>
+        <li><b>装机门：</b>安装时 <code>compat.check</code> 拒绝不可选项（步骤③ 的 v2.6.3 + kafka 能过正因 kafka 可选）。</li>
+      </ol></div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>✅ 验收命令</h3><span class="sub">输出为实跑结果</span></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">📋 mq-options · v2.6.3</span></div><div class="body"><div class="c">mb mq-options --milvus-version v2.6.3</div><div class="o">woodpecker-embedded   <span class="ok">✓ 可选</span>
+woodpecker-service    <span class="hl">✗ 不可选</span>  需要 milvus ≥ 3.0.0（当前 v2.6.3）
+kafka                 <span class="ok">✓ 可选</span>
+pulsar                <span class="ok">✓ 可选</span>
+rocksmq               <span class="ok">✓ 可选</span></div><div class="c" style="margin-top:8px">mb mq-options --milvus-version milvusdb/milvus:v3.0.0</div><div class="o">woodpecker-embedded / <span class="ok">woodpecker-service</span> / kafka / pulsar / rocksmq  <span class="ok">全部 ✓ 可选</span></div></div></div>
+        <div class="exp"><b>🟢 绿灯判据：</b>v2.6.3 下 kafka/pulsar 可选、<code>woodpecker-service</code> <b>不可选</b>（带原因）；v3.0.0 下全部可选。<code>test_compat</code> 过。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🧹 清理 / 复位</h3></div><div class="card-pad">
+        <p style="font-size:13px;color:var(--fg-2);line-height:1.6;margin:0">只读查询，<b>无需清理</b>。可随时 <code>mb core stop</code> 停 daemon。</p>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>☑️ 完成标记（DoD）</h3></div><div class="card-pad"><ul class="dod"><li>v2.6.3：kafka/pulsar 可选、woodpecker-service 不可选（带原因）</li><li>v3.0.0：全部可选</li><li><code>test_compat</code> 过</li></ul></div></div>
+
+      <div class="pnav" data-rise><a class="btn btn-ghost" href="phase1-step8.html">← 步骤 ⑧</a><span class="grow"></span><a class="btn btn-primary" href="phase1-plan.html">✓ 全部步骤 · 返回清单</a></div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-step9', crumbs:['阶段一 · 实施计划','⑨ 兼容矩阵'] });
+</script>
+</body>
+</html>

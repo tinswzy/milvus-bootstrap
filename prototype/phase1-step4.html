@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>步骤 ④ · milvus 连 kafka（live） · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>步骤 ④ · milvus 连 kafka（live · Healthy 验收）</h1>
+          <p>把 ③ 验证过的 CR 真正落到集群：milvus 经 operator 全 external 连上 etcd+minio+kafka，达到 <code>Healthy</code> 即过。</p>
+          <div class="stepmeta"><span class="gear live">☸️ 实测</span><span class="gear">需 minikube</span><span class="badge b-ok"><span class="d"></span>已验收 · 绿</span></div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="callout co-ok" data-rise style="margin-bottom:14px"><div><b>✅ 实测结论（2026-07-01）：</b>milvus <code>2.6.3</code> 经 operator 全 external 连 etcd+minio+kafka，<code>.status.status=Healthy</code>、5 个依赖条件全 True、mb 登记 Managed。命令 exit 0（apply-cr → wait-status(Healthy) → register 四步全 ok）。</div></div>
+
+      <div class="callout co-warn" data-rise style="margin-bottom:18px"><div><b>⚠️ 关键坑 · minio 端点必须是单字段 host:port（driver 已修）：</b>operator 把 <code>storage.endpoint</code> 拆成 <code>minio.address</code>+<code>minio.port</code> 两字段后，milvus segcore「init vector storage」会把 <code>bucketName</code> 拼进 endpoint（<code>host:port/bucket</code>）→ minio-go 报 <code>Endpoint url cannot have fully qualified paths</code> → CrashLoopBackOff（2.5/2.6 同病，只是先崩的组件不同）。<b>修复</b>：<code>milvus.py</code> 在外部 MinIO 时注入环境变量 <code>MINIO_ADDRESS=&lt;host:port&gt;</code>（milvus 优先读该 env 且保留冒号原样），绕开拆字段。改 driver 代码后需 <code>mb core stop &amp;&amp; mb core start</code> 重载 daemon 才生效。</div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🎯 目标 &amp; 前置</h3></div><div class="card-pad">
+        <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 12px">这是 kafka 闭环的核心一格：milvus 不装任何依赖 pod，全部 external 连上前面装好的三件套。</p>
+        <div class="deprow"><span class="depchip"><span class="dot"></span>etcd + minio 已就绪</span><span class="depchip"><span class="dot"></span>步骤 ② kafka-dev Running</span><span class="depchip"><span class="dot"></span>步骤 ③ 渲染绿</span></div>
+      </div></div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🚀 前置（幂等 · 可重复跑）</h3><span class="sub">从干净或脏状态都能从头跑到尾</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🚀 环境（每条都幂等）</span></div><div class="body"><div class="c">cd milvus-bootstrap &amp;&amp; source .venv/bin/activate</div><div class="c">export MB_ADAPTER=k8s <span class="cm"># 真集群；改 adapter 要 mb core stop 再 start</span></div><div class="c">mb core start <span class="cm"># 幂等：已运行则跳过</span></div><div class="c">mb status <span class="cm"># 确认 adapter=k8s 再往下</span></div></div></div>
+          <div class="term-note"><b>前序产物：</b>需 etcd + minio + <b>kafka-dev（步骤②）</b>已在；milvus 走 operator-cr，无需 helm repo。<b>幂等说明：</b><code>mb install --apply</code>=operator apply（重复=覆盖）、<code>mb delete</code> 不在也安全 → <b>可从头到尾反复执行观察</b>。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise><div class="card-head"><h3>📋 任务细则</h3></div><div class="card-pad"><ol class="dt">
+        <li><b>装 milvus：</b><code>operator-cr</code> apply Milvus CR（mq=kafka，brokerList 指向 kafka-dev），步骤 <code>precheck-operator → apply-cr → wait-status(Healthy) → register</code>。</li>
+        <li><b>就绪门：</b>operator 把 <code>.status.status</code> 推到 <code>Healthy</code>，且 <code>MsgStreamReady=True</code>。</li>
+        <li><b>登记：</b>Managed · stateless，<code>spec_snapshot</code> 落库供后续升级/切换复用。</li>
+      </ol></div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>✅ 验收命令</h3><span class="sub">在 minikube 上跑</span></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">☸️ 安装 + 校验 Healthy</span></div><div class="body"><div class="c">mb install milvus --name milvus-dev \
+  --set mq=kafka --set image=milvusdb/milvus:v2.6.3 \
+  --set storageEndpoint=minio.default.svc:80 \
+  --set kafkaBrokers=kafka-dev.default.svc:9092 --apply</div><div class="o">precheck-operator ok · apply-cr ok · <span class="ok">wait-status ok (Healthy)</span> · register ok（Managed）</div><div class="c">kubectl get milvus milvus-dev -o jsonpath='{.status.status}'</div><div class="o"><span class="ok">Healthy</span></div><div class="c">kubectl get milvus milvus-dev -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}'</div><div class="o"><span class="ok">MilvusReady=True EtcdReady=True StorageReady=True MsgStreamReady=True</span></div><div class="c">mb status <span class="cm"># instances 含 milvus-dev（Managed）</span></div></div></div>
+        <div class="exp ok"><b>🟢 绿灯判据（已实测通过 2026-07-01）：</b><code>.status.status == Healthy</code> 且 <code>MsgStreamReady/EtcdReady/StorageReady == True</code> + mb 登记 Managed → kafka 闭环成立，进 <b>步骤⑤/⑥</b>。<br><b>★ storageEndpoint 必须带端口</b>（<code>minio.default.svc:80</code>，MinIO-Operator 的 S3 服务在 80 口），driver 会据此注入 <code>MINIO_ADDRESS</code> env。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🧹 清理 / 复位</h3></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧹 复位</span></div><div class="body"><div class="c">mb delete milvus-dev --apply <span class="cm"># 删 Milvus CR（etcd/minio/kafka 保留）</span></div></div></div>
+        <div class="term-note">只删 milvus，依赖留着给下一格复用；要彻底重来再删 kafka-dev/etcd/minio。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>☑️ 完成标记（DoD）</h3></div><div class="card-pad"><ul class="dod"><li>✅ Milvus <code>.status.status == Healthy</code></li><li>✅ <code>MsgStreamReady == True</code>（连上 kafka）</li><li>✅ <code>mb status</code> instances 含 milvus-dev · Managed（<code>mb discover</code> 是无状态集群扫描，对已登记实例仍显示 adoptable，权威 Managed 态看 <code>mb status</code>）</li></ul></div></div>
+
+      <div class="pnav" data-rise><a class="btn btn-ghost" href="phase1-step3.html">← 步骤 ③</a><span class="grow"></span><a class="btn btn-primary" href="phase1-step5.html">下一步 ⑤ · milvus 连 pulsar（live）→</a></div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-step4', crumbs:['阶段一 · 实施计划','④ milvus 连 kafka live'] });
+</script>
+</body>
+</html>

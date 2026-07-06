@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>步骤 ② · kafka/pulsar 安装（live） · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  .stepmeta{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:11px; }
+  .gear{ font-family:var(--font-mono); font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; border:1px solid var(--line-2); background:var(--surface); color:var(--fg-2); }
+  .gear.unit{ background:var(--ok-soft); color:#0c6b46; border-color:transparent; }
+  .gear.dry{ background:var(--accent-soft); color:var(--accent-ink); border-color:transparent; }
+  .gear.live{ background:var(--warn-soft); color:#92510a; border-color:transparent; }
+  .deprow{ display:flex; gap:10px; flex-wrap:wrap; }
+  .depchip{ font-size:12px; padding:6px 11px; border-radius:8px; border:1px solid var(--line-2); background:var(--surface-3); color:var(--fg-2); display:flex; gap:7px; align-items:center; }
+  .depchip .dot{ width:7px;height:7px;border-radius:50%; background:var(--ok); }
+  .dt{ counter-reset:d; margin:0; padding:0; list-style:none; }
+  .dt li{ counter-increment:d; position:relative; padding:9px 0 9px 34px; border-bottom:1px dashed var(--line); font-size:13px; color:var(--fg-2); line-height:1.65; }
+  .dt li:last-child{ border-bottom:none; }
+  .dt li::before{ content:counter(d); position:absolute; left:0; top:8px; width:22px;height:22px; border-radius:7px; background:var(--accent); color:#fff; font-family:var(--font-mono); font-size:11px; font-weight:700; display:grid; place-items:center; }
+  .dt li b{ color:var(--fg-1); } .dt li code,.exp code,.dod li code,.term-note code{ font-family:var(--font-mono); font-size:11.5px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:1px 5px; color:var(--accent-ink); }
+  .term{ background:#0f1117; border:1px solid #20242e; border-radius:11px; overflow:hidden; box-shadow:var(--shadow-sm); margin-top:6px; } .term + .term{ margin-top:12px; }
+  .term .tbar{ display:flex; align-items:center; gap:7px; padding:9px 13px; border-bottom:1px solid #20242e; background:#141821; }
+  .term .tbar .tdot{ width:11px;height:11px;border-radius:50%; } .td1{background:#ff5f57}.td2{background:#febc2e}.td3{background:#28c840}
+  .term .tbar .tt{ margin-left:8px; font-family:var(--font-mono); font-size:11px; color:#8b93a7; }
+  .term .body{ padding:13px 15px; font-family:var(--font-mono); font-size:12.5px; line-height:1.85; color:#cdd3e0; overflow-x:auto; }
+  .term .body .c{ color:#7ee787; } .term .body .c::before{ content:'$ '; color:#5a647a; }
+  .term .body .o{ color:#9aa3b6; white-space:pre-wrap; } .term .body .ok{ color:#7ee787; font-weight:600; } .term .body .hl{ color:#ffd479; } .term .body .cm{ color:#5a647a; }
+  .exp{ margin-top:12px; border:1px solid var(--ok); border-radius:10px; background:var(--ok-soft); padding:11px 14px; font-size:12.5px; color:#0c6b46; line-height:1.7; } .exp b{ color:#094d33; } .exp code{ background:#fff; border-color:#bfe3d0; color:#0c6b46; }
+  .pending{ border-color:var(--warn); background:var(--warn-soft); color:#92510a; } .pending b{ color:#7a4209; } .pending code{ border-color:#e8d3a8; color:#92510a; }
+  .term-note{ font-size:11.5px; color:var(--fg-3); margin-top:8px; line-height:1.6; }
+  .dod{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .dod li{ font-size:13px; color:var(--fg-2); padding-left:26px; position:relative; line-height:1.5; } .dod li::before{ content:'☐'; position:absolute; left:2px; top:-1px; color:var(--accent); font-weight:700; font-size:15px; }
+  .pnav{ display:flex; gap:10px; align-items:center; margin:20px 0 8px; } .pnav .grow{ flex:1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>步骤 ② · kafka / pulsar 安装（live 验收）</h1>
+          <p>把 ① 已验证的渲染真正落到集群：用 <code>mb</code> 经 helm 在 minikube 上装出 kafka / pulsar，broker 起来即过。</p>
+          <div class="stepmeta">
+            <span class="gear live">☸️ 实测</span><span class="gear">需 minikube</span>
+            <span class="badge b-ok"><span class="d"></span>已验收 ✓</span>
+          </div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px">
+        <div><b>🔁 验证节奏：</b>① 我执行一遍 → 绿灯 → ② <b>清理 / 复位</b> → ③ 你照「✅ 验收命令」从干净状态复跑一遍 → 顺畅且同样绿灯 = 本步通过。</div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🎯 目标 &amp; 前置</h3></div>
+        <div class="card-pad">
+          <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 12px">真集群装 MQ。kafka 默认走 bitnami-helm、pulsar 走 apache-helm；helm 路径 <code>render → apply → wait-ready → register</code>。</p>
+          <div class="deprow">
+            <span class="depchip"><span class="dot"></span>步骤 ① 绿（渲染正确）</span>
+            <span class="depchip"><span class="dot"></span>minikube 就绪（<code>kubectl get nodes</code> Ready）</span>
+            <span class="depchip"><span class="dot"></span>daemon 用 k8s adapter</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🚀 前置（幂等 · 可重复跑）</h3><span class="sub">从干净或脏状态都能从头跑到尾</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🚀 环境 + helm 仓库（每条都幂等）</span></div><div class="body"><div class="c">cd milvus-bootstrap &amp;&amp; source .venv/bin/activate</div><div class="c">export MB_ADAPTER=k8s <span class="cm"># 真集群；改 adapter 要 mb core stop 再 start</span></div><div class="c">mb core start <span class="cm"># 幂等：已运行则跳过</span></div><div class="c">mb status <span class="cm"># 确认 adapter=k8s 再往下</span></div><div class="c">helm repo add bitnami https://charts.bitnami.com/bitnami <span class="cm"># 幂等：已存在则覆盖</span></div><div class="c">helm repo add apache https://pulsar.apache.org/charts</div><div class="c">helm repo update</div></div></div>
+          <div class="term-note"><b>幂等说明：</b>本页命令可反复跑——<code>helm repo add</code>/<code>mb core start</code> 已在则跳过；<code>mb install --apply</code> 即 <code>helm upgrade --install</code>（重复=覆盖）；<code>mb delete</code> 实例不在也安全。故可<b>从头执行到尾、反复观察现象</b>。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>📋 任务细则</h3></div>
+        <div class="card-pad">
+          <ol class="dt">
+            <li><b>装 kafka：</b><code>mb install kafka --name kafka-dev --apply</code> → helm 装 bitnami/kafka（broker StatefulSet）。</li>
+            <li><b>装 pulsar：</b><code>mb install pulsar --name pulsar-dev --apply</code> → helm 装 apache/pulsar。</li>
+            <li><b>就绪等待：</b>driver 的 <code>wait-ready</code> 按 <code>app.kubernetes.io/instance</code> 轮询到工作负载 Ready。</li>
+            <li><b>登记：</b>装完登记为 <b>Managed · authoritative</b>，<code>mb discover</code> 可见。</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>✅ 验收命令</h3><span class="sub">在 minikube 上跑</span></div>
+        <div class="card-pad">
+          <div class="term">
+            <div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">☸️ 安装 + 校验</span></div>
+            <div class="body"><div class="c">mb install kafka --name kafka-dev --apply</div><div class="c">mb install pulsar --name pulsar-dev --apply</div><div class="c">kubectl get pods | grep -E 'kafka-dev|pulsar-dev'</div><div class="o">kafka-dev-controller-0     <span class="ok">1/1   Running</span>
+pulsar-dev-zookeeper-0     <span class="ok">1/1   Running</span>
+pulsar-dev-bookie-0        <span class="ok">1/1   Running</span>
+pulsar-dev-bookie-1        <span class="ok">1/1   Running</span>
+pulsar-dev-broker-0        <span class="ok">1/1   Running</span>
+pulsar-dev-proxy-0         <span class="ok">1/1   Running</span></div><div class="c">mb status   <span style="opacity:.6"># 权威 Managed 态</span></div><div class="o">instances: ['etcd', '<span class="ok">kafka-dev</span>', 'minio', '<span class="ok">pulsar-dev</span>']</div></div>
+          </div>
+          <div class="exp">
+            <b>✅ 绿灯（实测 2026-06-29）：</b>kafka-dev / pulsar-dev broker pod <code>Running</code>；<code>mb status</code> 两者均登记为 <code>Managed</code>。两者都起来 → 进 <b>步骤③</b>。
+            <br><span style="opacity:.75">注：<code>mb discover</code> 是无状态集群扫描，对已登记的 Managed 实例仍标 <code>adoptable</code>（discover 未 reconcile state / register 未给集群 workload 打 managed 注解）——权威 Managed 态以 <code>mb status</code> 为准。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🧹 清理 / 复位</h3><span class="sub">我跑完即复位，让你从干净状态复跑</span></div>
+        <div class="card-pad">
+          <div class="term">
+            <div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧹 复位</span></div>
+            <div class="body"><div class="c">mb delete kafka-dev --apply</div><div class="c">mb delete pulsar-dev --apply <span class="cm"># helm uninstall（PVC 默认保留）</span></div><div class="c">kubectl delete pvc -l app.kubernetes.io/instance=kafka-dev <span class="cm"># 彻底复位（可选）</span></div></div>
+          </div>
+          <div class="term-note">复位后照「✅ 验收命令」再装一遍应同样 Running → 步骤可复现。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>☑️ 完成标记（DoD）</h3></div>
+        <div class="card-pad">
+          <ul class="dod">
+            <li>kafka-dev broker <code>Running</code></li>
+            <li>pulsar-dev broker <code>Running</code></li>
+            <li><code>mb discover</code> 两者均 Managed · authoritative</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pnav" data-rise>
+        <a class="btn btn-ghost" href="phase1-step1.html">← 步骤 ①</a>
+        <span class="grow"></span>
+        <a class="btn btn-primary" href="phase1-step3.html">下一步 ③ · milvus 连 kafka（dry-run）→</a>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-step2', crumbs:['阶段一 · 实施计划','② kafka/pulsar live'] });
+</script>
+</body>
+</html>

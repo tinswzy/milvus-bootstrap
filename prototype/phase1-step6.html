@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>步骤 ⑥ · switch-mq kafka→pulsar · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>步骤 ⑥ · switch-mq：kafka → pulsar（★ 核心）</h1>
+          <p>不重装 milvus，在线把 WAL/MQ 从 kafka 切到 pulsar —— 这是整个工具的招牌能力。</p>
+          <div class="stepmeta"><span class="gear live">☸️ 实测</span><span class="gear">需 minikube</span><span class="badge b-idle"><span class="d"></span>待验收</span></div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px"><div><b>🔁 验证节奏：</b>① 我执行一遍 → 绿灯 → ② 清理/复位（切回 kafka）→ ③ 你复跑确认顺畅。</div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🎯 目标 &amp; 前置</h3></div><div class="card-pad">
+        <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 12px">三步护栏：<b>装新 MQ → wal/alter → 下线旧</b>。新 MQ(pulsar)在步骤②已就绪，milvus(kafka)在步骤④已 Healthy。</p>
+        <div class="deprow"><span class="depchip"><span class="dot"></span>步骤 ④ milvus-dev Healthy（on kafka）</span><span class="depchip"><span class="dot"></span>步骤 ② pulsar-dev Running</span></div>
+      </div></div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🚀 前置（幂等 · 可重复跑）</h3><span class="sub">从干净或脏状态都能从头跑到尾</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🚀 环境（每条都幂等）</span></div><div class="body"><div class="c">cd milvus-bootstrap &amp;&amp; source .venv/bin/activate</div><div class="c">export MB_ADAPTER=k8s <span class="cm"># 真集群；改 adapter 要 mb core stop 再 start</span></div><div class="c">mb core start <span class="cm"># 幂等：已运行则跳过</span></div><div class="c">mb status <span class="cm"># 确认 adapter=k8s 再往下</span></div></div></div>
+          <div class="term-note"><b>前序产物：</b>需 <b>milvus-dev on kafka（步骤④）Healthy</b> + <b>pulsar-dev（步骤②）</b>已在。<b>幂等说明：</b><code>switch-mq</code> 可来回切（切回 kafka 即复位），重复跑安全 → <b>可从头到尾反复执行观察</b>。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise><div class="card-head"><h3>📋 任务细则</h3><span class="sub">MilvusDriver.plan_switch_mq_steps</span></div><div class="card-pad"><ol class="dt">
+        <li><b>precheck-target：</b>确认目标 MQ(pulsar)服务就位、milvus 可连。</li>
+        <li><b>wal-alter：</b>在 milvus pod 内 <code>POST :9091/management/wal/alter</code>，body <code>{"target_wal_name":"pulsar"}</code>（经 adapter.exec 执行）。</li>
+        <li><b>verify：</b>校验 WAL 已切到 pulsar、旧 MQ 写入排空。</li>
+        <li><b>decommission-old：</b>确认无残留写入后下线旧 MQ。</li>
+      </ol></div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>✅ 验收命令</h3><span class="sub">在 minikube 上跑</span></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">☸️ 切换 + 校验</span></div><div class="body"><div class="c">mb switch-mq milvus-dev --to pulsar --apply</div><div class="o">precheck-target   <span class="ok">ok</span>
+wal-alter         <span class="ok">ok</span>  (POST /management/wal/alter target_wal_name=pulsar)
+verify            <span class="ok">ok</span>
+decommission-old  <span class="ok">ok</span></div><div class="c">kubectl get milvus milvus-dev -o jsonpath='{.status.status}'</div><div class="o"><span class="ok">Healthy</span></div></div></div>
+        <div class="exp pending"><b>🟡 绿灯判据（期望，待真集群回填实测）：</b>wal/alter 返回 ok；milvus 切后仍 <code>Healthy</code>；新写入落到 pulsar（旧 kafka 不再产生新写）。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🧹 清理 / 复位</h3></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧹 复位（切回 kafka）</span></div><div class="body"><div class="c">mb switch-mq milvus-dev --to kafka --apply <span class="cm"># 切回，便于你复跑</span></div></div></div>
+        <div class="term-note">切回 kafka 即回到步骤④状态，你可从干净起点复跑切换。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>☑️ 完成标记（DoD）</h3></div><div class="card-pad"><ul class="dod"><li>wal/alter 返回 ok</li><li>切换后 milvus 仍 <code>Healthy</code></li><li>新写入走 pulsar</li></ul></div></div>
+
+      <div class="pnav" data-rise><a class="btn btn-ghost" href="phase1-step5.html">← 步骤 ⑤</a><span class="grow"></span><a class="btn btn-primary" href="phase1-step7.html">下一步 ⑦ · kafka 独立升级 →</a></div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-step6', crumbs:['阶段一 · 实施计划','⑥ switch-mq kafka→pulsar'] });
+</script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>步骤 ① · kafka/pulsar 安装（dry-run） · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+<style>
+  .stepmeta{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:11px; }
+  .gear{ font-family:var(--font-mono); font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; border:1px solid var(--line-2); background:var(--surface); color:var(--fg-2); }
+  .gear.unit{ background:var(--ok-soft); color:#0c6b46; border-color:transparent; }
+  .gear.dry{ background:var(--accent-soft); color:var(--accent-ink); border-color:transparent; }
+  .deprow{ display:flex; gap:10px; flex-wrap:wrap; }
+  .depchip{ font-size:12px; padding:6px 11px; border-radius:8px; border:1px solid var(--line-2); background:var(--surface-3); color:var(--fg-2); display:flex; gap:7px; align-items:center; }
+  .depchip .dot{ width:7px;height:7px;border-radius:50%; background:var(--ok); }
+  .dt{ counter-reset:d; margin:0; padding:0; list-style:none; }
+  .dt li{ counter-increment:d; position:relative; padding:9px 0 9px 34px; border-bottom:1px dashed var(--line); font-size:13px; color:var(--fg-2); line-height:1.65; }
+  .dt li:last-child{ border-bottom:none; }
+  .dt li::before{ content:counter(d); position:absolute; left:0; top:8px; width:22px;height:22px; border-radius:7px; background:var(--accent); color:#fff; font-family:var(--font-mono); font-size:11px; font-weight:700; display:grid; place-items:center; }
+  .dt li b{ color:var(--fg-1); } .dt li code,.exp code,.dod li code,.term-note code{ font-family:var(--font-mono); font-size:11.5px; background:var(--surface-3); border:1px solid var(--line); border-radius:4px; padding:1px 5px; color:var(--accent-ink); }
+  .term{ background:#0f1117; border:1px solid #20242e; border-radius:11px; overflow:hidden; box-shadow:var(--shadow-sm); margin-top:6px; }
+  .term + .term{ margin-top:12px; }
+  .term .tbar{ display:flex; align-items:center; gap:7px; padding:9px 13px; border-bottom:1px solid #20242e; background:#141821; }
+  .term .tbar .tdot{ width:11px;height:11px;border-radius:50%; } .td1{background:#ff5f57}.td2{background:#febc2e}.td3{background:#28c840}
+  .term .tbar .tt{ margin-left:8px; font-family:var(--font-mono); font-size:11px; color:#8b93a7; }
+  .term .body{ padding:13px 15px; font-family:var(--font-mono); font-size:12.5px; line-height:1.85; color:#cdd3e0; overflow-x:auto; }
+  .term .body .c{ color:#7ee787; } .term .body .c::before{ content:'$ '; color:#5a647a; }
+  .term .body .o{ color:#9aa3b6; white-space:pre-wrap; } .term .body .ok{ color:#7ee787; font-weight:600; } .term .body .hl{ color:#ffd479; }
+  .term .body .cm{ color:#5a647a; }
+  .exp{ margin-top:12px; border:1px solid var(--ok); border-radius:10px; background:var(--ok-soft); padding:11px 14px; font-size:12.5px; color:#0c6b46; line-height:1.7; }
+  .exp b{ color:#094d33; } .exp code{ background:#fff; border-color:#bfe3d0; color:#0c6b46; }
+  .term-note{ font-size:11.5px; color:var(--fg-3); margin-top:8px; line-height:1.6; }
+  .dod{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .dod li{ font-size:13px; color:var(--fg-2); padding-left:26px; position:relative; line-height:1.5; }
+  .dod li::before{ content:'☐'; position:absolute; left:2px; top:-1px; color:var(--accent); font-weight:700; font-size:15px; }
+  .pnav{ display:flex; gap:10px; align-items:center; margin:20px 0 8px; } .pnav .grow{ flex:1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>步骤 ① · kafka / pulsar 安装（dry-run 验收）</h1>
+          <p>验证 <code>mb</code> 能为 kafka(bitnami-helm) / pulsar(apache-helm) 渲染出正确的安装计划 —— <b>无需集群</b>，纯 🧪 单测 + 📋 dry-run，应当秒过。</p>
+          <div class="stepmeta">
+            <span class="gear unit">🧪 单测</span><span class="gear dry">📋 dry-run</span>
+            <span class="gear">无需集群</span>
+            <span class="badge b-ok"><span class="d"></span>已验收 ✓</span>
+          </div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="callout co-info" data-rise style="margin-bottom:18px">
+        <div><b>🔁 验证节奏：</b>① 我执行一遍 → 绿灯 → ② <b>清理 / 复位</b> → ③ 你照「✅ 验收命令」从干净状态复跑一遍 → 顺畅且同样绿灯 = 本步通过。</div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🎯 目标 &amp; 前置</h3></div>
+        <div class="card-pad">
+          <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 12px">把"先闭环的 MQ"接进来：先证明<b>渲染层</b>正确（dry-run 能出对的安装计划），再去真集群装（步骤②）。这一格不碰集群。</p>
+          <div class="deprow">
+            <span class="depchip"><span class="dot"></span>骨架 A（pytest 绿）</span>
+            <span class="depchip"><span class="dot"></span>profiles/kafka.yaml · pulsar.yaml 已就位</span>
+            <span class="depchip" style="background:var(--surface)"><span class="dot" style="background:var(--idle)"></span>集群：不需要</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🚀 前置（幂等 · 可重复跑）</h3><span class="sub">无需集群</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🚀 环境（幂等）</span></div><div class="body"><div class="c">cd milvus-bootstrap &amp;&amp; source .venv/bin/activate</div><div class="c"><span class="cm"># 无集群步骤：fake adapter 默认即可（不必 export MB_ADAPTER=k8s）</span></div></div></div>
+          <div class="term-note"><b>幂等说明：</b>纯单测 / dry-run，无副作用，可反复跑 → 从头到尾随便观察。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>📋 任务细则</h3><span class="sub">这一步具体在验什么</span></div>
+        <div class="card-pad">
+          <ol class="dt">
+            <li><b>profile 就位：</b><code>profiles/kafka.yaml</code>(bitnami-helm 默认) 与 <code>profiles/pulsar.yaml</code>(apache-helm) 被 registry 正确加载为可安装组件。</li>
+            <li><b>渲染正确：</b>走 <code>BaseServiceDriver</code> 的 helm 路径，dry-run 出的 <code>apply</code> 步骤计划里包含正确 chart（<code>bitnami/kafka</code> / <code>apache/pulsar</code>）。</li>
+            <li><b>连接信息：</b>两者 <code>connect_info</code> 分别是 <code>externalKafka.brokerList</code> / <code>externalPulsar.endpoint</code>（供步骤③ milvus 接线用）。</li>
+            <li><b>状态语义：</b>state_class = <code>authoritative</code>（broker 自带数据，删除/缩容护栏生效）。</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>✅ 验收命令</h3><span class="sub">逐条跑，对照下方绿灯判据 · 输出为实跑结果</span></div>
+        <div class="card-pad">
+          <div class="term">
+            <div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧪 单测 · profile 加载 + 渲染 + connect</span></div>
+            <div class="body"><div class="cm"># 在 milvus-bootstrap/ 下</div><div class="c">uv run pytest tests/test_kafka_pulsar.py -q</div><div class="o">....                                                     [100%]
+<span class="ok">4 passed</span> in 0.56s</div></div>
+          </div>
+          <div class="term">
+            <div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">📋 dry-run · 渲染安装计划（fake adapter，无集群）</span></div>
+            <div class="body"><div class="c">uv run mb install kafka --name kafka-dev --dry-run</div><div class="o">apply ·  [fake] 经 bitnami-helm（helm）安装 kafka/kafka-dev 到 ns=default（<span class="ok">bitnami/kafka</span>, params={'controller': {'replicaCount': 3}}）</div><div class="c" style="margin-top:8px">uv run mb install pulsar --name pulsar-dev --dry-run</div><div class="o">apply ·  [fake] 经 apache-helm（helm）安装 pulsar/pulsar-dev 到 ns=default（<span class="ok">apache/pulsar</span>, params={}）</div></div>
+          </div>
+          <div class="term-note">CLI dry-run 走 daemon；无集群预演让 daemon 用 fake adapter 即可（<code>MB_ADAPTER=fake</code>）。真集群的 helm 命令在<b>步骤②</b>实测。</div>
+          <div class="exp">
+            <b>🟢 绿灯判据：</b>① pytest <code>4 passed</code>；② kafka 计划含 <code>bitnami/kafka</code>；③ pulsar 计划含 <code>apache/pulsar</code>。三条都对 → 本步通过，进 <b>步骤②（live 安装）</b>。
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🧹 清理 / 复位</h3><span class="sub">我跑完即复位，让你从干净状态复跑</span></div>
+        <div class="card-pad">
+          <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 10px">本步<b>无集群资源</b>，只需停掉本地 daemon、清掉 dry-run 用过的临时态即可复位。</p>
+          <div class="term">
+            <div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧹 复位</span></div>
+            <div class="body"><div class="c">uv run mb core stop</div><div class="o">已停止</div><div class="c">rm -rf /tmp/mbx <span class="cm"># dry-run 临时 MB_HOME（若用过）</span></div></div>
+          </div>
+          <div class="term-note">复位后照「✅ 验收命令」从头跑一遍应得到同样绿灯 → 步骤自洽、可复现。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>☑️ 完成标记（DoD）</h3></div>
+        <div class="card-pad">
+          <ul class="dod">
+            <li><code>test_kafka_pulsar.py</code> 全过（profiles 加载 + kafka/pulsar dry-run + connect_info）</li>
+            <li>kafka dry-run 渲染出 <code>bitnami/kafka</code> 安装计划</li>
+            <li>pulsar dry-run 渲染出 <code>apache/pulsar</code> 安装计划</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pnav" data-rise>
+        <a class="btn btn-ghost" href="phase1-plan.html">← 返回逐步清单</a>
+        <span class="grow"></span>
+        <a class="btn btn-primary" href="phase1-step2.html">下一步 ② · kafka/pulsar live 安装 →</a>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-step1', crumbs:['阶段一 · 实施计划','① kafka/pulsar dry-run'] });
+</script>
+</body>
+</html>

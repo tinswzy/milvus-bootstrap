@@ -6,6 +6,39 @@
 
 Milvus 3.0 内部已经把消息队列（MQ）抽象在统一的 **WAL 接口**（`WALImpls`）之后，理论上 `pulsar / kafka / woodpecker / rocksmq` 是可插拔的；但**安装期**（谁来 helm install pulsar/kafka）和**运行期**（milvus 该连哪个 MQ）这两件本应独立的事，被现有的 milvus-helm 和 milvus-operator **耦合**进了同一套 if-else 互斥假设里。结果就是"换 MQ"这种本该轻量的操作，变成了牵一发动全身的重活。
 
+## 仓库结构导览
+
+三类内容一眼分清：**① 产品代码** / **② 设计·讨论文档** / **③ 原型·沟通页**。
+
+```
+milvus-admin-webui/
+├── milvus-bootstrap/        ★① 真正的实现代码（mb —— CLI 工具 + FastAPI daemon）
+│   ├── src/milvus_bootstrap/
+│   │   ├── cli/main.py          瘦 CLI（install / upgrade / switch-mq / doctor …）
+│   │   ├── server/              FastAPI daemon（跑真正逻辑的常驻进程）
+│   │   ├── client/              CLI ↔ daemon 通信 transport
+│   │   ├── core/                ★ 业务核心
+│   │   │   ├── engines/             provisioner / lifecycle / discovery / ownership / config
+│   │   │   ├── drivers/             etcd / minio / kafka / milvus / woodpecker 组件驱动
+│   │   │   ├── platform/            k8s / fake 适配器
+│   │   │   ├── state/               文件状态存储
+│   │   │   ├── compat.py+compat.yaml  兼容矩阵 / 操作门禁
+│   │   │   ├── probe.py doctor.py     版本探测 / mb doctor 环境预检
+│   │   │   └── context.py models.py registry.py profile.py
+│   │   └── profiles/            各组件 YAML profile（安装拓扑 / 版本 / 连线规则）
+│   ├── tests/                   pytest 单测
+│   └── scripts/                 辅助脚本（mb-live-env.sh …）
+├── docs/                    ② 设计 / 方案讨论文档（见下「文档导航」）
+│   └── superpowers/             spec + 实现 plan（mb doctor 等特性）
+├── prototype/               ③ 可点击 HTML 原型 + phase1 逐步验收页（纯展示，见下「原型」）
+├── serve-docs.py            零依赖文档服务器（本地起 http 看 html/md，开发沟通用）
+└── README.md
+```
+
+- **要读 / 改产品，只进 `milvus-bootstrap/src/milvus_bootstrap/` 与 `milvus-bootstrap/tests/`。** 其余（`docs/`、`prototype/`、`serve-docs.py`）都是围绕它的设计、讨论、进度沟通，不参与运行。
+- 本地看这些文档：`python3 serve-docs.py 8899`，浏览器开 `http://<本机IP>:8899/`（HTML 直接渲染、`.md` 自动渲染）。
+- `mb` 工具用法与安装：见 [milvus-bootstrap/README.md](milvus-bootstrap/README.md)。
+
 ## 文档导航
 
 | 文档 | 面向读者 | 内容 |

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>步骤 ⑧ · milvus 升级 · 阶段一</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/hub.css">
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+
+      <div class="page-head" data-rise>
+        <div class="h-l">
+          <h1>步骤 ⑧ · milvus 升级</h1>
+          <p>升级 milvus 镜像（operator 滚动），依赖不动；升级后回到 <code>Healthy</code> 即过。</p>
+          <div class="stepmeta"><span class="gear live">☸️ 实测</span><span class="gear">需 minikube</span><span class="badge b-ok"><span class="d"></span>已验收 · 绿</span></div>
+        </div>
+        <div class="h-r"><a class="btn btn-ghost" href="phase1-plan.html">← 返回清单</a></div>
+      </div>
+
+      <div class="callout co-ok" data-rise style="margin-bottom:18px"><div><b>✅ 实测结论（2026-07-01）：</b>milvus-dev 由 <code>v2.6.3</code> 升到 <code>v2.6.18</code>，operator 滚动（新 pod ready 后旧 pod 才 Terminating），<code>.status.status</code> 回 <code>Healthy</code>，etcd/minio/kafka 全程不动（age 均早于升级）。升级 re-render 从快照重建 CR，<b><code>MINIO_ADDRESS</code> env 自动保留</b>——这也顺带验证了 2.6.18（裸配置必崩的版本）带修复后可正常运行。</div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🎯 目标 &amp; 前置</h3></div><div class="card-pad">
+        <p style="font-size:13px;color:var(--fg-2);line-height:1.7;margin:0 0 12px">milvus 是 stateless，升级 = 改 CR <code>components.image</code> 后 operator 滚动；etcd/minio/kafka 全程不动。</p>
+        <div class="deprow"><span class="depchip"><span class="dot"></span>步骤 ④ milvus-dev Healthy</span></div>
+      </div></div>
+
+      <div class="card" data-rise>
+        <div class="card-head"><h3>🚀 前置（幂等 · 可重复跑）</h3><span class="sub">从干净或脏状态都能从头跑到尾</span></div>
+        <div class="card-pad">
+          <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🚀 环境（每条都幂等）</span></div><div class="body"><div class="c">cd milvus-bootstrap &amp;&amp; source .venv/bin/activate</div><div class="c">export MB_ADAPTER=k8s <span class="cm"># 真集群；改 adapter 要 mb core stop 再 start</span></div><div class="c">mb core start <span class="cm"># 幂等：已运行则跳过</span></div><div class="c">mb status <span class="cm"># 确认 adapter=k8s 再往下</span></div></div></div>
+          <div class="term-note"><b>前序产物：</b>需 <b>milvus-dev（步骤④）</b>已在。<b>幂等说明：</b><code>mb upgrade --image</code> 再渲染应用，重复/回旧镜像都安全 → <b>可从头到尾反复执行观察</b>。</div>
+        </div>
+      </div>
+
+      <div class="card" data-rise><div class="card-head"><h3>📋 任务细则</h3></div><div class="card-pad"><ol class="dt">
+        <li><b>升级 milvus：</b><code>mb upgrade milvus-dev --image milvusdb/milvus:v2.6.4 --apply</code> → 重渲染 CR 的镜像、operator 滚动。</li>
+        <li><b>就绪门：</b>滚动后 <code>.status.status</code> 回到 <code>Healthy</code>。</li>
+        <li><b>依赖不动：</b>etcd/minio/kafka 实例无变更。</li>
+      </ol></div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>✅ 验收命令</h3><span class="sub">在 minikube 上跑</span></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">☸️ 升级 milvus + 校验</span></div><div class="body"><div class="c">mb upgrade milvus-dev --image milvusdb/milvus:v2.6.18 --apply</div><div class="o">precheck-operator ok · apply-cr ok · <span class="ok">wait-status ok (Healthy)</span></div><div class="c">kubectl get milvus milvus-dev -o jsonpath='{.spec.components.image}'</div><div class="o">milvusdb/milvus:<span class="ok">v2.6.18</span></div><div class="c">kubectl get milvus milvus-dev -o jsonpath='{.status.status}'</div><div class="o"><span class="ok">Healthy</span></div></div></div>
+        <div class="exp ok"><b>🟢 绿灯判据（已实测通过 2026-07-01）：</b>镜像滚到 <code>v2.6.18</code>；<code>.status.status</code> 回到 <code>Healthy</code>；etcd/minio/kafka 实例无变更；升级后 <code>MINIO_ADDRESS</code> env 仍在（不回归④的崩溃）。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>🧹 清理 / 复位</h3></div><div class="card-pad">
+        <div class="term"><div class="tbar"><span class="tdot td1"></span><span class="tdot td2"></span><span class="tdot td3"></span><span class="tt">🧹 复位</span></div><div class="body"><div class="c">mb upgrade milvus-dev --image milvusdb/milvus:v2.6.3 --apply <span class="cm"># 回到旧版</span></div></div></div>
+        <div class="term-note">回滚到旧镜像即复位。彻底重来：<code>mb delete milvus-dev --apply</code>。</div>
+      </div></div>
+
+      <div class="card" data-rise><div class="card-head"><h3>☑️ 完成标记（DoD）</h3></div><div class="card-pad"><ul class="dod"><li>✅ milvus 镜像滚到新版本（v2.6.3 → v2.6.18）</li><li>✅ 升级后回到 <code>Healthy</code></li><li>✅ 依赖实例无变更（etcd/minio/kafka age 早于升级）</li><li>✅ 升级 re-render 保留 <code>MINIO_ADDRESS</code> env（无回归）</li></ul></div></div>
+
+      <div class="pnav" data-rise><a class="btn btn-ghost" href="phase1-step7.html">← 步骤 ⑦</a><span class="grow"></span><a class="btn btn-primary" href="phase1-step9.html">下一步 ⑨ · 兼容矩阵 →</a></div>
+
+    </div>
+  </div>
+</div>
+<div id="toasts"></div>
+<script src="assets/hub.js"></script>
+<script>
+  Hub.mount({ page:'phase1-step8', crumbs:['阶段一 · 实施计划','⑧ milvus 升级'] });
+</script>
+</body>
+</html>
