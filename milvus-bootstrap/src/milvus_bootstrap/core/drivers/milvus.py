@@ -41,8 +41,7 @@ class MilvusDriver(BaseServiceDriver):
         image = params.get("image", "milvusdb/milvus:v3.0.0")
         mode = params.get("mode", "standalone")
         mq = params.get("mq", "woodpecker-service")
-        # gate the MQ choice on the milvus version — raises if not selectable
-        compat.check(mq, image, mode)
+        # compat gate is enforced upstream in provisioner.install(); no redundant check here
 
         etcd_eps = _as_list(params.get("etcdEndpoints"), [f"etcd.{ns}.svc:2379"])
         storage_endpoint = params.get("storageEndpoint", f"minio.{ns}.svc:9000")

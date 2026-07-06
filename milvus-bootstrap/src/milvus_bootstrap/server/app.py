@@ -5,13 +5,14 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .. import paths
 from ..core import doctor
 from ..core import webapi
+from ..core.compat import CompatError
 from ..core.context import Core
 from ..core.models import InstallSpec, Platform
 from ..core.taskrunner import TaskRunner
@@ -33,6 +34,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="milvus-bootstrap core daemon", lifespan=lifespan)
 runner = TaskRunner()
+
+
+@app.exception_handler(CompatError)
+def _compat_handler(request: Request, exc: CompatError) -> JSONResponse:
+    return JSONResponse(status_code=409,
+                        content={"error": "compat", "reason": str(exc), "force_hint": True})
+
+
+@app.exception_handler(ValueError)
+def _value_handler(request: Request, exc: ValueError) -> JSONResponse:
+    return JSONResponse(status_code=400,
+                        content={"error": "bad_request", "reason": str(exc)})
 
 
 def _core() -> Core:

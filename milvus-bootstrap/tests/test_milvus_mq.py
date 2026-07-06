@@ -41,8 +41,12 @@ def test_pulsar_wiring_on_2_6():
 
 
 def test_woodpecker_service_blocked_on_2_6():
-    with pytest.raises(ValueError):
-        _milvus_cr({"image": "milvusdb/milvus:v2.6.3", "mq": "woodpecker-service", "woodpeckerName": "wp"})
+    # Gate check is enforced in provisioner.install via compat.gate (not in build_install_manifests).
+    # Verify compat.gate raises CompatError (subclass of ValueError) for this combination.
+    from milvus_bootstrap.core.compat import CompatError, gate
+    with pytest.raises(CompatError):
+        gate("install", {"mq": "woodpecker-service", "image": "milvusdb/milvus:v2.6.3",
+                         "mode": "standalone", "versions": {}})
 
 
 def test_woodpecker_service_ok_on_3_0():
