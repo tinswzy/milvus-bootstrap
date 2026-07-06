@@ -141,14 +141,25 @@ class K8sAdapter(PlatformAdapter):
         self._run(helm_install_argv(name, chart, namespace, params))
         return f"[k8s] helm 安装完成：{name}（ns={namespace}）"
 
+    def _instance_workloads(self, name, namespace):
+        # Charts label the instance differently: most use app.kubernetes.io/instance=<name>
+        # (bitnami, operator), but apache/pulsar uses the legacy Helm `release=<name>`.
+        # Match either and dedupe by workload name.
+        seen, objs = set(), []
+        for selector in (f"app.kubernetes.io/instance={name}", f"release={name}"):
+            for o in (self.apps.list_namespaced_stateful_set(namespace, label_selector=selector).items
+                      + self.apps.list_namespaced_deployment(namespace, label_selector=selector).items):
+                if o.metadata.name not in seen:
+                    seen.add(o.metadata.name)
+                    objs.append(o)
+        return objs
+
     def wait_ready(self, *, kind, name, namespace, check, timeout_s: int = 420):
         self._ensure_client()
-        selector = f"app.kubernetes.io/instance={name}"
         deadline = time.monotonic() + timeout_s
         last = "无匹配工作负载"
         while time.monotonic() < deadline:
-            objs = (self.apps.list_namespaced_stateful_set(namespace, label_selector=selector).items
-                    + self.apps.list_namespaced_deployment(namespace, label_selector=selector).items)
+            objs = self._instance_workloads(name, namespace)
             if objs and all(self._ready(o) for o in objs):
                 return f"[k8s] {kind}/{name} ready（{len(objs)} 工作负载就绪 · 门槛：{check}）"
             last = "；".join(f"{o.metadata.name}: {(o.status.ready_replicas or 0)}/{o.spec.replicas or 1}" for o in objs) or last

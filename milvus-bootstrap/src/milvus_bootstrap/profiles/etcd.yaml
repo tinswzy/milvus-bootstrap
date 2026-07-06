@@ -16,9 +16,18 @@ install_methods:
     kind: helm
     chart: bitnami/etcd
     params:
+      # Bitnami moved versioned free images docker.io/bitnami/* -> docker.io/bitnamilegacy/*
+      # (Aug-2025); the chart default bitnami/etcd now 404s, so pin the legacy repo.
+      image: { repository: bitnamilegacy/etcd }
       replicaCount: 3               # odd for quorum
       persistence: { size: 10Gi }
-      auth: { rbac: { enabled: false } }
+      # Milvus connects to etcd WITHOUT auth. The bitnami etcd chart key is
+      # `auth.rbac.create` (NOT `enabled` — that key doesn't exist and is silently
+      # ignored, leaving the chart default create=true => RBAC on => milvus operator's
+      # unauthenticated etcd probe fails with EtcdNotReady). create=false =>
+      # ALLOW_NONE_AUTHENTICATION=yes, no root user. NOTE: auth-enabled state lives in
+      # etcd's data dir, so flipping this on an existing install needs a PVC wipe.
+      auth: { rbac: { create: false } }
   - id: raw-statefulset
     platform: k8s
     kind: manifest

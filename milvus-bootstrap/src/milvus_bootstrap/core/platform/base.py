@@ -32,7 +32,8 @@ class PlatformAdapter(ABC):
         """Actually create/update the workload. Returns a short detail string."""
 
     @abstractmethod
-    def wait_ready(self, *, kind: str, name: str, namespace: str, check: str) -> str:
+    def wait_ready(self, *, kind: str, name: str, namespace: str, check: str,
+                   timeout_s: int = 420) -> str:
         """Block until ready per the given check. Returns a short detail string."""
 
     @abstractmethod

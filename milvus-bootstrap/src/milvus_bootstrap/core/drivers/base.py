@@ -119,7 +119,8 @@ class BaseServiceDriver(ServiceDriver):
                                                        method_kind=m.kind, chart=chart, params=params),
                  compensate=lambda: adapter.delete_workload(kind=kind, name=name, namespace=ns)),
             Step(name="wait-ready", plan=f"等待就绪：{check}",
-                 action=lambda: adapter.wait_ready(kind=kind, name=name, namespace=ns, check=check)),
+                 action=lambda: adapter.wait_ready(kind=kind, name=name, namespace=ns, check=check,
+                                                   timeout_s=m.wait_timeout_s or 420)),
         ]
 
     def _operator_cr_steps(self, spec, adapter, m, params) -> list[Step]:

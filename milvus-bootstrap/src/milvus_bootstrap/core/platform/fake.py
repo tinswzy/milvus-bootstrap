@@ -63,7 +63,7 @@ class FakeAdapter(PlatformAdapter):
         self.applied.append({"kind": kind, "name": name, "namespace": namespace, "method": method})
         return f"[fake] applied {kind}/{name} via {method}"
 
-    def wait_ready(self, *, kind, name, namespace, check):
+    def wait_ready(self, *, kind, name, namespace, check, timeout_s: int = 420):
         return f"[fake] {kind}/{name} ready ({check})"
 
     def delete_workload(self, *, kind, name, namespace):

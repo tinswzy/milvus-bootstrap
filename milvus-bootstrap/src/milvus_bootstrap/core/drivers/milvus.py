@@ -67,7 +67,19 @@ class MilvusDriver(BaseServiceDriver):
         }
         deps.update(self._mq_deps(mq, params, ns))
 
-        cr_spec = {"mode": mode, "components": {"image": image}, "dependencies": deps}
+        components: dict = {"image": image}
+        # ★ External MinIO endpoint MUST reach Milvus as a single host:port string.
+        # The operator splits `storage.endpoint` into separate minio.address + minio.port
+        # fields; Milvus's segcore "init vector storage" then appends bucketName onto the
+        # endpoint (host:port/bucket), which minio-go rejects — "Endpoint url cannot have
+        # fully qualified paths." → CrashLoopBackOff. Milvus reads MINIO_ADDRESS with
+        # precedence and keeps it verbatim (colon-form), sidestepping the split. The
+        # operator does not manage this env, so the override sticks. Only inject when the
+        # endpoint carries an explicit port (real AWS S3 endpoints are portless & fine).
+        if storage_endpoint and ":" in storage_endpoint:
+            components["env"] = [{"name": "MINIO_ADDRESS", "value": storage_endpoint}]
+
+        cr_spec = {"mode": mode, "components": components, "dependencies": deps}
         conf = params.get("_conf")
         if conf:
             cr_spec["conf"] = {"data": conf}

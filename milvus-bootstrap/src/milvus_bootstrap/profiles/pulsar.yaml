@@ -12,6 +12,25 @@ install_methods:
     default: true
     kind: helm
     chart: apache/pulsar
+    wait_timeout_s: 900                       # pulsar 多组件串行启动(zk→bookie→init→broker)，420s 不够会误判+回滚
+    params:                                  # 单机最小拓扑：关监控栈、各组件 1 副本、关 anti-affinity
+      # 默认镜像是 apachepulsar/pulsar-all(~2.7GB，含 connectors/functions)；milvus 只需核心 MQ，
+      # 切到 slim 的 apachepulsar/pulsar(~1GB)省盘省拉取时间(单机磁盘吃紧)。
+      defaultPulsarImageRepository: apachepulsar/pulsar
+      affinity: { anti_affinity: false }
+      # chart 4.6.x 用 victoria-metrics-k8s-stack 子chart 管监控（旧 monitoring.* 键已失效，
+      # 不关会多起 grafana/victoria-metrics-operator/kube-state-metrics 等一堆 pod）。
+      victoria-metrics-k8s-stack: { enabled: false }
+      # 每个组件还会单独渲染一个 PodMonitor(monitoring.coreos.com/v1)；该 CRD 没装会
+      # 直接 render 失败，故逐组件关掉 podMonitor.enabled。
+      components: { functions: false, toolset: false, pulsar_manager: false }
+      zookeeper:    { replicaCount: 1, podMonitor: { enabled: false } }
+      # chart 硬编码 broker 启动前等 bookie DNS≥2（wait-bookkeeper-ready: until [ n -ge 2 ]），
+      # 故 bookie 最少 2 副本，单 bookie broker 永远起不来。
+      bookkeeper:   { replicaCount: 2, podMonitor: { enabled: false } }
+      autorecovery: { podMonitor: { enabled: false } }
+      broker:       { replicaCount: 1, podMonitor: { enabled: false } }
+      proxy:        { replicaCount: 1, podMonitor: { enabled: false } }
   - id: external
     platform: k8s
     kind: external

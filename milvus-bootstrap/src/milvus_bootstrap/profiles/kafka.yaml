@@ -16,8 +16,16 @@ install_methods:
     default: true
     kind: helm
     chart: bitnami/kafka
-    params:
-      controller: { replicaCount: 3 }
+    params:                                  # 单机最小拓扑（KRaft 单节点）；多副本/HA 需多节点集群
+      # Bitnami moved versioned free images docker.io/bitnami/* -> docker.io/bitnamilegacy/*
+      # (Aug-2025); the chart default bitnami/kafka now 404s, so pin the legacy repo.
+      image: { repository: bitnamilegacy/kafka }
+      controller: { replicaCount: 1, resourcesPreset: small }
+      # Milvus connects to the CLIENT listener WITHOUT auth. Bitnami kafka 32.x
+      # defaults listeners.client.protocol=SASL_PLAINTEXT (auto-gen SCRAM/PLAIN
+      # creds) => a plaintext milvus client fails => MsgStreamNotReady. PLAINTEXT
+      # drops auth on :9092 (interbroker/controller stay SASL, they're internal).
+      listeners: { client: { protocol: PLAINTEXT } }
   - id: external
     platform: k8s
     kind: external

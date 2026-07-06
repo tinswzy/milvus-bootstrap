@@ -47,6 +47,7 @@ class InstallMethod(BaseModel):
     cr: CRInfo | None = None                     # for kind == operator-cr
     ready: ReadyInfo | None = None               # for kind == operator-cr
     params: dict[str, Any] = Field(default_factory=dict)
+    wait_timeout_s: int | None = None            # override readiness wait (slow stacks, e.g. pulsar)
 
 
 class HealthRules(BaseModel):

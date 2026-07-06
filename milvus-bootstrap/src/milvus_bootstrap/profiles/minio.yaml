@@ -13,10 +13,10 @@ install_methods:
     kind: operator-cr
     cr: { group: minio.min.io, version: v2, plural: tenants, kind: Tenant }
     ready: { status_path: status.currentState, status_equals: Initialized }
-    params:
-      servers: 4
+    params:                           # dev-sized: 单机单盘(SNSD)，足够给 milvus 一个 S3 端点
+      servers: 1                       # prod: 4（多节点纠删码）
       volumesPerServer: 1
-      volumeSize: 500Gi
+      volumeSize: 10Gi                 # prod: 500Gi
       image: quay.io/minio/minio:latest
   - id: helm-subchart               # 回退：社区 minio helm chart（distributed）
     platform: k8s

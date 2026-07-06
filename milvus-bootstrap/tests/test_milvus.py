@@ -73,6 +73,31 @@ def test_milvus_build_manifests_all_external() -> None:
     assert wp["endpoints"][0] == "wp1-server-0.wp1-server-headless.default.svc:18080"
 
 
+def test_milvus_injects_minio_address_env_for_external_endpoint() -> None:
+    """External MinIO endpoint (host:port) must be passed to Milvus as MINIO_ADDRESS,
+    else the operator splits it into address+port and segcore appends the bucket onto
+    the endpoint → minio-go 'fully qualified paths' crash."""
+    prof = load_profiles()["milvus"]
+    drv = MilvusDriver(prof)
+    method = prof.method("milvus-operator", Platform.k8s)
+    params = {**method.params, "mq": "kafka",
+              "storageEndpoint": "minio.default.svc:80"}
+    cr = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"), method, params)[-1]
+    env = cr["spec"]["components"].get("env", [])
+    assert {"name": "MINIO_ADDRESS", "value": "minio.default.svc:80"} in env
+
+
+def test_milvus_no_minio_env_for_portless_endpoint() -> None:
+    """A portless endpoint (e.g. real AWS S3) needs no colon-form override."""
+    prof = load_profiles()["milvus"]
+    drv = MilvusDriver(prof)
+    method = prof.method("milvus-operator", Platform.k8s)
+    params = {**method.params, "mq": "kafka", "storageEndpoint": "s3.amazonaws.com"}
+    cr = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"), method, params)[-1]
+    env = {e["name"] for e in cr["spec"]["components"].get("env", [])}
+    assert "MINIO_ADDRESS" not in env
+
+
 def test_install_milvus_apply_registers(core: Core) -> None:
     task = core.install(InstallSpec(kind="milvus", name="milvus-dev",
                                     params={"woodpeckerName": "wp-dev"}), dry_run=False)

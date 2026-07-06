@@ -58,5 +58,5 @@ def test_minio_build_manifests_shape() -> None:
     assert kinds == ["Secret", "Tenant"]
     tenant = mans[1]
     assert tenant["apiVersion"] == "minio.min.io/v2"
-    assert tenant["spec"]["pools"][0]["servers"] == 4
+    assert tenant["spec"]["pools"][0]["servers"] == 1   # dev-sized SNSD (prod would be 4)
     assert tenant["spec"]["configuration"]["name"] == "m1-env"
