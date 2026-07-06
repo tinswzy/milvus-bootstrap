@@ -5,7 +5,8 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .. import paths
@@ -13,6 +14,7 @@ from ..core import doctor
 from ..core import webapi
 from ..core.context import Core
 from ..core.models import InstallSpec, Platform
+from ..core.taskrunner import TaskRunner
 
 core: Core | None = None
 
@@ -30,6 +32,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="milvus-bootstrap core daemon", lifespan=lifespan)
+runner = TaskRunner()
 
 
 def _core() -> Core:
@@ -91,6 +94,35 @@ def install(req: InstallReq) -> dict[str, Any]:
         chart_override=req.chart_override,
     )
     return _core().install(spec, dry_run=req.dry_run, force=req.force).model_dump()
+
+
+@app.post("/api/install")
+def api_install(req: InstallReq) -> Any:
+    spec = InstallSpec(
+        kind=req.kind, name=req.name, platform=req.platform,
+        method=req.method, namespace=req.namespace, params=req.params,
+        chart_override=req.chart_override,
+    )
+    if req.dry_run:
+        task = _core().install(spec, dry_run=True, force=req.force)
+        return {"task": task.model_dump(mode="json")}
+    # apply: synchronous gate pre-check (raises CompatError -> 409 via handler), then submit
+    _core().install(spec, dry_run=True, force=req.force)
+    tid = runner.submit(lambda: _core().install(spec, dry_run=False, force=req.force))
+    return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
+
+
+@app.get("/api/task/{task_id}")
+def api_task(task_id: str) -> dict[str, Any]:
+    rec = runner.get(task_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail="unknown task")
+    if rec["state"] == "running":
+        return {"state": "running", "task": None, "error": None}
+    if rec["state"] == "error":
+        return {"state": "error", "task": None, "error": rec["error"]}
+    dump = rec["result"].model_dump(mode="json")   # a Task
+    return {"state": dump["status"], "task": dump, "error": None}
 
 
 class DeleteReq(BaseModel):
