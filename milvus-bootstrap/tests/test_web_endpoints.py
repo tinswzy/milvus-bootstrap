@@ -43,3 +43,19 @@ def test_api_instances_empty(client):
     r = client.get("/api/instances")
     assert r.status_code == 200
     assert r.json() == {"instances": []}   # fresh fake state
+
+
+def test_api_instances_with_registered_instance(client):
+    # Exercises the loop body: kind comes from spec_snapshot, not an Instance attr.
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    app_module.core.install(InstallSpec(kind="etcd", name="etcd-dev"), dry_run=False)
+    r = client.get("/api/instances")
+    assert r.status_code == 200
+    inst = r.json()["instances"]
+    assert len(inst) == 1
+    row = inst[0]
+    assert row["name"] == "etcd-dev"
+    assert row["kind"] == "etcd"          # from spec_snapshot["kind"]
+    assert row["namespace"] == "default"
+    assert isinstance(row["ownership"], str)

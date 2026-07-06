@@ -56,8 +56,8 @@ def api_doctor() -> dict[str, Any]:
 def api_instances() -> dict[str, Any]:
     out = []
     for i in _core().state.list_instances():
-        out.append({"name": i.name, "kind": i.kind, "namespace": i.namespace,
-                    "ownership": i.ownership.value})
+        out.append({"name": i.name, "kind": i.spec_snapshot.get("kind", ""),
+                    "namespace": i.namespace, "ownership": i.ownership.value})
     return {"instances": out}
 
 
