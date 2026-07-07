@@ -2,7 +2,7 @@
 const NAV = [
   { id: 'overview', label: 'Overview', href: 'index.html' },
   { id: 'compat',   label: '版本依赖', href: 'compat.html' },
-  { id: 'install',  label: '安装向导（待做）', disabled: true },
+  { id: 'install',  label: '安装向导', href: 'install.html' },
 ];
 const LVL = { PASS: 'ok', WARN: 'warn', FAIL: 'err', SKIP: 'idle' };
 
@@ -23,6 +23,16 @@ async function getJSON(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(url + ' -> HTTP ' + r.status);
   return r.json();
+}
+
+async function postJSON(url, body) {
+  const r = await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  let data = null;
+  try { data = await r.json(); } catch (e) { /* empty body */ }
+  return { status: r.status, data };
 }
 
 function badge(level, text) {
@@ -94,4 +104,109 @@ async function renderOverview() {
     err.style.display = 'block';
     err.textContent = '加载失败：' + e.message;
   }
+}
+
+const INSTALL_KINDS = ['etcd', 'minio', 'kafka', 'pulsar', 'milvus'];
+const INSTALL_DEFAULTS = {
+  etcd: {}, minio: {}, kafka: {}, pulsar: {},
+  milvus: { mq: 'kafka', image: 'milvusdb/milvus:v2.6.18',
+            storageEndpoint: 'minio.default.svc:80', kafkaBrokers: 'kafka-dev.default.svc:9092' },
+};
+
+function paramRow(k, v) {
+  const row = document.createElement('div');
+  row.className = 'prow';
+  row.innerHTML = `<input class="pk" placeholder="key"><span>=</span><input class="pv" placeholder="value"><button class="btn btn-ghost btn-sm pdel">删</button>`;
+  row.querySelector('.pk').value = k || '';
+  row.querySelector('.pv').value = v || '';
+  row.querySelector('.pdel').onclick = () => row.remove();
+  return row;
+}
+
+function fillParams(kind) {
+  const box = document.getElementById('inst-params');
+  box.innerHTML = '';
+  const d = INSTALL_DEFAULTS[kind] || {};
+  const entries = Object.entries(d);
+  if (!entries.length) box.appendChild(paramRow('', ''));
+  else entries.forEach(([k, v]) => box.appendChild(paramRow(k, v)));
+}
+
+function collectParams() {
+  const out = {};
+  document.querySelectorAll('#inst-params .prow').forEach(r => {
+    const k = r.querySelector('.pk').value.trim();
+    if (k) out[k] = r.querySelector('.pv').value.trim();
+  });
+  return out;
+}
+
+function renderTaskResult(task) {
+  const st = { succeeded: 'PASS', failed: 'FAIL', rolled_back: 'FAIL' }[task.status] || 'WARN';
+  return `<div style="margin-bottom:8px">总状态：${badge(st, task.status)}${task.dry_run ? ' <span class="muted">(dry-run)</span>' : ''}</div>` +
+    '<table class="tbl"><thead><tr><th>步骤</th><th>状态</th><th>详情/计划</th></tr></thead><tbody>' +
+    task.steps.map(s => {
+      const lvl = { ok: 'PASS', failed: 'FAIL', skipped: 'SKIP', planned: 'WARN', running: 'WARN' }[s.status] || 'WARN';
+      return `<tr><td>${esc(s.name)}</td><td>${badge(lvl, s.status)}</td><td class="muted">${esc(s.detail || s.plan)}</td></tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+function installBody(dryRun, force) {
+  return {
+    kind: document.getElementById('inst-kind').value,
+    name: document.getElementById('inst-name').value.trim(),
+    namespace: document.getElementById('inst-ns').value.trim() || 'default',
+    params: collectParams(), dry_run: dryRun, force: !!force,
+  };
+}
+
+async function pollInstall(taskId, resultEl) {
+  const started = Date.now();
+  while (true) {
+    let j;
+    try { j = await getJSON('api/task/' + taskId); }
+    catch (e) { resultEl.innerHTML = '<span class="conn bad">轮询失败：' + esc(e.message) + '</span>'; return; }
+    if (j.state === 'running') {
+      resultEl.innerHTML = `<span class="muted">安装中… ${Math.round((Date.now() - started) / 1000)}s</span>`;
+      await new Promise(r => setTimeout(r, 1500));
+      continue;
+    }
+    if (j.state === 'error') { resultEl.innerHTML = '<span class="conn bad">执行出错：' + esc(j.error) + '</span>'; return; }
+    resultEl.innerHTML = renderTaskResult(j.task);
+    return;
+  }
+}
+
+async function submitInstall(dryRun, force) {
+  const err = document.getElementById('err'); err.style.display = 'none';
+  const resultEl = document.getElementById('inst-result');
+  const body = installBody(dryRun, force);
+  if (!body.name) { err.style.display = 'block'; err.textContent = '请填实例名'; return; }
+  resultEl.innerHTML = '<span class="muted">提交中…</span>';
+  const { status, data } = await postJSON('api/install', body);
+  if (status === 200) { resultEl.innerHTML = renderTaskResult(data.task); return; }
+  if (status === 202) { await pollInstall(data.task_id, resultEl); return; }
+  if (status === 409) {
+    resultEl.innerHTML = `<div class="conn bad">被兼容门禁拦截：${esc(data.reason)}</div>` +
+      `<button class="btn btn-primary btn-sm" id="inst-force" style="margin-top:8px">强制安装 --force</button>`;
+    document.getElementById('inst-force').onclick = () => {
+      if (confirm('确认跳过兼容门禁强制安装？')) submitInstall(dryRun, true);
+    };
+    return;
+  }
+  resultEl.innerHTML = '';
+  err.style.display = 'block';
+  err.textContent = '失败（HTTP ' + status + '）：' + esc((data && data.reason) || '未知错误');
+}
+
+function renderInstall() {
+  shell('install');
+  const sel = document.getElementById('inst-kind');
+  sel.innerHTML = INSTALL_KINDS.map(k => `<option value="${k}">${k}</option>`).join('');
+  sel.onchange = () => fillParams(sel.value);
+  fillParams(sel.value);
+  document.getElementById('inst-addparam').onclick = () =>
+    document.getElementById('inst-params').appendChild(paramRow('', ''));
+  document.getElementById('inst-dryrun').onclick = () => submitInstall(true, false);
+  document.getElementById('inst-apply').onclick = () => submitInstall(false, false);
 }

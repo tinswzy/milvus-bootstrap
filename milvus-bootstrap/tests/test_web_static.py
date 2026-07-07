@@ -35,3 +35,12 @@ def test_compat_page_served(client):
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
     assert 'id="mq-rules"' in r.text and 'id="constraints"' in r.text and 'id="upgrade-paths"' in r.text
     assert "renderCompat" in client.get("/assets/web.js").text
+
+
+def test_install_page_served(client):
+    r = client.get("/install.html")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert 'id="inst-kind"' in r.text and 'id="inst-params"' in r.text and 'id="inst-result"' in r.text
+    js = client.get("/assets/web.js").text
+    assert "renderInstall" in js and "postJSON" in js
+    assert "安装向导（待做）" not in js       # nav item enabled, not the disabled placeholder

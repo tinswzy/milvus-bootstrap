@@ -482,3 +482,11 @@ code.c2 { font-family:var(--font-mono); font-size:.9em; background:var(--surface
 .muted{color:var(--fg-3)} .mono{font-family:'IBM Plex Mono',monospace}
 .conn.ok{color:#2f9e6f;font-weight:600} .conn.bad{color:#b42318;font-weight:600}
 .tbl td,.tbl th{padding:8px 12px}
+
+/* --- install form --- */
+.frow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.frow label{font-size:13px;color:var(--fg-2)}
+.frow select,.frow input,.prow input{padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--fg-1);font-size:13px}
+.prow{display:flex;align-items:center;gap:8px;margin:6px 0}
+.prow .pk{width:220px} .prow .pv{flex:1}
+.btn-sm{padding:4px 10px;font-size:12px}
