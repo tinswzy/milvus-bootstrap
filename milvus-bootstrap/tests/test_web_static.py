@@ -66,3 +66,11 @@ def test_milvus_page_served(client):
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
     assert 'id="milvus-list"' in r.text
     assert "renderMilvus" in client.get("/assets/web.js").text
+
+
+def test_milvus_card_topology_markup(client):
+    js = client.get("/assets/web.js").text
+    assert "renderMilvus" in js
+    for marker in ['class="card inst"', 'inst-head', 'class="topo"', 'box box-mv', 'flow-h', 'mv-actions', 'function depBox']:
+        assert marker in js, marker
+    assert 'disabled title="下一切面"' in js       # deferred action placeholders

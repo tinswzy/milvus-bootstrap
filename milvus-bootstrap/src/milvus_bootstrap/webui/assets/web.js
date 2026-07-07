@@ -243,21 +243,43 @@ async function deleteInstance(name, onDone) {
   onDone();
 }
 
+function mqLogo(mq) { return ({ kafka: '🌊', pulsar: '📡', woodpecker: '🪶', rocksmq: '🪨' })[mq] || '📨'; }
+
+function depBox(cls, logo, name, role, id) {
+  return `<div class="box ${cls}">` +
+    `<div class="bt"><span class="lo">${esc(logo)}</span><div><div class="nm">${esc(name)}</div><div class="role">${esc(role)}</div></div></div>` +
+    `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(id || '—')}</div></div>`;
+}
+
 async function renderMilvus() {
   shell('milvus');
   const box = document.getElementById('milvus-list');
   try {
     const inst = await getJSON('api/instances');
     const rows = inst.instances.filter(i => i.kind === 'milvus');
-    const chip = (label, v) => v ? `<span class="chip">${esc(label)}: ${esc(v)}</span>` : '';
-    const head = `<div style="margin-bottom:12px"><a class="btn btn-primary btn-sm" href="install.html">+ 新建 Milvus</a></div>`;
+    const head = `<div style="margin-bottom:14px"><a class="btn btn-primary btn-sm" href="install.html">+ 新建 Milvus</a></div>`;
+    const ph = t => `<button class="btn btn-ghost btn-sm" disabled title="下一切面">${t}</button>`;
     box.innerHTML = head + (rows.length ? rows.map(i => {
-      const st = i.status ? badge(i.status === 'Healthy' ? 'PASS' : 'WARN', i.status) : '<span class="muted">健康 —</span>';
       const d = i.deps || {};
-      return `<div class="card"><div class="card-head"><h3>${esc(i.name)} ${st}</h3>` +
-        `<button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button></div>` +
-        `<div class="card-pad"><div class="muted mono" style="margin-bottom:8px">ns:${esc(i.namespace)} · ${esc(i.image || '—')}</div>` +
-        `<div class="chips">${chip('etcd', d.etcd)}${chip('存储', d.storage)}${chip('MQ', d.mq)}${chip('端点', d.mq_endpoint)}</div></div></div>`;
+      const st = i.status ? badge(i.status === 'Healthy' ? 'PASS' : 'WARN', i.status) : '<span class="muted">健康 —</span>';
+      return `<div class="card inst">` +
+        `<div class="inst-head"><span class="mvdot">M</span>` +
+        `<div><div class="nm">${esc(i.name)}</div><div class="ns">ns: ${esc(i.namespace)} · ${esc(i.image || '—')}</div></div>` +
+        `<div class="right">${st}</div></div>` +
+        `<div class="topo">` +
+          depBox('cell-etcd', '🗄️', 'etcd', '元数据', d.etcd || ('etcd.' + i.namespace + '.svc:2379')) +
+          `<div class="flow-h col2"></div>` +
+          `<div class="box box-mv">` +
+            `<div class="bt"><span class="lo">M</span><div><div class="nm">${esc(i.name)}</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
+            `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(i.name)} · ${esc(i.image || '—')}</div>` +
+            `<div class="mvmeta"><span class="badge b-accent"><span class="d"></span>MQ: ${esc(d.mq || '—')}</span></div>` +
+            `<div class="mv-actions">${ph('切换 MQ')}${ph('配置')}${ph('Pods')}<button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button></div>` +
+          `</div>` +
+          `<div class="flow-h col4"></div>` +
+          depBox('cell-store', '🪣', '对象存储', 'Object Storage', d.storage) +
+          `<div class="flow-v"></div>` +
+          depBox('cell-mq', mqLogo(d.mq), d.mq || 'MQ', '消息队列 · WAL', d.mq_endpoint) +
+        `</div></div>`;
     }).join('') : '<div class="card"><div class="card-pad muted">暂无 Milvus 实例</div></div>');
     box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderMilvus); });
   } catch (e) {
