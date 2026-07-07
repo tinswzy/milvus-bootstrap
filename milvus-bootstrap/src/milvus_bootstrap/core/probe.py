@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 
 def run_kubectl(args: list[str]) -> tuple[int, str, str]:
@@ -69,6 +70,43 @@ def milvus_status(name: str, run=run_kubectl) -> str | None:
     if rc != 0:
         return None
     return out.strip() or None
+
+
+class PodImage(NamedTuple):
+    namespace: str
+    pod: str
+    image: str
+    image_id: str
+
+
+def _sha_of(image_id: str) -> str:
+    """Extract 'sha256:...' from a k8s imageID (repo@sha256:.. / docker-pullable://repo@sha256:..)."""
+    if not image_id or "sha256:" not in image_id:
+        return ""
+    return "sha256:" + image_id.split("sha256:", 1)[1].strip()
+
+
+def pod_images(run=run_kubectl) -> list[PodImage]:
+    """One-shot map of every pod's primary container image + imageID (best-effort)."""
+    rc, out, _ = run(["get", "pods", "-A", "-o",
+                      "jsonpath={range .items[*]}{.metadata.namespace}{'\\t'}{.metadata.name}{'\\t'}"
+                      "{.status.containerStatuses[0].image}{'\\t'}{.status.containerStatuses[0].imageID}{'\\n'}{end}"])
+    if rc != 0:
+        return []
+    pods: list[PodImage] = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 4:
+            pods.append(PodImage(*[p.strip() for p in parts]))
+    return pods
+
+
+def match_pod_image(pods, name: str, ns: str) -> tuple[str, str]:
+    """First pod in ns whose name starts with the instance name → (image, sha256-or-'')."""
+    for p in pods:
+        if p.namespace == ns and p.pod.startswith(name):
+            return p.image, _sha_of(p.image_id)
+    return "", ""
 
 
 def detect_versions(run=run_kubectl) -> DetectedVersions:

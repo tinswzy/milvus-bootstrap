@@ -56,3 +56,22 @@ def test_milvus_status_ok_and_missing():
     assert ok == "Healthy"
     assert probe.milvus_status("m1", run=lambda a: (1, "", "err")) is None
     assert probe.milvus_status("m1", run=lambda a: (0, "", "")) is None   # empty status
+
+
+def test_sha_of_extracts_digest():
+    assert probe._sha_of("docker-pullable://milvusdb/milvus@sha256:abc123") == "sha256:abc123"
+    assert probe._sha_of("milvusdb/etcd@sha256:def456") == "sha256:def456"
+    assert probe._sha_of("milvusdb/etcd:3.5") == ""          # no digest
+    assert probe._sha_of("") == ""
+
+
+def test_pod_images_parses_and_matches():
+    line = ("default\tetcd-0\tmilvusdb/etcd:3.5.18\tmilvusdb/etcd@sha256:aaa\n"
+            "default\tmilvus-dev-standalone-1\tmilvusdb/milvus:v2.6.18\tdocker-pullable://milvusdb/milvus@sha256:bbb\n")
+    pods = probe.pod_images(run=lambda a: (0, line, ""))
+    assert len(pods) == 2 and pods[0].pod == "etcd-0"
+    # match by ns + name prefix
+    assert probe.match_pod_image(pods, "etcd", "default") == ("milvusdb/etcd:3.5.18", "sha256:aaa")
+    assert probe.match_pod_image(pods, "milvus-dev", "default") == ("milvusdb/milvus:v2.6.18", "sha256:bbb")
+    assert probe.match_pod_image(pods, "etcd", "other-ns") == ("", "")   # ns mismatch
+    assert probe.pod_images(run=lambda a: (1, "", "boom")) == []          # kubectl failure
