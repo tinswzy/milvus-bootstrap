@@ -64,6 +64,13 @@ class DetectedVersions:
         return d
 
 
+def milvus_status(name: str, run=run_kubectl) -> str | None:
+    rc, out, _ = run(["get", "milvus", name, "-o", "jsonpath={.status.status}"])
+    if rc != 0:
+        return None
+    return out.strip() or None
+
+
 def detect_versions(run=run_kubectl) -> DetectedVersions:
     dv = DetectedVersions()
 

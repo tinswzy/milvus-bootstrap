@@ -49,3 +49,10 @@ def test_detect_dependency_versions_from_pod_images():
     assert dv.pulsar == "3.0.7"
     d = dv.as_compat_dict()
     assert d["etcd"] == "3.5.25" and d["minio"].startswith("RELEASE.")
+
+
+def test_milvus_status_ok_and_missing():
+    ok = probe.milvus_status("m1", run=_fake_run({"get milvus m1": (0, "Healthy", "")}))
+    assert ok == "Healthy"
+    assert probe.milvus_status("m1", run=lambda a: (1, "", "err")) is None
+    assert probe.milvus_status("m1", run=lambda a: (0, "", "")) is None   # empty status

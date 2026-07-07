@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from .. import paths
 from ..core import doctor
+from ..core import probe
 from ..core import webapi
 from ..core.compat import CompatError
 from ..core.context import Core
@@ -70,10 +71,28 @@ def api_doctor() -> dict[str, Any]:
 
 @app.get("/api/instances")
 def api_instances() -> dict[str, Any]:
+    is_k8s = getattr(_core().adapter, "name", "") == "k8s"
     out = []
     for i in _core().state.list_instances():
-        out.append({"name": i.name, "kind": i.spec_snapshot.get("kind", ""),
-                    "namespace": i.namespace, "ownership": i.ownership.value})
+        snap = i.spec_snapshot or {}
+        kind = snap.get("kind", "")
+        params = snap.get("params", {}) or {}
+        row = {"name": i.name, "kind": kind, "namespace": i.namespace,
+               "ownership": i.ownership.value, "image": "", "status": None, "deps": None}
+        if kind == "milvus":
+            row["image"] = params.get("image", "")
+            row["deps"] = {
+                "etcd": params.get("etcdEndpoints", ""),
+                "storage": params.get("storageEndpoint", ""),
+                "mq": params.get("mq", ""),
+                "mq_endpoint": params.get("kafkaBrokers") or params.get("pulsarEndpoint") or "",
+            }
+            if is_k8s:
+                try:
+                    row["status"] = probe.milvus_status(i.name)
+                except Exception:
+                    row["status"] = None
+        out.append(row)
     return {"instances": out}
 
 

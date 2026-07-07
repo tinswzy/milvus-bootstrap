@@ -59,3 +59,20 @@ def test_api_instances_with_registered_instance(client):
     assert row["kind"] == "etcd"          # from spec_snapshot["kind"]
     assert row["namespace"] == "default"
     assert isinstance(row["ownership"], str)
+
+
+def test_api_instances_enriched_fields(client):
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    app_module.core.install(InstallSpec(kind="etcd", name="etcd-dev"), dry_run=False)
+    app_module.core.install(InstallSpec(kind="milvus", name="milvus-dev", params={
+        "mq": "kafka", "image": "milvusdb/milvus:v2.6.18",
+        "storageEndpoint": "minio.default.svc:80",
+        "kafkaBrokers": "kafka-dev.default.svc:9092"}), dry_run=False)
+    rows = {r["name"]: r for r in client.get("/api/instances").json()["instances"]}
+    assert rows["etcd-dev"]["deps"] is None and rows["etcd-dev"]["status"] is None
+    m = rows["milvus-dev"]
+    assert m["image"] == "milvusdb/milvus:v2.6.18"
+    assert m["status"] is None                                  # fake adapter → not queried
+    assert m["deps"]["mq"] == "kafka" and m["deps"]["storage"] == "minio.default.svc:80"
+    assert m["deps"]["mq_endpoint"] == "kafka-dev.default.svc:9092"
