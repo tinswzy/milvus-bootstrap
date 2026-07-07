@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -84,3 +86,12 @@ def test_deps_accordion_markup_and_css(client):
     css = client.get("/assets/web.css").text
     for c in ['.acc-head', '.acc-body', '.img', '.acc.open']:
         assert c in css, c
+
+
+def test_esc_encodes_quotes(client):
+    """esc() must encode " and ' (used in data-del=... attribute contexts), not only &<>."""
+    js = client.get("/assets/web.js").text
+    # the esc() replacement must cover quotes so attribute interpolation can't break out
+    assert "&quot;" in js and "&#39;" in js
+    m = re.search(r"function esc\(s\).*?replace\(/\[([^\]]*)\]/g", js)
+    assert m and '"' in m.group(1) and "'" in m.group(1), m and m.group(1)
