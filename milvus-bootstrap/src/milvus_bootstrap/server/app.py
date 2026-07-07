@@ -167,6 +167,14 @@ def delete(req: DeleteReq) -> dict[str, Any]:
     return _core().delete(req.instance, dry_run=req.dry_run).model_dump()
 
 
+@app.post("/api/delete")
+def api_delete(req: DeleteReq) -> Any:
+    if _core().state.get_instance(req.instance) is None:
+        raise ValueError(f"未找到实例：{req.instance}")
+    tid = runner.submit(lambda: _core().delete(req.instance, dry_run=False))
+    return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
+
+
 class ScaleReq(BaseModel):
     instance: str
     replicas: int

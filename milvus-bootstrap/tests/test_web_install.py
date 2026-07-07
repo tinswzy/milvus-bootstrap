@@ -58,3 +58,28 @@ def test_install_milvus_force_bypasses_gate(client):
         "params": {"mq": "woodpecker-service", "image": "milvusdb/milvus:v2.6.3"}})
     assert r.status_code == 200          # force -> gate downgraded, dry-run proceeds
     assert r.json()["task"]["dry_run"] is True
+
+
+def test_delete_async_then_gone(client):
+    import time
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    app_module.core.install(InstallSpec(kind="etcd", name="etcd-del"), dry_run=False)
+    r = client.post("/api/delete", json={"instance": "etcd-del"})
+    assert r.status_code == 202
+    tid = r.json()["task_id"]
+    end = time.monotonic() + 5
+    state = "running"
+    while time.monotonic() < end:
+        state = client.get(f"/api/task/{tid}").json()["state"]
+        if state != "running":
+            break
+        time.sleep(0.05)
+    assert state == "succeeded"
+    names = [i["name"] for i in client.get("/api/instances").json()["instances"]]
+    assert "etcd-del" not in names
+
+
+def test_delete_unknown_instance_400(client):
+    r = client.post("/api/delete", json={"instance": "nope"})
+    assert r.status_code == 400 and r.json()["error"] == "bad_request"
