@@ -489,3 +489,7 @@ code.c2 { font-family:var(--font-mono); font-size:.9em; background:var(--surface
 .prow{display:flex;align-items:center;gap:8px;margin:6px 0}
 .prow .pk{width:220px} .prow .pv{flex:1}
 .btn-sm{padding:4px 10px;font-size:12px}
+
+/* --- instance chips --- */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--fg-2);background:var(--surface-2);border:1px solid var(--line);border-radius:20px;padding:2px 10px}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dependencies · Milvus Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/web.css">
+</head><body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+      <div class="page-head"><div class="h-l"><h1>Dependencies</h1>
+        <p>Milvus 依赖的组件实例，按类型分组。Milvus 实例本身在「Milvus 实例」页管理。</p></div>
+        <div class="h-r"><button class="btn btn-primary" id="refresh">刷新</button></div></div>
+      <div id="err" class="callout co-err" style="display:none;margin-bottom:14px"></div>
+      <div id="deps-list">加载中…</div>
+    </div>
+  </div>
+</div>
+<script src="assets/web.js"></script>
+<script>renderDeps();document.getElementById('refresh').onclick=renderDeps;</script>
+</body></html>

@@ -221,3 +221,51 @@ function renderInstall() {
   document.getElementById('inst-dryrun').onclick = () => submitInstall(true, false);
   document.getElementById('inst-apply').onclick = () => submitInstall(false, false);
 }
+
+async function deleteInstance(name, onDone) {
+  if (!confirm(`确认删除实例 ${name}？（依赖 / PVC 默认保留）`)) return;
+  const err = document.getElementById('err');
+  if (err) err.style.display = 'none';
+  let resp;
+  try { resp = await postJSON('api/delete', { instance: name }); }
+  catch (e) { if (err) { err.style.display = 'block'; err.textContent = '删除失败：' + esc(e.message); } return; }
+  if (resp.status !== 202) {
+    if (err) { err.style.display = 'block'; err.textContent = '删除失败：' + esc((resp.data && resp.data.reason) || ('HTTP ' + resp.status)); }
+    return;
+  }
+  const tid = resp.data.task_id;
+  while (true) {
+    let j;
+    try { j = await getJSON('api/task/' + tid); } catch (e) { break; }
+    if (j.state === 'running') { await new Promise(r => setTimeout(r, 1200)); continue; }
+    break;
+  }
+  onDone();
+}
+
+const DEP_KINDS = ['etcd', 'minio', 'kafka', 'pulsar'];
+const DEP_LABEL = { etcd: 'etcd · 元数据', minio: 'MinIO · 对象存储', kafka: 'Kafka · 消息队列', pulsar: 'Pulsar · 消息队列' };
+
+async function renderDeps() {
+  shell('deps');
+  const box = document.getElementById('deps-list');
+  try {
+    const inst = await getJSON('api/instances');
+    const doc = await getJSON('api/doctor').catch(() => ({ versions: {} }));
+    const versions = doc.versions || {};
+    box.innerHTML = DEP_KINDS.map(kind => {
+      const rows = inst.instances.filter(i => i.kind === kind);
+      const head = `<div class="card-head"><h3>${esc(DEP_LABEL[kind] || kind)} <span class="muted mono">v${esc(versions[kind] || '—')}</span></h3>` +
+        `<a class="btn btn-ghost btn-sm" href="install.html">+ 新建</a></div>`;
+      const body = rows.length
+        ? '<table class="tbl"><tbody>' + rows.map(i =>
+            `<tr><td>${esc(i.name)}</td><td class="muted">ns:${esc(i.namespace)}</td>` +
+            `<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button></td></tr>`).join('') + '</tbody></table>'
+        : '<div class="muted">无实例</div>';
+      return `<div class="card">${head}<div class="card-pad">${body}</div></div>`;
+    }).join('');
+    box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderDeps); });
+  } catch (e) {
+    box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
+  }
+}

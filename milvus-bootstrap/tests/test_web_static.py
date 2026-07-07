@@ -51,3 +51,11 @@ def test_nav_has_instance_pages(client):
     js = client.get("/assets/web.js").text
     assert "milvus.html" in js and "deps.html" in js
     assert "renderOverview" in js                    # overview still exists
+
+
+def test_deps_page_served(client):
+    r = client.get("/deps.html")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert 'id="deps-list"' in r.text
+    js = client.get("/assets/web.js").text
+    assert "renderDeps" in js and "deleteInstance" in js
