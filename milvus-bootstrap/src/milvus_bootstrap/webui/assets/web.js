@@ -8,15 +8,26 @@ const LVL = { PASS: 'ok', WARN: 'warn', FAIL: 'err', SKIP: 'idle' };
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c])); }
 
+const NAV_ICON = {
+  overview: '<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
+  compat: '<path d="M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4M3 17l9 4 9-4"/>',
+  install: '<path d="M12 3v12M8 11l4 4 4-4M4 21h16"/>',
+};
+function svgIco(path, size) {
+  return `<svg class="ic" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+}
+
 function shell(active) {
   const rail = document.getElementById('rail');
-  if (rail) rail.innerHTML = '<div class="brand">Milvus Admin</div><nav class="nav">' +
-    NAV.map(n => n.disabled
-      ? `<span class="navitem disabled">${esc(n.label)}</span>`
-      : `<a class="navitem${n.id === active ? ' active' : ''}" href="${n.href}">${esc(n.label)}</a>`
-    ).join('') + '</nav>';
+  if (rail) rail.innerHTML =
+    '<div class="brand"><span class="mark">' +
+    svgIco('<path d="M12 2l8 5v10l-8 5-8-5V7z" fill="rgba(255,255,255,.15)"/><path d="M8 9l4 6 4-6M12 15v4"/>', 20) +
+    '</span><span class="word"><b>Milvus Admin</b><span>WebUI</span></span></div>' +
+    '<nav class="nav">' +
+    NAV.map(n => `<a class="${n.id === active ? 'active' : ''}" href="${n.href}">${svgIco(NAV_ICON[n.id] || '', 17)}<span>${esc(n.label)}</span></a>`).join('') +
+    '</nav>';
   const top = document.getElementById('topbar');
-  if (top) top.innerHTML = `<div class="crumbs">Milvus Admin <span class="sep">/</span> <b>${esc({compat: '版本依赖', install: '安装向导'}[active] || 'Overview')}</b></div>`;
+  if (top) top.innerHTML = `<div class="crumbs">Milvus Admin <span class="sep">/</span> <b>${esc({ compat: '版本依赖', install: '安装向导' }[active] || 'Overview')}</b></div>`;
 }
 
 async function getJSON(url) {
