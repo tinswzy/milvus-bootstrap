@@ -97,13 +97,6 @@ async function renderOverview() {
     document.getElementById('conn').innerHTML = connected
       ? `<div class="conn ok">✅ 已连接　<span class="muted">${esc(cluster.reason)}</span></div>`
       : `<div class="conn bad">❌ 未连接　<span class="muted">${esc(cluster ? cluster.reason : '未探测')}</span></div>`;
-    // versions (only if connected)
-    document.getElementById('versions').innerHTML = connected
-      ? '<table class="tbl"><tbody>' + Object.entries(doc.versions).map(([k, v]) =>
-          `<tr><td>${esc(k)}</td><td class="mono">${esc(v)}</td></tr>`).join('') +
-        (Object.keys(doc.versions).length ? '' : '<tr><td class="muted" colspan="2">未探测到组件版本</td></tr>') +
-        '</tbody></table>'
-      : '<div class="muted">连接集群后展示</div>';
   } catch (e) {
     err.style.display = 'block';
     err.textContent = '加载失败：' + e.message;

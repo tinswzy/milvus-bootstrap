@@ -95,3 +95,10 @@ def test_esc_encodes_quotes(client):
     assert "&quot;" in js and "&#39;" in js
     m = re.search(r"function esc\(s\).*?replace\(/\[([^\]]*)\]/g", js)
     assert m and '"' in m.group(1) and "'" in m.group(1), m and m.group(1)
+
+
+def test_overview_has_no_versions_card(client):
+    body = client.get("/").text
+    assert 'id="versions-card"' not in body and 'id="versions"' not in body
+    js = client.get("/assets/web.js").text
+    assert "renderOverview" in js and "env-list" in js     # overview still renders env
