@@ -97,3 +97,17 @@ def test_api_instances_managed_and_fields(client):
     assert m["deps"]["mq"] == "kafka"
     assert "image_id" in rows["milvus-etcd"]           # external rows also carry the key
     assert rows["milvus-etcd"]["ownership"] == "external"
+
+
+def test_api_instances_collapses_managed_subworkloads(client):
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    # managed etcd named "milvus" → the fake-cluster workload "milvus-etcd" (etcd, default)
+    # is a "milvus-" segment child → must be collapsed (not shown as a separate external).
+    app_module.core.install(InstallSpec(kind="etcd", name="milvus"), dry_run=False)
+    rows = client.get("/api/instances").json()["instances"]
+    by = {(r["kind"], r["name"]) for r in rows}
+    assert ("etcd", "milvus") in by                    # the managed parent
+    assert ("etcd", "milvus-etcd") not in by           # its discovered sub-workload, collapsed
+    # an unrelated external of a different kind (no managed prefix) still shows
+    assert ("minio", "milvus-minio") in by

@@ -92,6 +92,7 @@ def api_instances() -> dict[str, Any]:
 
     out = []
     seen = set()
+    managed_names: dict[tuple, list] = {}
     # managed (from state)
     for i in core.state.list_instances():
         snap = i.spec_snapshot or {}
@@ -109,6 +110,7 @@ def api_instances() -> dict[str, Any]:
                     "mq_endpoint": params.get("kafkaBrokers") or params.get("pulsarEndpoint") or ""}
             status = milvus_status_safe(i.name)
         seen.add((kind, i.name, ns))
+        managed_names.setdefault((kind, ns), []).append(i.name)
         out.append({"name": i.name, "kind": kind, "namespace": ns, "ownership": "managed",
                     "image": image, "image_id": img_id or None, "status": status, "deps": deps})
     # external (from discovery)
@@ -122,7 +124,8 @@ def api_instances() -> dict[str, Any]:
         ev = c.evidence if isinstance(c.evidence, dict) else {}
         ns = ev.get("namespace", "")
         key = (c.kind, c.name, ns)
-        if key in seen:
+        mnames = managed_names.get((c.kind, ns), ())
+        if key in seen or any(c.name == mn or c.name.startswith(mn + "-") for mn in mnames):
             continue
         seen.add(key)
         img, img_id = probe.match_pod_image(pods, c.name, ns)
