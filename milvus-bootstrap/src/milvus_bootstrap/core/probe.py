@@ -102,9 +102,13 @@ def pod_images(run=run_kubectl) -> list[PodImage]:
 
 
 def match_pod_image(pods, name: str, ns: str) -> tuple[str, str]:
-    """First pod in ns whose name starts with the instance name → (image, sha256-or-'')."""
+    """First pod in ns at a name-segment boundary (name itself or name-…) → (image, sha256-or-'').
+
+    Segment boundary avoids a short instance name matching an unrelated pod
+    (e.g. 'etcd' must not match 'etcd-operator-…'); StatefulSet pods 'etcd-0' still match.
+    """
     for p in pods:
-        if p.namespace == ns and p.pod.startswith(name):
+        if p.namespace == ns and (p.pod == name or p.pod.startswith(name + "-")):
             return p.image, _sha_of(p.image_id)
     return "", ""
 

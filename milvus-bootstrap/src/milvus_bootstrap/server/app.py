@@ -99,7 +99,9 @@ def api_instances() -> dict[str, Any]:
         params = snap.get("params", {}) or {}
         ns = i.namespace
         img, img_id = probe.match_pod_image(pods, i.name, ns)
-        image = img or params.get("image", "")
+        # managed: prefer the authoritative last-applied snapshot image (milvus),
+        # fall back to the running pod image (deps have no image in their snapshot).
+        image = params.get("image", "") or img
         status, deps = None, None
         if kind == "milvus":
             deps = {"etcd": params.get("etcdEndpoints", ""), "storage": params.get("storageEndpoint", ""),
