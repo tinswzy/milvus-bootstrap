@@ -20,6 +20,8 @@ from ..core.taskrunner import TaskRunner
 
 core: Core | None = None
 
+_INSTANCE_KINDS = {"etcd", "minio", "kafka", "pulsar", "milvus"}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -71,28 +73,61 @@ def api_doctor() -> dict[str, Any]:
 
 @app.get("/api/instances")
 def api_instances() -> dict[str, Any]:
-    is_k8s = getattr(_core().adapter, "name", "") == "k8s"
+    core = _core()
+    is_k8s = getattr(core.adapter, "name", "") == "k8s"
+    pods = []
+    if is_k8s:
+        try:
+            pods = probe.pod_images()
+        except Exception:
+            pods = []
+
+    def milvus_status_safe(name: str):
+        if not is_k8s:
+            return None
+        try:
+            return probe.milvus_status(name)
+        except Exception:
+            return None
+
     out = []
-    for i in _core().state.list_instances():
+    seen = set()
+    # managed (from state)
+    for i in core.state.list_instances():
         snap = i.spec_snapshot or {}
         kind = snap.get("kind", "")
         params = snap.get("params", {}) or {}
-        row = {"name": i.name, "kind": kind, "namespace": i.namespace,
-               "ownership": i.ownership.value, "image": "", "status": None, "deps": None}
+        ns = i.namespace
+        img, img_id = probe.match_pod_image(pods, i.name, ns)
+        image = img or params.get("image", "")
+        status, deps = None, None
         if kind == "milvus":
-            row["image"] = params.get("image", "")
-            row["deps"] = {
-                "etcd": params.get("etcdEndpoints", ""),
-                "storage": params.get("storageEndpoint", ""),
-                "mq": params.get("mq", ""),
-                "mq_endpoint": params.get("kafkaBrokers") or params.get("pulsarEndpoint") or "",
-            }
-            if is_k8s:
-                try:
-                    row["status"] = probe.milvus_status(i.name)
-                except Exception:
-                    row["status"] = None
-        out.append(row)
+            deps = {"etcd": params.get("etcdEndpoints", ""), "storage": params.get("storageEndpoint", ""),
+                    "mq": params.get("mq", ""),
+                    "mq_endpoint": params.get("kafkaBrokers") or params.get("pulsarEndpoint") or ""}
+            status = milvus_status_safe(i.name)
+        seen.add((kind, i.name, ns))
+        out.append({"name": i.name, "kind": kind, "namespace": ns, "ownership": "managed",
+                    "image": image, "image_id": img_id or None, "status": status, "deps": deps})
+    # external (from discovery)
+    try:
+        cands = core.discovery.discover()
+    except Exception:
+        cands = []
+    for c in cands:
+        if c.excluded or c.kind not in _INSTANCE_KINDS or getattr(c.ownership, "value", "") == "readonly":
+            continue
+        ev = c.evidence if isinstance(c.evidence, dict) else {}
+        ns = ev.get("namespace", "")
+        key = (c.kind, c.name, ns)
+        if key in seen:
+            continue
+        seen.add(key)
+        img, img_id = probe.match_pod_image(pods, c.name, ns)
+        image = img or (ev.get("image", "").split(" ")[0])
+        status = milvus_status_safe(c.name) if c.kind == "milvus" else None
+        out.append({"name": c.name, "kind": c.kind, "namespace": ns, "ownership": "external",
+                    "image": image, "image_id": img_id or None, "status": status, "deps": None})
     return {"instances": out}
 
 
