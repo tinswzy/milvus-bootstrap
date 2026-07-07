@@ -243,6 +243,28 @@ async function deleteInstance(name, onDone) {
   onDone();
 }
 
+async function renderMilvus() {
+  shell('milvus');
+  const box = document.getElementById('milvus-list');
+  try {
+    const inst = await getJSON('api/instances');
+    const rows = inst.instances.filter(i => i.kind === 'milvus');
+    const chip = (label, v) => v ? `<span class="chip">${esc(label)}: ${esc(v)}</span>` : '';
+    const head = `<div style="margin-bottom:12px"><a class="btn btn-primary btn-sm" href="install.html">+ 新建 Milvus</a></div>`;
+    box.innerHTML = head + (rows.length ? rows.map(i => {
+      const st = i.status ? badge(i.status === 'Healthy' ? 'PASS' : 'WARN', i.status) : '<span class="muted">健康 —</span>';
+      const d = i.deps || {};
+      return `<div class="card"><div class="card-head"><h3>${esc(i.name)} ${st}</h3>` +
+        `<button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button></div>` +
+        `<div class="card-pad"><div class="muted mono" style="margin-bottom:8px">ns:${esc(i.namespace)} · ${esc(i.image || '—')}</div>` +
+        `<div class="chips">${chip('etcd', d.etcd)}${chip('存储', d.storage)}${chip('MQ', d.mq)}${chip('端点', d.mq_endpoint)}</div></div></div>`;
+    }).join('') : '<div class="card"><div class="card-pad muted">暂无 Milvus 实例</div></div>');
+    box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderMilvus); });
+  } catch (e) {
+    box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
+  }
+}
+
 const DEP_KINDS = ['etcd', 'minio', 'kafka', 'pulsar'];
 const DEP_LABEL = { etcd: 'etcd · 元数据', minio: 'MinIO · 对象存储', kafka: 'Kafka · 消息队列', pulsar: 'Pulsar · 消息队列' };
 

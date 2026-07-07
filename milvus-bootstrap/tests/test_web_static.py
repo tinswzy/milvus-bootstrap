@@ -59,3 +59,10 @@ def test_deps_page_served(client):
     assert 'id="deps-list"' in r.text
     js = client.get("/assets/web.js").text
     assert "renderDeps" in js and "deleteInstance" in js
+
+
+def test_milvus_page_served(client):
+    r = client.get("/milvus.html")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert 'id="milvus-list"' in r.text
+    assert "renderMilvus" in client.get("/assets/web.js").text
