@@ -16,7 +16,7 @@ function shell(active) {
       : `<a class="navitem${n.id === active ? ' active' : ''}" href="${n.href}">${esc(n.label)}</a>`
     ).join('') + '</nav>';
   const top = document.getElementById('topbar');
-  if (top) top.innerHTML = `<div class="crumbs">Milvus Admin <span class="sep">/</span> <b>${esc(active === 'compat' ? '版本依赖' : 'Overview')}</b></div>`;
+  if (top) top.innerHTML = `<div class="crumbs">Milvus Admin <span class="sep">/</span> <b>${esc({compat: '版本依赖', install: '安装向导'}[active] || 'Overview')}</b></div>`;
 }
 
 async function getJSON(url) {
@@ -183,11 +183,18 @@ async function submitInstall(dryRun, force) {
   const body = installBody(dryRun, force);
   if (!body.name) { err.style.display = 'block'; err.textContent = '请填实例名'; return; }
   resultEl.innerHTML = '<span class="muted">提交中…</span>';
-  const { status, data } = await postJSON('api/install', body);
+  let status, data;
+  try {
+    ({ status, data } = await postJSON('api/install', body));
+  } catch (e) {
+    resultEl.innerHTML = '';
+    err.style.display = 'block'; err.textContent = '提交失败：' + esc(e.message);
+    return;
+  }
   if (status === 200) { resultEl.innerHTML = renderTaskResult(data.task); return; }
   if (status === 202) { await pollInstall(data.task_id, resultEl); return; }
   if (status === 409) {
-    resultEl.innerHTML = `<div class="conn bad">被兼容门禁拦截：${esc(data.reason)}</div>` +
+    resultEl.innerHTML = `<div class="conn bad">被兼容门禁拦截：${esc((data && data.reason) || '兼容门禁拦截')}</div>` +
       `<button class="btn btn-primary btn-sm" id="inst-force" style="margin-top:8px">强制安装 --force</button>`;
     document.getElementById('inst-force').onclick = () => {
       if (confirm('确认跳过兼容门禁强制安装？')) submitInstall(dryRun, true);
