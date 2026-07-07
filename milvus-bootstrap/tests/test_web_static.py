@@ -74,3 +74,13 @@ def test_milvus_card_topology_markup(client):
     for marker in ['class="card inst"', 'inst-head', 'class="topo"', 'box box-mv', 'flow-h', 'mv-actions', 'function depBox']:
         assert marker in js, marker
     assert 'disabled title="下一切面"' in js       # deferred action placeholders
+
+
+def test_deps_accordion_markup_and_css(client):
+    js = client.get("/assets/web.js").text
+    assert "renderDeps" in js
+    for marker in ['class="card acc open"', 'acc-head', 'acc-body', 'class="img"', 'function depEndpoint']:
+        assert marker in js, marker
+    css = client.get("/assets/web.css").text
+    for c in ['.acc-head', '.acc-body', '.img', '.acc.open']:
+        assert c in css, c

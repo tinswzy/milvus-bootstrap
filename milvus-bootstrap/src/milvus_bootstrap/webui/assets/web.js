@@ -288,7 +288,20 @@ async function renderMilvus() {
 }
 
 const DEP_KINDS = ['etcd', 'minio', 'kafka', 'pulsar'];
-const DEP_LABEL = { etcd: 'etcd · 元数据', minio: 'MinIO · 对象存储', kafka: 'Kafka · 消息队列', pulsar: 'Pulsar · 消息队列' };
+const DEP_META = {
+  etcd: { logo: '🗄️', name: 'etcd', role: '元数据' },
+  minio: { logo: '🪣', name: 'MinIO', role: '对象存储' },
+  kafka: { logo: '🌊', name: 'Kafka', role: '消息队列' },
+  pulsar: { logo: '📡', name: 'Pulsar', role: '消息队列' },
+};
+function depEndpoint(kind, name, ns) {
+  return ({
+    etcd: `${name}.${ns}.svc:2379`,
+    minio: `${name}.${ns}.svc:80`,
+    kafka: `${name}.${ns}.svc:9092`,
+    pulsar: `${name}-broker.${ns}.svc:6650`,
+  })[kind] || `${name}.${ns}.svc`;
+}
 
 async function renderDeps() {
   shell('deps');
@@ -298,16 +311,24 @@ async function renderDeps() {
     const doc = await getJSON('api/doctor').catch(() => ({ versions: {} }));
     const versions = doc.versions || {};
     box.innerHTML = DEP_KINDS.map(kind => {
+      const meta = DEP_META[kind];
       const rows = inst.instances.filter(i => i.kind === kind);
-      const head = `<div class="card-head"><h3>${esc(DEP_LABEL[kind] || kind)} <span class="muted mono">v${esc(versions[kind] || '—')}</span></h3>` +
-        `<a class="btn btn-ghost btn-sm" href="install.html">+ 新建</a></div>`;
-      const body = rows.length
-        ? '<table class="tbl"><tbody>' + rows.map(i =>
-            `<tr><td>${esc(i.name)}</td><td class="muted">ns:${esc(i.namespace)}</td>` +
-            `<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button></td></tr>`).join('') + '</tbody></table>'
+      const body = rows.length ? rows.map(i =>
+        `<div class="dep-row"><span class="nm">${esc(i.name)}</span>` +
+        `<span class="muted">ns:${esc(i.namespace)}</span>` +
+        `<span class="mono muted">${esc(depEndpoint(kind, i.name, i.namespace))}</span>` +
+        `<button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button></div>`).join('')
         : '<div class="muted">无实例</div>';
-      return `<div class="card">${head}<div class="card-pad">${body}</div></div>`;
+      return `<div class="card acc open">` +
+        `<div class="acc-head"><span class="lo">${esc(meta.logo)}</span>` +
+        `<div><div class="nm">${esc(meta.name)}</div><div class="sub">${rows.length} 个实例</div></div>` +
+        `<div class="right"><span class="img">image: <span class="t">v${esc(versions[kind] || '—')}</span></span>` +
+        `<a class="btn btn-ghost btn-sm" href="install.html">+ 新建</a><span class="chev">▾</span></div></div>` +
+        `<div class="acc-body">${body}</div></div>`;
     }).join('');
+    box.querySelectorAll('.acc-head').forEach(h => {
+      h.onclick = e => { if (e.target.closest('a,button')) return; h.parentElement.classList.toggle('open'); };
+    });
     box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderDeps); });
   } catch (e) {
     box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
