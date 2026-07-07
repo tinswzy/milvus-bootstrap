@@ -251,7 +251,7 @@ function tagOf(ref) {
 }
 function imageCell(i) {
   const title = i.image ? (i.image + (i.image_id ? ' @ ' + i.image_id : '')) : '';
-  return `<span class="mono" title="${esc(title)}">${esc(tagOf(i.image) || '—')}</span>`;
+  return `<span class="img" title="${esc(title)}">${esc(tagOf(i.image) || '—')}</span>`;
 }
 function ownBadge(o) {
   return o === 'managed'
@@ -321,22 +321,21 @@ async function renderDeps() {
   const box = document.getElementById('deps-list');
   try {
     const inst = await getJSON('api/instances');
-    const doc = await getJSON('api/doctor').catch(() => ({ versions: {} }));
-    const versions = doc.versions || {};
     box.innerHTML = DEP_KINDS.map(kind => {
       const meta = DEP_META[kind];
       const rows = inst.instances.filter(i => i.kind === kind);
       const body = rows.length ? rows.map(i =>
         `<div class="dep-row"><span class="nm">${esc(i.name)}</span>` +
+        `${ownBadge(i.ownership)}` +
         `<span class="muted">ns:${esc(i.namespace)}</span>` +
+        `${imageCell(i)}` +
         `<span class="mono muted">${esc(depEndpoint(kind, i.name, i.namespace))}</span>` +
-        `<button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button></div>`).join('')
+        `${delButton(i)}</div>`).join('')
         : '<div class="muted">无实例</div>';
       return `<div class="card acc open">` +
         `<div class="acc-head"><span class="lo">${esc(meta.logo)}</span>` +
         `<div><div class="nm">${esc(meta.name)}</div><div class="sub">${rows.length} 个实例</div></div>` +
-        `<div class="right"><span class="img">image: <span class="t">v${esc(versions[kind] || '—')}</span></span>` +
-        `<a class="btn btn-ghost btn-sm" href="install.html">+ 新建</a><span class="chev">▾</span></div></div>` +
+        `<div class="right"><a class="btn btn-ghost btn-sm" href="install.html">+ 新建</a><span class="chev">▾</span></div></div>` +
         `<div class="acc-body">${body}</div></div>`;
     }).join('');
     box.querySelectorAll('.acc-head').forEach(h => {

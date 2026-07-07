@@ -112,3 +112,12 @@ def test_milvus_card_ownership_and_image_hover(client):
     assert "external：mb 未安装" in js
     css = client.get("/assets/web.css").text
     assert ".badge.b-muted" in css or ".b-muted" in css
+
+
+def test_deps_rows_have_image_and_ownership(client):
+    js = client.get("/assets/web.js").text
+    # renderDeps no longer fetches doctor versions, and rows carry ownership + image
+    deps_src = js[js.index("function renderDeps"):]
+    deps_src = deps_src[:deps_src.index("async function renderMilvus")] if "async function renderMilvus" in deps_src else deps_src
+    assert "api/doctor" not in deps_src
+    assert "ownBadge(i.ownership)" in deps_src and "imageCell(i)" in deps_src and "delButton(i)" in deps_src
