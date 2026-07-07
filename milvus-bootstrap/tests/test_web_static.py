@@ -102,3 +102,13 @@ def test_overview_has_no_versions_card(client):
     assert 'id="versions-card"' not in body and 'id="versions"' not in body
     js = client.get("/assets/web.js").text
     assert "renderOverview" in js and "env-list" in js     # overview still renders env
+
+
+def test_milvus_card_ownership_and_image_hover(client):
+    js = client.get("/assets/web.js").text
+    for m in ['function tagOf', 'function imageCell', 'function ownBadge', 'ownBadge(i.ownership)', 'imageCell(i)']:
+        assert m in js, m
+    # external rows get a disabled delete with an explanatory title
+    assert "external：mb 未安装" in js
+    css = client.get("/assets/web.css").text
+    assert ".badge.b-muted" in css or ".b-muted" in css

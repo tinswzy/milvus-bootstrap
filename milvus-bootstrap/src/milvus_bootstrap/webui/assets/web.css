@@ -186,6 +186,7 @@ a { color:inherit; text-decoration:none; }
 .b-idle{ background:var(--idle-soft); color:#5a657f;} .b-idle .d{ background:var(--idle);}
 .b-info{ background:var(--info-soft); color:#1b599f;} .b-info .d{ background:var(--info);}
 .b-accent{ background:var(--accent-soft); color:var(--accent-ink);} .b-accent .d{ background:var(--accent);}
+.badge.b-muted { background:var(--surface-2); color:var(--fg-3); border:1px solid var(--line); }
 
 .pulse { position:relative; }
 .pulse::after { content:""; position:absolute; inset:-3px; border-radius:50%; border:2px solid currentColor; opacity:.6;

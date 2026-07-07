@@ -244,6 +244,26 @@ function depBox(cls, logo, name, role, id) {
     `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(id || '—')}</div></div>`;
 }
 
+function tagOf(ref) {
+  if (!ref) return '';
+  const noDigest = String(ref).split('@')[0];
+  return noDigest.includes(':') ? noDigest.split(':').pop() : noDigest;
+}
+function imageCell(i) {
+  const title = i.image ? (i.image + (i.image_id ? ' @ ' + i.image_id : '')) : '';
+  return `<span class="mono" title="${esc(title)}">${esc(tagOf(i.image) || '—')}</span>`;
+}
+function ownBadge(o) {
+  return o === 'managed'
+    ? '<span class="badge b-accent">managed</span>'
+    : '<span class="badge b-muted">external</span>';
+}
+function delButton(i) {
+  return i.ownership === 'managed'
+    ? `<button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button>`
+    : `<button class="btn btn-ghost btn-sm" disabled title="external：mb 未安装，不可删除/升级">删除</button>`;
+}
+
 async function renderMilvus() {
   shell('milvus');
   const box = document.getElementById('milvus-list');
@@ -258,15 +278,15 @@ async function renderMilvus() {
       return `<div class="card inst">` +
         `<div class="inst-head"><span class="mvdot">M</span>` +
         `<div><div class="nm">${esc(i.name)}</div><div class="ns">ns: ${esc(i.namespace)} · ${esc(i.image || '—')}</div></div>` +
-        `<div class="right">${st}</div></div>` +
+        `<div class="right">${ownBadge(i.ownership)} ${st}</div></div>` +
         `<div class="topo">` +
           depBox('cell-etcd', '🗄️', 'etcd', '元数据', d.etcd || ('etcd.' + i.namespace + '.svc:2379')) +
           `<div class="flow-h col2"></div>` +
           `<div class="box box-mv">` +
             `<div class="bt"><span class="lo">M</span><div><div class="nm">${esc(i.name)}</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
-            `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(i.name)} · ${esc(i.image || '—')}</div>` +
+            `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(i.name)} · ${imageCell(i)}</div>` +
             `<div class="mvmeta"><span class="badge b-accent"><span class="d"></span>MQ: ${esc(d.mq || '—')}</span></div>` +
-            `<div class="mv-actions">${ph('切换 MQ')}${ph('配置')}${ph('Pods')}<button class="btn btn-ghost btn-sm" data-del="${esc(i.name)}">删除</button></div>` +
+            `<div class="mv-actions">${ph('切换 MQ')}${ph('配置')}${ph('Pods')}${delButton(i)}</div>` +
           `</div>` +
           `<div class="flow-h col4"></div>` +
           depBox('cell-store', '🪣', '对象存储', 'Object Storage', d.storage) +
