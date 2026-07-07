@@ -48,6 +48,12 @@ class BaseServiceDriver(ServiceDriver):
 
     def detect(self, evidence: dict) -> bool:
         img = str(evidence.get("image", "")).lower()
+        # operator workloads are not component instances — their image name component
+        # contains "operator" (e.g. milvusdb/milvus-operator, quay.io/minio/operator).
+        for ref in img.split():
+            name_part = ref.split("@")[0].rsplit(":", 1)[0].rsplit("/", 1)[-1]
+            if "operator" in name_part:
+                return False
         if any(m.lower() in img for m in self.profile.detect.image_match):
             return True
         chart = str(evidence.get("labels", {}).get("helm.sh/chart", ""))

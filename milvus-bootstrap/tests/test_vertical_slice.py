@@ -71,3 +71,12 @@ def test_etcd_driver_overrides_scale_plan(core: Core) -> None:
 def test_unknown_kind_raises(core: Core) -> None:
     with pytest.raises(KeyError):
         core.install(InstallSpec(kind="redis", name="x"), dry_run=True)
+
+
+def test_operators_not_identified_as_instances(core) -> None:
+    # operator workloads must NOT be claimed by any component driver
+    assert core.registry.find_for({"image": "milvusdb/milvus-operator:v1.3.6", "labels": {}}) is None
+    assert core.registry.find_for({"image": "quay.io/minio/operator:v7.1.1", "labels": {}}) is None
+    # real component server images are still claimed by the right driver
+    assert core.registry.find_for({"image": "milvusdb/milvus:v2.6.18", "labels": {}}).kind == "milvus"
+    assert core.registry.find_for({"image": "quay.io/minio/minio:latest", "labels": {}}).kind == "minio"
