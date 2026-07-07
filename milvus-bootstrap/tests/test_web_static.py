@@ -16,7 +16,8 @@ def test_root_serves_overview_html(client):
     assert r.status_code == 200
     assert "text/html" in r.headers["content-type"]
     body = r.text
-    assert 'id="rail"' in body and 'id="env-list"' in body and 'id="instances"' in body
+    assert 'id="rail"' in body and 'id="env-list"' in body
+    assert 'id="instances-card"' not in body        # instances moved off overview
 
 
 def test_assets_served(client):
@@ -44,3 +45,9 @@ def test_install_page_served(client):
     js = client.get("/assets/web.js").text
     assert "renderInstall" in js and "postJSON" in js
     assert "安装向导（待做）" not in js       # nav item enabled, not the disabled placeholder
+
+
+def test_nav_has_instance_pages(client):
+    js = client.get("/assets/web.js").text
+    assert "milvus.html" in js and "deps.html" in js
+    assert "renderOverview" in js                    # overview still exists

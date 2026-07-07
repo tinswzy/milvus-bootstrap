@@ -1,6 +1,8 @@
 // Minimal vanilla renderer for the Milvus Admin WebUI (read-only overview).
 const NAV = [
   { id: 'overview', label: 'Overview', href: 'index.html' },
+  { id: 'milvus',   label: 'Milvus 实例', href: 'milvus.html' },
+  { id: 'deps',     label: 'Dependencies', href: 'deps.html' },
   { id: 'compat',   label: '版本依赖', href: 'compat.html' },
   { id: 'install',  label: '安装向导', href: 'install.html' },
 ];
@@ -10,6 +12,8 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&
 
 const NAV_ICON = {
   overview: '<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
+  milvus: '<path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+  deps: '<path d="M6 3h12v6H6zM6 15h12v6H6zM12 9v6"/>',
   compat: '<path d="M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4M3 17l9 4 9-4"/>',
   install: '<path d="M12 3v12M8 11l4 4 4-4M4 21h16"/>',
 };
@@ -27,7 +31,7 @@ function shell(active) {
     NAV.map(n => `<a class="${n.id === active ? 'active' : ''}" href="${n.href}">${svgIco(NAV_ICON[n.id] || '', 17)}<span>${esc(n.label)}</span></a>`).join('') +
     '</nav>';
   const top = document.getElementById('topbar');
-  if (top) top.innerHTML = `<div class="crumbs">Milvus Admin <span class="sep">/</span> <b>${esc({ compat: '版本依赖', install: '安装向导' }[active] || 'Overview')}</b></div>`;
+  if (top) top.innerHTML = `<div class="crumbs">Milvus Admin <span class="sep">/</span> <b>${esc({ compat: '版本依赖', install: '安装向导', milvus: 'Milvus 实例', deps: 'Dependencies' }[active] || 'Overview')}</b></div>`;
 }
 
 async function getJSON(url) {
@@ -100,17 +104,6 @@ async function renderOverview() {
         (Object.keys(doc.versions).length ? '' : '<tr><td class="muted" colspan="2">未探测到组件版本</td></tr>') +
         '</tbody></table>'
       : '<div class="muted">连接集群后展示</div>';
-    // instances (only if connected)
-    if (connected) {
-      const inst = (await getJSON('api/instances')).instances;
-      document.getElementById('instances').innerHTML = inst.length
-        ? '<table class="tbl"><thead><tr><th>名称</th><th>类型</th><th>命名空间</th><th>Ownership</th></tr></thead><tbody>' +
-          inst.map(i => `<tr><td>${esc(i.name)}</td><td>${esc(i.kind)}</td><td>${esc(i.namespace)}</td><td>${esc(i.ownership)}</td></tr>`).join('') +
-          '</tbody></table>'
-        : '<div class="muted">该集群下暂无本工具登记的实例</div>';
-    } else {
-      document.getElementById('instances').innerHTML = '<div class="muted">连接集群后展示</div>';
-    }
   } catch (e) {
     err.style.display = 'block';
     err.textContent = '加载失败：' + e.message;
