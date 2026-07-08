@@ -160,7 +160,7 @@ async function fillParams(kind) {
   const insts = await loadInstances();
   const isoField = (id, label, title) =>
     `<div class="iso-in"><label title="${esc(title)}">${esc(label)} <span class="q">?</span></label>` +
-    `<input id="${id}" class="f-in">`;
+    `<input id="${esc(id)}" class="f-in"></div>`;
   const mqLogoFor = t => ({ kafka: '🌊', pulsar: '📡', rocksmq: '🪨' })[t] || (String(t).startsWith('woodpecker') ? '🪶' : '📨');
   const mqInst = mk => `<select id="inst-mq" class="f-in"><option value="">—</option>${depOptions(insts, mk)}</select>`
     + `<input id="inst-mq-custom" class="f-in" placeholder="host:port" style="display:none;margin-top:7px">`;

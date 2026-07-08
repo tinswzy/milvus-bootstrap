@@ -134,4 +134,4 @@ def test_install_milvus_per_dep_isolation(client):
     for m in ["inst-etcd-root", "inst-store-bucket", "inst-store-root", "inst-mq-prefix",
               "etcdRootPath", "minioBucket", "minioRootPath", "mqChanPrefix", "title="]:
         assert m in js, m
-    assert "isolationPrefix" not in js and 'id="inst-iso"' not in js
+    assert "isolationPrefix" not in js and 'id="inst-iso"' not in js and 'id="iso-preview"' not in js
