@@ -135,8 +135,16 @@ def test_milvus_conf_merged_into_spec_config() -> None:
     assert cfg["etcd"]["rootPath"] == "m1"                # isolation still present
 
 
+def test_milvus_default_prefix_shared_dep_allowed(core: Core) -> None:
+    # the NORMAL case: two distinct-named milvus (default prefix = own name) sharing the
+    # SAME kafka must be allowed — distinct prefixes → no collision, no false positive.
+    core.install(InstallSpec(kind="milvus", name="mv-1", params={
+        "mq": "kafka", "kafkaBrokers": "kafka-shared.default.svc:9092"}), dry_run=False)
+    core.install(InstallSpec(kind="milvus", name="mv-2", params={
+        "mq": "kafka", "kafkaBrokers": "kafka-shared.default.svc:9092"}), dry_run=True)
+
+
 def test_milvus_dup_name_rejected(core: Core) -> None:
-    import pytest
     core.install(InstallSpec(kind="milvus", name="mv", params={
         "mq": "kafka", "kafkaBrokers": "kafka-dev.default.svc:9092"}), dry_run=False)
     with pytest.raises(ValueError, match="已存在"):
@@ -144,7 +152,6 @@ def test_milvus_dup_name_rejected(core: Core) -> None:
 
 
 def test_milvus_prefix_collision_on_shared_dep(core: Core) -> None:
-    import pytest
     core.install(InstallSpec(kind="milvus", name="mv-a", params={
         "mq": "kafka", "kafkaBrokers": "kafka-x.default.svc:9092", "isolationPrefix": "shared"}), dry_run=False)
     # different name, SAME custom prefix, SAME kafka endpoint → collision

@@ -8,7 +8,7 @@ from ..state.base import StateStore
 from ..tasks.engine import Step, TaskEngine
 
 
-def _dep_eps(params: dict) -> set:
+def _dep_eps(params: dict) -> set[str]:
     """The dependency endpoint strings a milvus install binds to, as a set."""
     eps: set = set()
     etcd = params.get("etcdEndpoints")
