@@ -152,6 +152,7 @@ class MilvusDriver(BaseServiceDriver):
         ]
 
     def config_apply_params(self, params: dict, kv: dict) -> dict:
-        # milvus config lives in spec.conf.data, not install params
+        # milvus config lives in spec.config (nested) — see build_install_manifests;
+        # _conf holds dotted-flat keys, converted via _dotted_to_nested. Not install params.
         merged_conf = {**params.get("_conf", {}), **kv}
         return {**params, "_conf": merged_conf}
