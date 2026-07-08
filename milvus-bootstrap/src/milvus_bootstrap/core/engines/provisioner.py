@@ -8,6 +8,42 @@ from ..state.base import StateStore
 from ..tasks.engine import Step, TaskEngine
 
 
+def _dep_eps(params: dict) -> set:
+    """The dependency endpoint strings a milvus install binds to, as a set."""
+    eps: set = set()
+    etcd = params.get("etcdEndpoints")
+    if isinstance(etcd, (list, tuple)):
+        eps.update(str(e) for e in etcd)
+    elif etcd:
+        eps.add(str(etcd))
+    for key in ("storageEndpoint", "pulsarEndpoint"):
+        if params.get(key):
+            eps.add(str(params[key]))
+    kb = params.get("kafkaBrokers")
+    if isinstance(kb, (list, tuple)):
+        eps.update(str(e) for e in kb)
+    elif kb:
+        eps.add(str(kb))
+    return eps
+
+
+def check_milvus_install(instances: list, spec) -> None:
+    """Reject a milvus install that duplicates a name or collides on (prefix, shared dep)."""
+    if any(i.name == spec.name for i in instances):
+        raise ValueError(f"实例名 {spec.name} 已存在，请换名")
+    new_prefix = spec.params.get("isolationPrefix") or spec.name
+    new_eps = _dep_eps(spec.params)
+    for i in instances:
+        snap = i.spec_snapshot or {}
+        if snap.get("kind") != "milvus":
+            continue
+        p = snap.get("params", {}) or {}
+        eff = p.get("isolationPrefix") or i.name
+        if eff == new_prefix and (_dep_eps(p) & new_eps):
+            raise ValueError(
+                f"隔离前缀 {new_prefix} 已被 milvus {i.name} 在共享依赖上占用，请改前缀")
+
+
 class Provisioner:
     def __init__(self, registry: DriverRegistry, adapter: PlatformAdapter,
                  state: StateStore, engine: TaskEngine) -> None:
@@ -18,6 +54,7 @@ class Provisioner:
 
     def install(self, spec: InstallSpec, dry_run: bool = True, force: bool = False) -> Task:
         if spec.kind == "milvus":
+            check_milvus_install(self.state.list_instances(), spec)
             from .. import compat
             versions: dict = {}
             try:
