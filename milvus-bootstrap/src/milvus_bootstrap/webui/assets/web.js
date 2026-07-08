@@ -120,22 +120,88 @@ function paramRow(k, v) {
   return row;
 }
 
-function fillParams(kind) {
+let INSTANCES_CACHE = null;
+async function loadInstances() {
+  if (INSTANCES_CACHE) return INSTANCES_CACHE;
+  try { INSTANCES_CACHE = (await getJSON('api/instances')).instances; }
+  catch (e) { INSTANCES_CACHE = []; }
+  return INSTANCES_CACHE;
+}
+function depOptions(instances, kind) {
+  const opts = instances.filter(i => i.kind === kind).map(i => {
+    const ep = depEndpoint(kind, i.name, i.namespace);
+    return `<option value="${esc(ep)}">${esc(i.name)} (${esc(i.namespace)})</option>`;
+  }).join('');
+  return opts + '<option value="__custom__">自定义…</option>';
+}
+function selVal(selId, custId) {
+  const s = document.getElementById(selId);
+  if (!s) return '';
+  if (s.value === '__custom__') { const c = document.getElementById(custId); return c ? c.value.trim() : ''; }
+  return s.value;
+}
+function wireCustom(selId, custId) {
+  const s = document.getElementById(selId), c = document.getElementById(custId);
+  if (!s || !c) return;
+  const sync = () => { c.style.display = s.value === '__custom__' ? '' : 'none'; };
+  s.onchange = sync; sync();
+}
+
+async function fillParams(kind) {
   const box = document.getElementById('inst-params');
-  box.innerHTML = '';
-  const d = INSTALL_DEFAULTS[kind] || {};
-  const entries = Object.entries(d);
-  if (!entries.length) box.appendChild(paramRow('', ''));
-  else entries.forEach(([k, v]) => box.appendChild(paramRow(k, v)));
+  if (kind !== 'milvus') {
+    box.innerHTML = '';
+    const d = INSTALL_DEFAULTS[kind] || {};
+    Object.entries(d).forEach(([k, v]) => box.appendChild(paramRow(k, v)));
+    return;
+  }
+  const insts = await loadInstances();
+  const mqInst = kind => `<select id="inst-mq"><option value="">—</option>${depOptions(insts, kind)}</select>`
+    + `<input id="inst-mq-custom" class="f-in" placeholder="host:port" style="display:none">`;
+  box.innerHTML =
+    `<div class="mv-form">` +
+    `<label>镜像</label><input id="inst-image" class="f-in" value="milvusdb/milvus:v2.6.18">` +
+    `<label>etcd 依赖</label><select id="inst-etcd">${depOptions(insts, 'etcd')}</select>` +
+    `<input id="inst-etcd-custom" class="f-in" placeholder="etcd.default.svc:2379" style="display:none">` +
+    `<label>存储依赖</label><select id="inst-storage">${depOptions(insts, 'minio')}</select>` +
+    `<input id="inst-storage-custom" class="f-in" placeholder="minio.default.svc:80" style="display:none">` +
+    `<label>MQ 类型</label><select id="inst-mqtype">` +
+    ['kafka', 'pulsar', 'woodpecker-service', 'woodpecker-embedded', 'rocksmq'].map(o => `<option value="${o}">${o}</option>`).join('') +
+    `</select>` +
+    `<div id="inst-mqinst-row"><label>MQ 实例</label>${mqInst('kafka')}</div>` +
+    `</div>`;
+  wireCustom('inst-etcd', 'inst-etcd-custom');
+  wireCustom('inst-storage', 'inst-storage-custom');
+  const mqtype = document.getElementById('inst-mqtype');
+  const row = document.getElementById('inst-mqinst-row');
+  const syncMq = () => {
+    const t = mqtype.value;
+    if (t === 'kafka' || t === 'pulsar') {
+      row.style.display = '';
+      row.innerHTML = `<label>MQ 实例</label>${mqInst(t)}`;
+      wireCustom('inst-mq', 'inst-mq-custom');
+    } else { row.style.display = 'none'; }
+  };
+  mqtype.onchange = syncMq; syncMq();
 }
 
 function collectParams() {
-  const out = {};
-  document.querySelectorAll('#inst-params .prow').forEach(r => {
-    const k = r.querySelector('.pk').value.trim();
-    if (k) out[k] = r.querySelector('.pv').value.trim();
-  });
-  return out;
+  if (document.getElementById('inst-kind').value !== 'milvus') {
+    const out = {};
+    document.querySelectorAll('#inst-params .prow').forEach(r => {
+      const k = r.querySelector('.pk').value.trim();
+      if (k) out[k] = r.querySelector('.pv').value.trim();
+    });
+    return out;
+  }
+  const p = { image: (document.getElementById('inst-image') || {}).value || '' };
+  const etcd = selVal('inst-etcd', 'inst-etcd-custom'); if (etcd) p.etcdEndpoints = etcd;
+  const store = selVal('inst-storage', 'inst-storage-custom'); if (store) p.storageEndpoint = store;
+  const mq = (document.getElementById('inst-mqtype') || {}).value || 'kafka';
+  p.mq = mq;
+  if (mq === 'kafka') { const v = selVal('inst-mq', 'inst-mq-custom'); if (v) p.kafkaBrokers = v; }
+  if (mq === 'pulsar') { const v = selVal('inst-mq', 'inst-mq-custom'); if (v) p.pulsarEndpoint = v; }
+  return p;
 }
 
 function renderTaskResult(task) {
@@ -207,7 +273,7 @@ function renderInstall() {
   shell('install');
   const sel = document.getElementById('inst-kind');
   sel.innerHTML = INSTALL_KINDS.map(k => `<option value="${k}">${k}</option>`).join('');
-  sel.onchange = () => fillParams(sel.value);
+  sel.onchange = () => { fillParams(sel.value); };
   fillParams(sel.value);
   document.getElementById('inst-addparam').onclick = () =>
     document.getElementById('inst-params').appendChild(paramRow('', ''));

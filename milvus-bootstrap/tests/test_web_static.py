@@ -121,3 +121,9 @@ def test_deps_rows_have_image_and_ownership(client):
     deps_src = deps_src[:deps_src.index("async function renderMilvus")] if "async function renderMilvus" in deps_src else deps_src
     assert "api/doctor" not in deps_src
     assert "ownBadge(i.ownership)" in deps_src and "imageCell(i)" in deps_src and "delButton(i)" in deps_src
+
+
+def test_install_milvus_form_has_dep_dropdowns(client):
+    js = client.get("/assets/web.js").text
+    for m in ['function depOptions', '__custom__', 'inst-etcd', 'inst-storage', 'inst-mqtype', 'inst-mq', 'function selVal']:
+        assert m in js, m
