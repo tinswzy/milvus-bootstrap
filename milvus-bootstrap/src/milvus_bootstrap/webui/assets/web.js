@@ -158,6 +158,9 @@ async function fillParams(kind) {
     return;
   }
   const insts = await loadInstances();
+  const isoField = (id, label, title) =>
+    `<div class="iso-in"><label title="${esc(title)}">${esc(label)} <span class="q">?</span></label>` +
+    `<input id="${id}" class="f-in">`;
   const mqLogoFor = t => ({ kafka: '🌊', pulsar: '📡', rocksmq: '🪨' })[t] || (String(t).startsWith('woodpecker') ? '🪶' : '📨');
   const mqInst = mk => `<select id="inst-mq" class="f-in"><option value="">—</option>${depOptions(insts, mk)}</select>`
     + `<input id="inst-mq-custom" class="f-in" placeholder="host:port" style="display:none;margin-top:7px">`;
@@ -169,15 +172,13 @@ async function fillParams(kind) {
         `<div class="bt"><span class="lo">🗄️</span><div><div class="nm">etcd</div><div class="role">元数据</div></div></div>` +
         `<select id="inst-etcd" class="f-in bind-sel">${depOptions(insts, 'etcd')}</select>` +
         `<input id="inst-etcd-custom" class="f-in" placeholder="etcd.default.svc:2379" style="display:none;margin-top:7px">` +
+        isoField('inst-etcd-root', 'rootPath', 'etcd.rootPath —— Milvus 在 etcd 存元数据的根路径。共用同一 etcd 时用它区分不同 Milvus；默认=实例名。') +
       `</div>` +
       `<div class="flow-h col2"></div>` +
       `<div class="box box-mv">` +
         `<div class="bt"><span class="lo">M</span><div><div class="nm" id="mv-name">新 Milvus</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
         `<div class="mv-fields">` +
           `<label class="mvl">镜像</label><input id="inst-image" class="f-in" value="milvusdb/milvus:v2.6.18">` +
-          `<label class="mvl">数据隔离前缀 <span class="f-hint">共用依赖时用它隔离</span></label>` +
-          `<input id="inst-iso" class="f-in" placeholder="默认=实例名">` +
-          `<div class="iso-preview" id="iso-preview"></div>` +
         `</div>` +
       `</div>` +
       `<div class="flow-h col4"></div>` +
@@ -185,6 +186,8 @@ async function fillParams(kind) {
         `<div class="bt"><span class="lo">🪣</span><div><div class="nm">对象存储</div><div class="role">Object Storage</div></div></div>` +
         `<select id="inst-storage" class="f-in bind-sel">${depOptions(insts, 'minio')}</select>` +
         `<input id="inst-storage-custom" class="f-in" placeholder="minio.default.svc:80" style="display:none;margin-top:7px">` +
+        isoField('inst-store-bucket', 'bucket', 'minio.bucketName —— Milvus 对象存储用的桶名，各 Milvus 一个桶；默认=实例名。') +
+        isoField('inst-store-root', 'rootPath', 'minio.rootPath —— 桶内子路径前缀；想多个 Milvus 共用一个桶又互不干扰时改它；默认=实例名。') +
       `</div>` +
       `<div class="flow-v"></div>` +
       `<div class="box cell-mq">` +
@@ -192,6 +195,7 @@ async function fillParams(kind) {
         `<select id="inst-mqtype" class="f-in bind-sel">` +
         ['kafka', 'pulsar', 'woodpecker-service', 'woodpecker-embedded', 'rocksmq'].map(o => `<option value="${o}">${o}</option>`).join('') +
         `</select><div id="inst-mqinst-row" style="margin-top:7px">${mqInst('kafka')}</div>` +
+        isoField('inst-mq-prefix', 'cluster', 'msgChannel.chanNamePrefix.cluster —— MQ topic/channel 名前缀，共用同一 kafka/pulsar 时避免撞名；默认=实例名。') +
       `</div>` +
     `</div>`;
   wireCustom('inst-etcd', 'inst-etcd-custom');
@@ -210,26 +214,18 @@ async function fillParams(kind) {
   };
   mqtype.onchange = syncMq; syncMq();
   const nameEl = document.getElementById('inst-name');
-  const isoEl = document.getElementById('inst-iso');
-  const prevEl = document.getElementById('iso-preview');
   const mvNameEl = document.getElementById('mv-name');
-  const updatePreview = () => {
-    const p = isoEl.value.trim() || nameEl.value.trim() || '<实例名>';
-    prevEl.innerHTML =
-      `<span class="iso-chip"><b>topic</b>${esc(p)}-·</span>` +
-      `<span class="iso-chip"><b>etcd</b>/${esc(p)}</span>` +
-      `<span class="iso-chip"><b>bucket</b>${esc(p)}</span>`;
-  };
-  let isoDirty = false;
-  isoEl.value = nameEl.value.trim();
-  isoEl.oninput = () => { isoDirty = true; updatePreview(); };
+  const isoFields = ['inst-etcd-root', 'inst-store-bucket', 'inst-store-root', 'inst-mq-prefix']
+    .map(id => document.getElementById(id));
+  isoFields.forEach(el => {
+    el.value = nameEl.value.trim();
+    el.oninput = () => { el.dataset.dirty = '1'; };
+  });
   nameEl.oninput = () => {
-    if (!isoDirty) isoEl.value = nameEl.value.trim();
+    isoFields.forEach(el => { if (!el.dataset.dirty) el.value = nameEl.value.trim(); });
     mvNameEl.textContent = nameEl.value.trim() || '新 Milvus';
-    updatePreview();
   };
   mvNameEl.textContent = nameEl.value.trim() || '新 Milvus';
-  updatePreview();
 }
 
 function collectParams() {
@@ -248,8 +244,10 @@ function collectParams() {
   p.mq = mq;
   if (mq === 'kafka') { const v = selVal('inst-mq', 'inst-mq-custom'); if (v) p.kafkaBrokers = v; }
   if (mq === 'pulsar') { const v = selVal('inst-mq', 'inst-mq-custom'); if (v) p.pulsarEndpoint = v; }
-  const iso = (document.getElementById('inst-iso') || {}).value;
-  p.isolationPrefix = (iso && iso.trim()) || (document.getElementById('inst-name').value.trim());
+  p.etcdRootPath = (document.getElementById('inst-etcd-root') || {}).value || '';
+  p.minioBucket = (document.getElementById('inst-store-bucket') || {}).value || '';
+  p.minioRootPath = (document.getElementById('inst-store-root') || {}).value || '';
+  p.mqChanPrefix = (document.getElementById('inst-mq-prefix') || {}).value || '';
   return p;
 }
 

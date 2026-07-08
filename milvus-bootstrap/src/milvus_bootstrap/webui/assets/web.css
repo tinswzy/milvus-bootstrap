@@ -546,3 +546,9 @@ select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
 .iso-chip { font-family:var(--font-mono); font-size:11px; color:var(--fg-2); background:var(--accent-soft);
   border:1px solid #bfeef4; border-radius:6px; padding:3px 8px; }
 .iso-chip b { color:var(--accent-ink); font-weight:600; margin-right:5px; text-transform:uppercase; letter-spacing:.3px; font-size:9.5px; }
+/* --- install: per-dependency isolation fields inside topology boxes --- */
+.iso-in { margin-top:9px; display:flex; flex-direction:column; gap:4px; }
+.iso-in > label { font-size:10.5px; font-weight:600; color:var(--fg-3); text-transform:uppercase; letter-spacing:.3px; display:flex; align-items:center; gap:5px; }
+.iso-in .q { width:13px; height:13px; border-radius:50%; background:var(--surface-3); border:1px solid var(--line-2);
+  color:var(--fg-3); font-size:9px; font-weight:700; display:inline-grid; place-items:center; cursor:help; text-transform:none; }
+.iso-in .f-in { height:30px; font-size:12px; }

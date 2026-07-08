@@ -129,7 +129,9 @@ def test_install_milvus_form_has_dep_dropdowns(client):
         assert m in js, m
 
 
-def test_install_milvus_isolation_prefix(client):
+def test_install_milvus_per_dep_isolation(client):
     js = client.get("/assets/web.js").text
-    assert "inst-iso" in js and "isolationPrefix" in js
-    assert "isoDirty" in js or "dataset.dirty" in js       # mirror-until-edited flag
+    for m in ["inst-etcd-root", "inst-store-bucket", "inst-store-root", "inst-mq-prefix",
+              "etcdRootPath", "minioBucket", "minioRootPath", "mqChanPrefix", "title="]:
+        assert m in js, m
+    assert "isolationPrefix" not in js and 'id="inst-iso"' not in js
