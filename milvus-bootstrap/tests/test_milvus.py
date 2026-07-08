@@ -155,7 +155,6 @@ def test_milvus_dup_name_rejected(core: Core) -> None:
 
 
 def test_milvus_mq_collision_on_shared_broker(core: Core) -> None:
-    import pytest
     core.install(InstallSpec(kind="milvus", name="mv-a", params={
         "mq": "kafka", "kafkaBrokers": "kafka-x.default.svc:9092", "mqChanPrefix": "shared"}), dry_run=False)
     with pytest.raises(ValueError, match="MQ"):
@@ -167,7 +166,6 @@ def test_milvus_mq_collision_on_shared_broker(core: Core) -> None:
 
 
 def test_milvus_minio_pair_collision(core: Core) -> None:
-    import pytest
     base = {"mq": "kafka", "kafkaBrokers": "k.default.svc:9092", "storageEndpoint": "minio.default.svc:80"}
     core.install(InstallSpec(kind="milvus", name="mv-a", params={**base, "minioBucket": "shared", "minioRootPath": "rp"}), dry_run=False)
     # same bucket + same rootPath on the shared minio → collision
