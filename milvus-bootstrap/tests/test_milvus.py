@@ -106,3 +106,30 @@ def test_install_milvus_apply_registers(core: Core) -> None:
     assert inst is not None
     assert inst.deps[0].install_method == "milvus-operator"
     assert inst.deps[0].state_class == StateClass.stateless
+
+
+def test_milvus_injects_isolation_prefix_into_spec_config() -> None:
+    prof = load_profiles()["milvus"]
+    drv = MilvusDriver(prof)
+    method = prof.method("milvus-operator", Platform.k8s)
+    # default: prefix == instance name
+    cr = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"), method, {**method.params, "mq": "kafka"})[-1]
+    cfg = cr["spec"]["config"]
+    assert cfg["msgChannel"]["chanNamePrefix"]["cluster"] == "m1"
+    assert cfg["etcd"]["rootPath"] == "m1"
+    assert cfg["minio"]["bucketName"] == "m1"
+    assert "conf" not in cr["spec"]                       # dead spec.conf field removed
+    # explicit prefix override
+    cr2 = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"),
+                                      method, {**method.params, "mq": "kafka", "isolationPrefix": "shared-a"})[-1]
+    assert cr2["spec"]["config"]["etcd"]["rootPath"] == "shared-a"
+
+
+def test_milvus_conf_merged_into_spec_config() -> None:
+    prof = load_profiles()["milvus"]
+    drv = MilvusDriver(prof)
+    method = prof.method("milvus-operator", Platform.k8s)
+    params = {**method.params, "mq": "kafka", "_conf": {"queryNode.gracefulTime": 5000}}
+    cfg = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"), method, params)[-1]["spec"]["config"]
+    assert cfg["queryNode"]["gracefulTime"] == 5000       # _conf routed into spec.config (dotted→nested)
+    assert cfg["etcd"]["rootPath"] == "m1"                # isolation still present

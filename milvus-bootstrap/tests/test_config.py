@@ -1,4 +1,4 @@
-"""Config engine — get / set / restart (milvus -> spec.conf; helm -> values)."""
+"""Config engine — get / set / restart (milvus -> spec.config; helm -> values)."""
 from __future__ import annotations
 
 import pytest
@@ -21,13 +21,13 @@ def test_config_get_returns_data(core: Core) -> None:
     assert isinstance(cfg, dict) and cfg
 
 
-def test_config_set_milvus_into_spec_conf(core: Core) -> None:
+def test_config_set_milvus_into_spec_config(core: Core) -> None:
     task = core.config_set("milvus-dev", {"log.level": "debug"}, dry_run=True)
     assert task.status == TaskStatus.succeeded
     names = [s.name for s in task.steps]
     assert names[0] == "config-diff" and "restart-note" in names
     apply = next(s for s in task.steps if s.name == "apply-cr")
-    assert "conf" in apply.plan and "log.level" in apply.plan   # CR spec.conf.data
+    assert "config" in apply.plan and "level: debug" in apply.plan   # CR spec.config (dotted→nested)
 
 
 def test_config_set_milvus_apply_persists(core: Core) -> None:

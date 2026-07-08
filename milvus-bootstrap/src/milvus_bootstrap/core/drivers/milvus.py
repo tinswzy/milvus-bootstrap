@@ -17,6 +17,29 @@ from .base import BaseServiceDriver
 WOODPECKER_SERVICE_PORT = 18080  # woodpecker LogStore gRPC port
 
 
+def _dotted_to_nested(flat: dict) -> dict:
+    """{'a.b.c': v} -> {'a': {'b': {'c': v}}}; keys without '.' are kept as-is."""
+    out: dict = {}
+    for k, v in (flat or {}).items():
+        parts = str(k).split(".")
+        cur = out
+        for p in parts[:-1]:
+            cur = cur.setdefault(p, {})
+        cur[parts[-1]] = v
+    return out
+
+
+def _deep_merge(a: dict, b: dict) -> dict:
+    """Recursive dict merge; b wins on scalar conflicts."""
+    out = dict(a)
+    for k, v in b.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
 def woodpecker_seeds(name: str, replicas: int, namespace: str,
                      port: int = WOODPECKER_SERVICE_PORT) -> list[str]:
     """LogStore quorum seeds, deterministic from a WoodpeckerCluster name:
@@ -79,9 +102,12 @@ class MilvusDriver(BaseServiceDriver):
             components["env"] = [{"name": "MINIO_ADDRESS", "value": storage_endpoint}]
 
         cr_spec = {"mode": mode, "components": components, "dependencies": deps}
-        conf = params.get("_conf")
-        if conf:
-            cr_spec["conf"] = {"data": conf}
+        prefix = params.get("isolationPrefix") or name
+        iso = {"msgChannel": {"chanNamePrefix": {"cluster": prefix}},
+               "etcd": {"rootPath": prefix}, "minio": {"bucketName": prefix}}
+        config = _deep_merge(_dotted_to_nested(params.get("_conf") or {}), iso)
+        if config:
+            cr_spec["config"] = config
 
         manifests.append({
             "apiVersion": f"{cr.group}/{cr.version}", "kind": cr.kind,
