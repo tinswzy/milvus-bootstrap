@@ -102,9 +102,13 @@ class MilvusDriver(BaseServiceDriver):
             components["env"] = [{"name": "MINIO_ADDRESS", "value": storage_endpoint}]
 
         cr_spec = {"mode": mode, "components": components, "dependencies": deps}
-        prefix = params.get("isolationPrefix") or name
-        iso = {"msgChannel": {"chanNamePrefix": {"cluster": prefix}},
-               "etcd": {"rootPath": prefix}, "minio": {"bucketName": prefix}}
+        n = name
+        iso = {
+            "etcd": {"rootPath": params.get("etcdRootPath") or n},
+            "minio": {"bucketName": params.get("minioBucket") or n,
+                      "rootPath": params.get("minioRootPath") or n},
+            "msgChannel": {"chanNamePrefix": {"cluster": params.get("mqChanPrefix") or n}},
+        }
         config = _deep_merge(_dotted_to_nested(params.get("_conf") or {}), iso)
         if config:
             cr_spec["config"] = config

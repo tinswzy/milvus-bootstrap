@@ -108,21 +108,24 @@ def test_install_milvus_apply_registers(core: Core) -> None:
     assert inst.deps[0].state_class == StateClass.stateless
 
 
-def test_milvus_injects_isolation_prefix_into_spec_config() -> None:
+def test_milvus_per_dep_isolation_defaults_and_override() -> None:
     prof = load_profiles()["milvus"]
     drv = MilvusDriver(prof)
     method = prof.method("milvus-operator", Platform.k8s)
-    # default: prefix == instance name
-    cr = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"), method, {**method.params, "mq": "kafka"})[-1]
-    cfg = cr["spec"]["config"]
-    assert cfg["msgChannel"]["chanNamePrefix"]["cluster"] == "m1"
+    cfg = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"),
+                                      method, {**method.params, "mq": "kafka"})[-1]["spec"]["config"]
+    # all four default to the instance name (incl. minio.rootPath)
     assert cfg["etcd"]["rootPath"] == "m1"
     assert cfg["minio"]["bucketName"] == "m1"
-    assert "conf" not in cr["spec"]                       # dead spec.conf field removed
-    # explicit prefix override
-    cr2 = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"),
-                                      method, {**method.params, "mq": "kafka", "isolationPrefix": "shared-a"})[-1]
-    assert cr2["spec"]["config"]["etcd"]["rootPath"] == "shared-a"
+    assert cfg["minio"]["rootPath"] == "m1"
+    assert cfg["msgChannel"]["chanNamePrefix"]["cluster"] == "m1"
+    assert "conf" not in drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"), method, method.params)[-1]["spec"]
+    # per-key override, others untouched
+    cfg2 = drv.build_install_manifests(InstallSpec(kind="milvus", name="m1"), method,
+        {**method.params, "mq": "kafka", "minioRootPath": "custom-rp", "mqChanPrefix": "myprefix"})[-1]["spec"]["config"]
+    assert cfg2["minio"]["rootPath"] == "custom-rp"
+    assert cfg2["msgChannel"]["chanNamePrefix"]["cluster"] == "myprefix"
+    assert cfg2["etcd"]["rootPath"] == "m1" and cfg2["minio"]["bucketName"] == "m1"
 
 
 def test_milvus_conf_merged_into_spec_config() -> None:
