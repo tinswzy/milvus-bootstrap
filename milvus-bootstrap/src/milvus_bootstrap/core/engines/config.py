@@ -1,6 +1,6 @@
 """Config engine — get / set / restart the effective component config.
 
-`set` folds overrides via the driver (milvus → CR spec.conf.data; others →
+`set` folds overrides via the driver (milvus → CR spec.config nested; others →
 install params) and re-applies; operator/helm then roll the pods. `restart`
 does an explicit rolling restart.
 """

@@ -220,5 +220,5 @@ class BaseServiceDriver(ServiceDriver):
     def config_apply_params(self, params: dict, kv: dict) -> dict:
         """Fold config key/values into install params (default: treat as install
         params, i.e. helm --set). Components whose config is separate (e.g. milvus
-        spec.conf) override this."""
+        CR spec.config) override this."""
         return {**params, **kv}
