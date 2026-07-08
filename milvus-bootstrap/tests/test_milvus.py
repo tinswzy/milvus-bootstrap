@@ -154,13 +154,24 @@ def test_milvus_dup_name_rejected(core: Core) -> None:
         core.install(InstallSpec(kind="milvus", name="mv", params={"mq": "kafka"}), dry_run=True)
 
 
-def test_milvus_prefix_collision_on_shared_dep(core: Core) -> None:
+def test_milvus_mq_collision_on_shared_broker(core: Core) -> None:
+    import pytest
     core.install(InstallSpec(kind="milvus", name="mv-a", params={
-        "mq": "kafka", "kafkaBrokers": "kafka-x.default.svc:9092", "isolationPrefix": "shared"}), dry_run=False)
-    # different name, SAME custom prefix, SAME kafka endpoint → collision
-    with pytest.raises(ValueError, match="隔离前缀"):
+        "mq": "kafka", "kafkaBrokers": "kafka-x.default.svc:9092", "mqChanPrefix": "shared"}), dry_run=False)
+    with pytest.raises(ValueError, match="MQ"):
         core.install(InstallSpec(kind="milvus", name="mv-b", params={
-            "mq": "kafka", "kafkaBrokers": "kafka-x.default.svc:9092", "isolationPrefix": "shared"}), dry_run=True)
-    # same prefix but a DIFFERENT (non-shared) endpoint → allowed
+            "mq": "kafka", "kafkaBrokers": "kafka-x.default.svc:9092", "mqChanPrefix": "shared"}), dry_run=True)
+    # same prefix, different broker → allowed
     core.install(InstallSpec(kind="milvus", name="mv-c", params={
-        "mq": "kafka", "kafkaBrokers": "kafka-y.default.svc:9092", "isolationPrefix": "shared"}), dry_run=True)
+        "mq": "kafka", "kafkaBrokers": "kafka-y.default.svc:9092", "mqChanPrefix": "shared"}), dry_run=True)
+
+
+def test_milvus_minio_pair_collision(core: Core) -> None:
+    import pytest
+    base = {"mq": "kafka", "kafkaBrokers": "k.default.svc:9092", "storageEndpoint": "minio.default.svc:80"}
+    core.install(InstallSpec(kind="milvus", name="mv-a", params={**base, "minioBucket": "shared", "minioRootPath": "rp"}), dry_run=False)
+    # same bucket + same rootPath on the shared minio → collision
+    with pytest.raises(ValueError, match="对象存储"):
+        core.install(InstallSpec(kind="milvus", name="mv-b", params={**base, "minioBucket": "shared", "minioRootPath": "rp"}), dry_run=True)
+    # same bucket but DIFFERENT rootPath → allowed (share bucket, isolate by path)
+    core.install(InstallSpec(kind="milvus", name="mv-c", params={**base, "minioBucket": "shared", "minioRootPath": "other"}), dry_run=True)

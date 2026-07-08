@@ -8,40 +8,48 @@ from ..state.base import StateStore
 from ..tasks.engine import Step, TaskEngine
 
 
-def _dep_eps(params: dict) -> set[str]:
-    """The dependency endpoint strings a milvus install binds to, as a set."""
-    eps: set = set()
-    etcd = params.get("etcdEndpoints")
-    if isinstance(etcd, (list, tuple)):
-        eps.update(str(e) for e in etcd)
-    elif etcd:
-        eps.add(str(etcd))
-    for key in ("storageEndpoint", "pulsarEndpoint"):
-        if params.get(key):
-            eps.add(str(params[key]))
-    kb = params.get("kafkaBrokers")
-    if isinstance(kb, (list, tuple)):
-        eps.update(str(e) for e in kb)
-    elif kb:
-        eps.add(str(kb))
-    return eps
+def _dep_ep_sets(params: dict) -> dict:
+    """Per-dependency endpoint sets the milvus install binds to."""
+    def _as_set(v):
+        if isinstance(v, (list, tuple)):
+            return {str(e) for e in v}
+        return {str(v)} if v else set()
+    return {
+        "etcd": _as_set(params.get("etcdEndpoints")),
+        "minio": _as_set(params.get("storageEndpoint")),
+        "mq": _as_set(params.get("kafkaBrokers")) | _as_set(params.get("pulsarEndpoint")),
+    }
+
+
+def _iso_of(params: dict, name: str) -> dict:
+    """Effective per-dependency isolation values (default = instance name)."""
+    return {
+        "etcd": params.get("etcdRootPath") or name,
+        "minio": (params.get("minioBucket") or name, params.get("minioRootPath") or name),
+        "mq": params.get("mqChanPrefix") or name,
+    }
+
+
+_DEP_LABELS = {"etcd": "etcd", "minio": "对象存储", "mq": "MQ"}
 
 
 def check_milvus_install(instances: list, spec) -> None:
-    """Reject a milvus install that duplicates a name or collides on (prefix, shared dep)."""
+    """Reject a milvus install that duplicates a name or collides per-dependency
+    (shares a dep endpoint AND uses the same isolation value(s) for that dep)."""
     if any(i.name == spec.name for i in instances):
         raise ValueError(f"实例名 {spec.name} 已存在，请换名")
-    new_prefix = spec.params.get("isolationPrefix") or spec.name
-    new_eps = _dep_eps(spec.params)
+    new_eps, new_iso = _dep_ep_sets(spec.params), _iso_of(spec.params, spec.name)
     for i in instances:
         snap = i.spec_snapshot or {}
         if snap.get("kind") != "milvus":
             continue
         p = snap.get("params", {}) or {}
-        eff = p.get("isolationPrefix") or i.name
-        if eff == new_prefix and (_dep_eps(p) & new_eps):
-            raise ValueError(
-                f"隔离前缀 {new_prefix} 已被 milvus {i.name} 在共享依赖上占用，请改前缀")
+        eps, iso = _dep_ep_sets(p), _iso_of(p, i.name)
+        for dep in ("etcd", "minio", "mq"):
+            if (new_eps[dep] & eps[dep]) and new_iso[dep] == iso[dep]:
+                raise ValueError(
+                    f"{_DEP_LABELS[dep]} 隔离与 milvus {i.name} 冲突"
+                    f"（共享同一 {_DEP_LABELS[dep]} 且隔离值相同），请改{_DEP_LABELS[dep]}的隔离配置")
 
 
 class Provisioner:
