@@ -161,6 +161,8 @@ async function fillParams(kind) {
   box.innerHTML =
     `<div class="mv-form">` +
     `<label>镜像</label><input id="inst-image" class="f-in" value="milvusdb/milvus:v2.6.18">` +
+    `<label>数据隔离前缀 <span class="muted" style="font-weight:400">(默认=实例名，共用依赖时用它隔离 topic/rootPath/bucket)</span></label>` +
+    `<input id="inst-iso" class="f-in" placeholder="默认=实例名">` +
     `<label>etcd 依赖</label><select id="inst-etcd">${depOptions(insts, 'etcd')}</select>` +
     `<input id="inst-etcd-custom" class="f-in" placeholder="etcd.default.svc:2379" style="display:none">` +
     `<label>存储依赖</label><select id="inst-storage">${depOptions(insts, 'minio')}</select>` +
@@ -183,6 +185,12 @@ async function fillParams(kind) {
     } else { row.style.display = 'none'; }
   };
   mqtype.onchange = syncMq; syncMq();
+  const nameEl = document.getElementById('inst-name');
+  const isoEl = document.getElementById('inst-iso');
+  let isoDirty = false;
+  isoEl.value = nameEl.value.trim();
+  isoEl.oninput = () => { isoDirty = true; };
+  nameEl.oninput = () => { if (!isoDirty) isoEl.value = nameEl.value.trim(); };
 }
 
 function collectParams() {
@@ -201,6 +209,8 @@ function collectParams() {
   p.mq = mq;
   if (mq === 'kafka') { const v = selVal('inst-mq', 'inst-mq-custom'); if (v) p.kafkaBrokers = v; }
   if (mq === 'pulsar') { const v = selVal('inst-mq', 'inst-mq-custom'); if (v) p.pulsarEndpoint = v; }
+  const iso = (document.getElementById('inst-iso') || {}).value;
+  p.isolationPrefix = (iso && iso.trim()) || (document.getElementById('inst-name').value.trim());
   return p;
 }
 

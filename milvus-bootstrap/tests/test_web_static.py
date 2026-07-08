@@ -127,3 +127,9 @@ def test_install_milvus_form_has_dep_dropdowns(client):
     js = client.get("/assets/web.js").text
     for m in ['function depOptions', '__custom__', 'inst-etcd', 'inst-storage', 'inst-mqtype', 'inst-mq', 'function selVal']:
         assert m in js, m
+
+
+def test_install_milvus_isolation_prefix(client):
+    js = client.get("/assets/web.js").text
+    assert "inst-iso" in js and "isolationPrefix" in js
+    assert "isoDirty" in js or "dataset.dirty" in js       # mirror-until-edited flag
