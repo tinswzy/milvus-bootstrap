@@ -517,3 +517,32 @@ code.c2 { font-family:var(--font-mono); font-size:.9em; background:var(--surface
 .dep-row:last-child { border-bottom:none; }
 .dep-row .nm { font-weight:600; min-width:120px; }
 .dep-row .mono { margin-left:auto; }
+
+/* --- install form layout --- */
+.f-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:14px 16px; }
+.f-row { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.f-row > label { font-size:12.5px; font-weight:600; color:var(--fg-2); }
+.f-hint { font-weight:400; color:var(--fg-3); font-size:11px; }
+.f-in { width:100%; height:36px; box-sizing:border-box; border:1px solid var(--line-2); border-radius:8px;
+  padding:0 11px; font-size:13px; font-family:inherit; color:var(--fg); background:var(--surface); }
+select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--fg-3) 50%),linear-gradient(135deg,var(--fg-3) 50%,transparent 50%);
+  background-position:calc(100% - 16px) center,calc(100% - 11px) center; background-size:5px 5px,5px 5px; background-repeat:no-repeat; padding-right:30px; }
+.f-in:focus, select.f-in:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.f-sect { font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--fg-3);
+  margin:18px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+.mv-form { display:flex; flex-direction:column; }
+
+/* --- install: configure-as-topology (fields live inside the topology boxes) --- */
+.topo-edit { padding:8px 4px 4px; }
+.topo-edit .box { cursor:default; }
+.topo-edit .box:hover { transform:none; box-shadow:var(--shadow-sm); border-color:var(--line-2); }
+.topo-edit .box.box-mv:hover { border-color:var(--accent); }
+.topo-edit .cell-etcd, .topo-edit .cell-store, .topo-edit .cell-mq { align-self:start; }
+.bind-sel { margin-top:10px; }
+.box-mv .mv-fields { display:flex; flex-direction:column; gap:3px; margin-top:12px; }
+.box-mv .mvl { font-size:11px; font-weight:600; color:var(--fg-2); margin-top:6px; }
+.iso-preview { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.iso-chip { font-family:var(--font-mono); font-size:11px; color:var(--fg-2); background:var(--accent-soft);
+  border:1px solid #bfeef4; border-radius:6px; padding:3px 8px; }
+.iso-chip b { color:var(--accent-ink); font-weight:600; margin-right:5px; text-transform:uppercase; letter-spacing:.3px; font-size:9.5px; }

@@ -149,6 +149,8 @@ function wireCustom(selId, custId) {
 
 async function fillParams(kind) {
   const box = document.getElementById('inst-params');
+  const head = document.getElementById('inst-params-head');
+  if (head) head.style.display = (kind === 'milvus') ? 'none' : '';
   if (kind !== 'milvus') {
     box.innerHTML = '';
     const d = INSTALL_DEFAULTS[kind] || {};
@@ -156,41 +158,78 @@ async function fillParams(kind) {
     return;
   }
   const insts = await loadInstances();
-  const mqInst = kind => `<select id="inst-mq"><option value="">—</option>${depOptions(insts, kind)}</select>`
-    + `<input id="inst-mq-custom" class="f-in" placeholder="host:port" style="display:none">`;
+  const mqLogoFor = t => ({ kafka: '🌊', pulsar: '📡', rocksmq: '🪨' })[t] || (String(t).startsWith('woodpecker') ? '🪶' : '📨');
+  const mqInst = mk => `<select id="inst-mq" class="f-in"><option value="">—</option>${depOptions(insts, mk)}</select>`
+    + `<input id="inst-mq-custom" class="f-in" placeholder="host:port" style="display:none;margin-top:7px">`;
+  // Configure-as-topology: the install form IS the topology card you'll get —
+  // etcd ▸ [new Milvus] ▸ store, MQ hanging below, with the same flow connectors.
   box.innerHTML =
-    `<div class="mv-form">` +
-    `<label>镜像</label><input id="inst-image" class="f-in" value="milvusdb/milvus:v2.6.18">` +
-    `<label>数据隔离前缀 <span class="muted" style="font-weight:400">(默认=实例名，共用依赖时用它隔离 topic/rootPath/bucket)</span></label>` +
-    `<input id="inst-iso" class="f-in" placeholder="默认=实例名">` +
-    `<label>etcd 依赖</label><select id="inst-etcd">${depOptions(insts, 'etcd')}</select>` +
-    `<input id="inst-etcd-custom" class="f-in" placeholder="etcd.default.svc:2379" style="display:none">` +
-    `<label>存储依赖</label><select id="inst-storage">${depOptions(insts, 'minio')}</select>` +
-    `<input id="inst-storage-custom" class="f-in" placeholder="minio.default.svc:80" style="display:none">` +
-    `<label>MQ 类型</label><select id="inst-mqtype">` +
-    ['kafka', 'pulsar', 'woodpecker-service', 'woodpecker-embedded', 'rocksmq'].map(o => `<option value="${o}">${o}</option>`).join('') +
-    `</select>` +
-    `<div id="inst-mqinst-row"><label>MQ 实例</label>${mqInst('kafka')}</div>` +
+    `<div class="topo topo-edit">` +
+      `<div class="box cell-etcd">` +
+        `<div class="bt"><span class="lo">🗄️</span><div><div class="nm">etcd</div><div class="role">元数据</div></div></div>` +
+        `<select id="inst-etcd" class="f-in bind-sel">${depOptions(insts, 'etcd')}</select>` +
+        `<input id="inst-etcd-custom" class="f-in" placeholder="etcd.default.svc:2379" style="display:none;margin-top:7px">` +
+      `</div>` +
+      `<div class="flow-h col2"></div>` +
+      `<div class="box box-mv">` +
+        `<div class="bt"><span class="lo">M</span><div><div class="nm" id="mv-name">新 Milvus</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
+        `<div class="mv-fields">` +
+          `<label class="mvl">镜像</label><input id="inst-image" class="f-in" value="milvusdb/milvus:v2.6.18">` +
+          `<label class="mvl">数据隔离前缀 <span class="f-hint">共用依赖时用它隔离</span></label>` +
+          `<input id="inst-iso" class="f-in" placeholder="默认=实例名">` +
+          `<div class="iso-preview" id="iso-preview"></div>` +
+        `</div>` +
+      `</div>` +
+      `<div class="flow-h col4"></div>` +
+      `<div class="box cell-store">` +
+        `<div class="bt"><span class="lo">🪣</span><div><div class="nm">对象存储</div><div class="role">Object Storage</div></div></div>` +
+        `<select id="inst-storage" class="f-in bind-sel">${depOptions(insts, 'minio')}</select>` +
+        `<input id="inst-storage-custom" class="f-in" placeholder="minio.default.svc:80" style="display:none;margin-top:7px">` +
+      `</div>` +
+      `<div class="flow-v"></div>` +
+      `<div class="box cell-mq">` +
+        `<div class="bt"><span class="lo" id="mq-logo">🌊</span><div><div class="nm">消息队列</div><div class="role">WAL · MQ</div></div></div>` +
+        `<select id="inst-mqtype" class="f-in bind-sel">` +
+        ['kafka', 'pulsar', 'woodpecker-service', 'woodpecker-embedded', 'rocksmq'].map(o => `<option value="${o}">${o}</option>`).join('') +
+        `</select><div id="inst-mqinst-row" style="margin-top:7px">${mqInst('kafka')}</div>` +
+      `</div>` +
     `</div>`;
   wireCustom('inst-etcd', 'inst-etcd-custom');
   wireCustom('inst-storage', 'inst-storage-custom');
   const mqtype = document.getElementById('inst-mqtype');
   const row = document.getElementById('inst-mqinst-row');
+  const mqLogoEl = document.getElementById('mq-logo');
   const syncMq = () => {
     const t = mqtype.value;
+    mqLogoEl.textContent = mqLogoFor(t);
     if (t === 'kafka' || t === 'pulsar') {
       row.style.display = '';
-      row.innerHTML = `<label>MQ 实例</label>${mqInst(t)}`;
+      row.innerHTML = mqInst(t);
       wireCustom('inst-mq', 'inst-mq-custom');
-    } else { row.style.display = 'none'; }
+    } else { row.style.display = 'none'; row.innerHTML = ''; }
   };
   mqtype.onchange = syncMq; syncMq();
   const nameEl = document.getElementById('inst-name');
   const isoEl = document.getElementById('inst-iso');
+  const prevEl = document.getElementById('iso-preview');
+  const mvNameEl = document.getElementById('mv-name');
+  const updatePreview = () => {
+    const p = isoEl.value.trim() || nameEl.value.trim() || '<实例名>';
+    prevEl.innerHTML =
+      `<span class="iso-chip"><b>topic</b>${esc(p)}-·</span>` +
+      `<span class="iso-chip"><b>etcd</b>/${esc(p)}</span>` +
+      `<span class="iso-chip"><b>bucket</b>${esc(p)}</span>`;
+  };
   let isoDirty = false;
   isoEl.value = nameEl.value.trim();
-  isoEl.oninput = () => { isoDirty = true; };
-  nameEl.oninput = () => { if (!isoDirty) isoEl.value = nameEl.value.trim(); };
+  isoEl.oninput = () => { isoDirty = true; updatePreview(); };
+  nameEl.oninput = () => {
+    if (!isoDirty) isoEl.value = nameEl.value.trim();
+    mvNameEl.textContent = nameEl.value.trim() || '新 Milvus';
+    updatePreview();
+  };
+  mvNameEl.textContent = nameEl.value.trim() || '新 Milvus';
+  updatePreview();
 }
 
 function collectParams() {
