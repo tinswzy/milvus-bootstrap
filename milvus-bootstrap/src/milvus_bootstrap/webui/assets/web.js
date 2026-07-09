@@ -450,7 +450,7 @@ async function openPods(name) {
     ? '<table class="tbl"><thead><tr><th>Pod</th><th>状态</th><th>Ready</th><th>重启</th><th>龄</th></tr></thead><tbody>' +
       pods.map(p => `<tr><td class="mono">${esc(p.pod)}</td>` +
         `<td>${badge(p.phase === 'Running' ? 'PASS' : 'WARN', p.phase)}</td>` +
-        `<td>${esc(p.ready)}</td><td>${p.restarts}</td><td>${esc(ageOf(p.created))}</td></tr>`).join('') +
+        `<td>${esc(p.ready)}</td><td>${esc(String(p.restarts))}</td><td>${esc(ageOf(p.created))}</td></tr>`).join('') +
       '</tbody></table>'
     : `<div class="muted">ns:${esc(d.namespace)} 下未找到该实例的 pod（或未连接集群）</div>`;
 }

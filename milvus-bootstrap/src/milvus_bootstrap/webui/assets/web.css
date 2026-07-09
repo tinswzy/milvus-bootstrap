@@ -348,16 +348,7 @@ a { color:inherit; text-decoration:none; }
 .drawer .db { padding:20px 22px; overflow-y:auto; flex:1; }
 .drawer .df { padding:14px 22px; border-top:1px solid var(--line); display:flex; gap:10px; justify-content:flex-end; background:var(--surface); }
 
-.modal { position:fixed; inset:0; display:grid; place-items:center; z-index:80; }
-.modal .box { width:440px; max-width:92vw; background:var(--surface); border-radius:14px; box-shadow:var(--shadow-lg);
-  animation:pop .22s cubic-bezier(.2,.9,.3,1); overflow:hidden; }
 @keyframes pop { from{ transform:scale(.94); opacity:0;} to{ transform:none; opacity:1;} }
-.modal .mh { padding:20px 22px 6px; display:flex; gap:13px; }
-.modal .mh .ic { width:40px;height:40px;border-radius:11px; display:grid;place-items:center; flex:none;}
-.modal .mh h3 { margin:0 0 4px; font-size:16.5px; font-family:var(--font-display);}
-.modal .mh p { margin:0; color:var(--fg-2); font-size:13px;}
-.modal .mb { padding:6px 22px 4px; }
-.modal .mf { padding:16px 22px 20px; display:flex; gap:10px; justify-content:flex-end; }
 
 .close-x { margin-left:auto; width:30px;height:30px;border-radius:8px; border:1px solid var(--line-2); background:var(--surface);
   display:grid; place-items:center; cursor:pointer; color:var(--fg-3); }
