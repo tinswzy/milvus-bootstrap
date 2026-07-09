@@ -78,12 +78,12 @@ def test_pod_images_parses_and_matches():
 
 
 def test_pods_of_parses_and_filters():
-    line = ("milvus-dev-milvus-standalone-abc\tRunning\ttrue,true,\t0,1,\t2026-07-01T00:00:00Z\n"
-            "other-thing-xyz\tRunning\ttrue,\t0,\t2026-07-01T00:00:00Z\n"
-            "milvus-dev-milvus-standalone-def\tPending\tfalse,\t3,\t2026-07-02T00:00:00Z\n")
+    line = ("milvus-dev-milvus-standalone-abc\tRunning\ttrue,true,\t0,1,\tmilvusdb/milvus:v2.6.20\t2026-07-01T00:00:00Z\n"
+            "other-thing-xyz\tRunning\ttrue,\t0,\tbusybox\t2026-07-01T00:00:00Z\n"
+            "milvus-dev-milvus-standalone-def\tPending\tfalse,\t3,\tmilvusdb/milvus:v2.6.18\t2026-07-02T00:00:00Z\n")
     pods = probe.pods_of("milvus-dev", "default", run=lambda a: (0, line, ""))
     assert [p["pod"] for p in pods] == ["milvus-dev-milvus-standalone-abc", "milvus-dev-milvus-standalone-def"]
     assert pods[0] == {"pod": "milvus-dev-milvus-standalone-abc", "phase": "Running",
-                       "ready": "2/2", "restarts": 1, "created": "2026-07-01T00:00:00Z"}
-    assert pods[1]["ready"] == "0/1" and pods[1]["restarts"] == 3 and pods[1]["phase"] == "Pending"
+                       "ready": "2/2", "restarts": 1, "image": "milvusdb/milvus:v2.6.20", "created": "2026-07-01T00:00:00Z"}
+    assert pods[1]["image"] == "milvusdb/milvus:v2.6.18" and pods[1]["ready"] == "0/1"
     assert probe.pods_of("milvus-dev", "default", run=lambda a: (1, "", "boom")) == []

@@ -119,22 +119,23 @@ def pods_of(name: str, ns: str, run=run_kubectl) -> list[dict]:
                       "jsonpath={range .items[*]}{.metadata.name}{'\\t'}{.status.phase}{'\\t'}"
                       "{range .status.containerStatuses[*]}{.ready},{end}{'\\t'}"
                       "{range .status.containerStatuses[*]}{.restartCount},{end}{'\\t'}"
+                      "{.status.containerStatuses[0].image}{'\\t'}"
                       "{.metadata.creationTimestamp}{'\\n'}{end}"])
     if rc != 0:
         return []
     out_pods: list[dict] = []
     for line in out.splitlines():
         parts = line.split("\t")
-        if len(parts) != 5:
+        if len(parts) != 6:
             continue
-        pod, phase, ready_csv, restart_csv, created = parts
+        pod, phase, ready_csv, restart_csv, image, created = parts
         if not (pod == name or pod.startswith(name + "-")):
             continue
         readies = [x for x in ready_csv.split(",") if x]
         ready = f"{sum(1 for x in readies if x == 'true')}/{len(readies)}" if readies else "0/0"
         restarts = sum(int(x) for x in restart_csv.split(",") if x.strip().isdigit())
         out_pods.append({"pod": pod, "phase": phase, "ready": ready,
-                         "restarts": restarts, "created": created})
+                         "restarts": restarts, "image": image, "created": created})
     return out_pods
 
 
