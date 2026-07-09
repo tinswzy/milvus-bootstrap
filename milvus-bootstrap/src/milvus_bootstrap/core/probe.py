@@ -113,6 +113,31 @@ def match_pod_image(pods, name: str, ns: str) -> tuple[str, str]:
     return "", ""
 
 
+def pods_of(name: str, ns: str, run=run_kubectl) -> list[dict]:
+    """Pods belonging to an instance (name-segment match), best-effort."""
+    rc, out, _ = run(["get", "pods", "-n", ns, "-o",
+                      "jsonpath={range .items[*]}{.metadata.name}{'\\t'}{.status.phase}{'\\t'}"
+                      "{range .status.containerStatuses[*]}{.ready},{end}{'\\t'}"
+                      "{range .status.containerStatuses[*]}{.restartCount},{end}{'\\t'}"
+                      "{.metadata.creationTimestamp}{'\\n'}{end}"])
+    if rc != 0:
+        return []
+    out_pods: list[dict] = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 5:
+            continue
+        pod, phase, ready_csv, restart_csv, created = parts
+        if not (pod == name or pod.startswith(name + "-")):
+            continue
+        readies = [x for x in ready_csv.split(",") if x]
+        ready = f"{sum(1 for x in readies if x == 'true')}/{len(readies)}" if readies else "0/0"
+        restarts = sum(int(x) for x in restart_csv.split(",") if x.strip().isdigit())
+        out_pods.append({"pod": pod, "phase": phase, "ready": ready,
+                         "restarts": restarts, "created": created})
+    return out_pods
+
+
 def detect_versions(run=run_kubectl) -> DetectedVersions:
     dv = DetectedVersions()
 
