@@ -399,7 +399,7 @@ async function renderMilvus() {
             `<div class="bt"><span class="lo">M</span><div><div class="nm">${esc(i.name)}</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
             `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(i.name)} · ${imageCell(i)}</div>` +
             `<div class="mvmeta"><span class="badge b-accent"><span class="d"></span>MQ: ${esc(d.mq || '—')}</span></div>` +
-            `<div class="mv-actions">${ph('切换 MQ')}${ph('配置')}${podsButton(i)}${delButton(i)}</div>` +
+            `<div class="mv-actions">${upgradeButton(i)}${ph('配置')}${podsButton(i)}${ph('切换 MQ')}${delButton(i)}</div>` +
           `</div>` +
           `<div class="flow-h col4"></div>` +
           depBox('cell-store', '🪣', '对象存储', 'Object Storage', d.storage) +
@@ -409,6 +409,7 @@ async function renderMilvus() {
     }).join('') : '<div class="card"><div class="card-pad muted">暂无 Milvus 实例</div></div>');
     box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderMilvus); });
     box.querySelectorAll('[data-pods]').forEach(b => { b.onclick = () => openPods(b.getAttribute('data-pods')); });
+    box.querySelectorAll('[data-upgrade]').forEach(b => { b.onclick = () => openUpgrade(b.getAttribute('data-upgrade'), b.getAttribute('data-image')); });
   } catch (e) {
     box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
   }
@@ -474,6 +475,41 @@ function depEndpoint(kind, name, ns) {
     kafka: `${name}.${ns}.svc:9092`,
     pulsar: `${name}-broker.${ns}.svc:6650`,
   })[kind] || `${name}.${ns}.svc`;
+}
+
+function upgradeButton(i) {
+  return i.ownership === 'managed'
+    ? `<button class="btn btn-ghost btn-sm" data-upgrade="${esc(i.name)}" data-image="${esc(i.image || '')}">升级</button>`
+    : `<button class="btn btn-ghost btn-sm" disabled title="external：mb 未安装，不可升级">升级</button>`;
+}
+async function submitUpgrade(name, image, dryRun, force, resultEl) {
+  resultEl.innerHTML = '<span class="muted">提交中…</span>';
+  let resp;
+  try { resp = await postJSON('api/upgrade', { instance: name, image: image, dry_run: dryRun, force: !!force }); }
+  catch (e) { resultEl.innerHTML = '<span class="conn bad">提交失败：' + esc(e.message) + '</span>'; return; }
+  const { status, data } = resp;
+  if (status === 200) { resultEl.innerHTML = renderTaskResult(data.task); return; }
+  if (status === 202) { await pollInstall(data.task_id, resultEl); renderMilvus(); return; }
+  if (status === 409) {
+    resultEl.innerHTML = `<div class="conn bad">被兼容门禁拦截：${esc((data && data.reason) || '兼容门禁')}</div>` +
+      `<button class="btn btn-primary btn-sm" id="up-force" style="margin-top:8px">强制升级 --force</button>`;
+    document.getElementById('up-force').onclick = () => {
+      if (confirm('确认跳过兼容门禁强制升级？')) submitUpgrade(name, image, false, true, resultEl);
+    };
+    return;
+  }
+  resultEl.innerHTML = '<span class="conn bad">失败（HTTP ' + status + '）：' + esc((data && data.reason) || '未知错误') + '</span>';
+}
+function openUpgrade(name, curImage) {
+  const m = openModal('升级 · ' + name,
+    `<label class="mvl">新镜像</label><input id="up-image" class="f-in" value="${esc(curImage || '')}">` +
+    `<div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-ghost btn-sm" id="up-dry">dry-run 预览</button>` +
+    `<button class="btn btn-primary btn-sm" id="up-go">确认升级</button></div>` +
+    `<div id="up-result" style="margin-top:12px"></div>`);
+  const img = () => m.body.querySelector('#up-image').value.trim();
+  const res = m.body.querySelector('#up-result');
+  m.body.querySelector('#up-dry').onclick = () => { if (img()) submitUpgrade(name, img(), true, false, res); };
+  m.body.querySelector('#up-go').onclick = () => { if (img()) submitUpgrade(name, img(), false, false, res); };
 }
 
 async function renderDeps() {
