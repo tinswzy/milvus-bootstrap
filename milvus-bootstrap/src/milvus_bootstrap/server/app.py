@@ -142,13 +142,14 @@ def api_pods(instance: str) -> dict[str, Any]:
     inst = core.state.get_instance(instance)
     if inst is None:
         raise ValueError(f"未找到实例：{instance}")
+    desired = ((inst.spec_snapshot or {}).get("params", {}) or {}).get("image", "")
     pods: list[dict] = []
     if getattr(core.adapter, "name", "") == "k8s":
         try:
             pods = probe.pods_of(instance, inst.namespace)
         except Exception:
             pods = []
-    return {"instance": instance, "namespace": inst.namespace, "pods": pods}
+    return {"instance": instance, "namespace": inst.namespace, "desired_image": desired, "pods": pods}
 
 
 @app.get("/api/compat-rules")

@@ -122,3 +122,12 @@ def test_api_pods_known_and_unknown(client):
     body = r.json()
     assert body["instance"] == "mv-pods" and body["namespace"] == "default" and body["pods"] == []
     assert client.get("/api/pods", params={"instance": "nope"}).status_code == 400
+
+
+def test_api_pods_returns_desired_image(client):
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    app_module.core.install(InstallSpec(kind="milvus", name="mv-di", params={
+        "mq": "kafka", "image": "milvusdb/milvus:v2.6.20"}), dry_run=False)
+    body = client.get("/api/pods", params={"instance": "mv-di"}).json()
+    assert body["desired_image"] == "milvusdb/milvus:v2.6.20" and body["pods"] == []
