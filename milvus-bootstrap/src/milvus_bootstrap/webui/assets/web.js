@@ -277,7 +277,7 @@ async function pollInstall(taskId, resultEl) {
     try { j = await getJSON('api/task/' + taskId); }
     catch (e) { resultEl.innerHTML = '<span class="conn bad">轮询失败：' + esc(e.message) + '</span>'; return; }
     if (j.state === 'running') {
-      resultEl.innerHTML = `<span class="muted">安装中… ${Math.round((Date.now() - started) / 1000)}s</span>`;
+      resultEl.innerHTML = `<span class="muted">处理中… ${Math.round((Date.now() - started) / 1000)}s</span>`;
       await new Promise(r => setTimeout(r, 1500));
       continue;
     }

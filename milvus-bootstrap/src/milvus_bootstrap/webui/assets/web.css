@@ -348,7 +348,6 @@ a { color:inherit; text-decoration:none; }
 .drawer .db { padding:20px 22px; overflow-y:auto; flex:1; }
 .drawer .df { padding:14px 22px; border-top:1px solid var(--line); display:flex; gap:10px; justify-content:flex-end; background:var(--surface); }
 
-@keyframes pop { from{ transform:scale(.94); opacity:0;} to{ transform:none; opacity:1;} }
 
 .close-x { margin-left:auto; width:30px;height:30px;border-radius:8px; border:1px solid var(--line-2); background:var(--surface);
   display:grid; place-items:center; cursor:pointer; color:var(--fg-3); }
