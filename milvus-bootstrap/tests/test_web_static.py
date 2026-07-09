@@ -155,3 +155,11 @@ def test_milvus_card_rollout_progress(client):
     for m in ["function statusPill", "function openProgress", "data-progress", "api/pods?instance=", "prog-refresh", "升级中"]:
         assert m in js, m
     assert ".progbar" in client.get("/assets/web.css").text
+
+
+def test_upgrade_apply_reframed(client):
+    js = client.get("/assets/web.js").text
+    up = js[js.index("function submitUpgrade"):]
+    up = up[:up.index("function openUpgrade")] if "function openUpgrade" in up else up
+    assert "已提交升级" in up and "openProgress" in up
+    assert "pollInstall" not in up   # apply path no longer polls the (falsely-succeeding) task

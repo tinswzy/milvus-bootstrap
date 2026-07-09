@@ -489,7 +489,13 @@ async function submitUpgrade(name, image, dryRun, force, resultEl) {
   catch (e) { resultEl.innerHTML = '<span class="conn bad">提交失败：' + esc(e.message) + '</span>'; return; }
   const { status, data } = resp;
   if (status === 200) { resultEl.innerHTML = renderTaskResult(data.task); return; }
-  if (status === 202) { await pollInstall(data.task_id, resultEl); renderMilvus(); return; }
+  if (status === 202) {
+    resultEl.innerHTML = '<div class="conn ok">已提交升级 · operator 正在滚动</div>' +
+      '<button class="btn btn-primary btn-sm" id="up-prog" style="margin-top:8px">查看进展</button>';
+    document.getElementById('up-prog').onclick = () => { closeModal(); openProgress(name); };
+    renderMilvus();
+    return;
+  }
   if (status === 409) {
     resultEl.innerHTML = `<div class="conn bad">被兼容门禁拦截：${esc((data && data.reason) || '兼容门禁')}</div>` +
       `<button class="btn btn-primary btn-sm" id="up-force" style="margin-top:8px">强制升级 --force</button>`;
