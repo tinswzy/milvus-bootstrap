@@ -211,9 +211,9 @@ def api_task(task_id: str) -> dict[str, Any]:
     if rec is None:
         raise HTTPException(status_code=404, detail="unknown task")
     if rec["state"] == "running":
-        return {"state": "running", "task": None, "error": None}
+        return {"state": "running", "task": rec.get("partial"), "error": None}
     if rec["state"] == "error":
-        return {"state": "error", "task": None, "error": rec["error"]}
+        return {"state": "error", "task": rec.get("partial"), "error": rec["error"]}
     dump = rec["result"].model_dump(mode="json")   # a Task
     return {"state": dump["status"], "task": dump, "error": None}
 
