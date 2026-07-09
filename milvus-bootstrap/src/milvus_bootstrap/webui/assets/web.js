@@ -387,11 +387,10 @@ async function renderMilvus() {
     const ph = t => `<button class="btn btn-ghost btn-sm" disabled title="下一切面">${t}</button>`;
     box.innerHTML = head + (rows.length ? rows.map(i => {
       const d = i.deps || {};
-      const st = i.status ? badge(i.status === 'Healthy' ? 'PASS' : 'WARN', i.status) : '<span class="muted">健康 —</span>';
       return `<div class="card inst">` +
         `<div class="inst-head"><span class="mvdot">M</span>` +
         `<div><div class="nm">${esc(i.name)}</div><div class="ns">ns: ${esc(i.namespace)} · ${esc(i.image || '—')}</div></div>` +
-        `<div class="right">${ownBadge(i.ownership)} ${st}</div></div>` +
+        `<div class="right">${ownBadge(i.ownership)} ${statusPill(i)}</div></div>` +
         `<div class="topo">` +
           depBox('cell-etcd', '🗄️', 'etcd', '元数据', d.etcd || ('etcd.' + i.namespace + '.svc:2379')) +
           `<div class="flow-h col2"></div>` +
@@ -410,6 +409,7 @@ async function renderMilvus() {
     box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderMilvus); });
     box.querySelectorAll('[data-pods]').forEach(b => { b.onclick = () => openPods(b.getAttribute('data-pods')); });
     box.querySelectorAll('[data-upgrade]').forEach(b => { b.onclick = () => openUpgrade(b.getAttribute('data-upgrade'), b.getAttribute('data-image')); });
+    box.querySelectorAll('[data-progress]').forEach(b => { b.onclick = () => openProgress(b.getAttribute('data-progress')); });
   } catch (e) {
     box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
   }
@@ -510,6 +510,51 @@ function openUpgrade(name, curImage) {
   const res = m.body.querySelector('#up-result');
   m.body.querySelector('#up-dry').onclick = () => { if (img()) submitUpgrade(name, img(), true, false, res); };
   m.body.querySelector('#up-go').onclick = () => { if (img()) submitUpgrade(name, img(), false, false, res); };
+}
+
+function statusPill(i) {
+  if (i.rolling) {
+    return `<button class="btn btn-ghost btn-sm rollpill" data-progress="${esc(i.name)}">` +
+      `🔄 升级中 ${i.pods_upgraded || 0}/${i.pods_total || 0} · 查看进展</button>`;
+  }
+  return i.status === 'Healthy'
+    ? '<span class="badge b-ok"><span class="d"></span>正常运行</span>'
+    : (i.status ? badge('WARN', i.status) : '<span class="muted">状态 —</span>');
+}
+function progPct(u, t) { return t > 0 ? Math.round(100 * u / t) : 0; }
+async function openProgress(name) {
+  const m = openModal('升级进度 · ' + name,
+    '<div id="prog-body" class="muted">加载中…</div>' +
+    '<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" id="prog-refresh">🔄 刷新</button></div>');
+  const el = m.body.querySelector('#prog-body');
+  const render = async () => {
+    el.innerHTML = '<span class="muted">读取中…</span>';
+    let d;
+    try { d = await getJSON('api/pods?instance=' + encodeURIComponent(name)); }
+    catch (e) { el.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>'; return; }
+    const desired = d.desired_image || '';
+    const pods = d.pods || [];
+    const total = pods.length;
+    const upgraded = pods.filter(p => tagOf(p.image) === tagOf(desired)).length;
+    const done = total > 0 && upgraded === total;
+    el.innerHTML =
+      (done ? '<div class="conn ok" style="margin-bottom:10px">✅ 升级完成，实例正常运行</div>' : '') +
+      '<div class="f-sect">阶段一 · CR 已提交</div>' +
+      `<div class="mono muted" style="margin-bottom:8px">✓ 目标镜像：${esc(tagOf(desired) || '—')}</div>` +
+      `<div class="f-sect">阶段二 · 节点升级 ${upgraded}/${total}（${progPct(upgraded, total)}%）</div>` +
+      `<div class="progbar"><i style="width:${progPct(upgraded, total)}%"></i></div>` +
+      (total
+        ? '<table class="tbl" style="margin-top:10px"><thead><tr><th>Pod</th><th>当前镜像</th><th>状态</th><th>Ready</th></tr></thead><tbody>' +
+          pods.map(p => {
+            const ok = tagOf(p.image) === tagOf(desired);
+            return `<tr><td class="mono">${esc(p.pod)}</td><td class="mono">${esc(tagOf(p.image) || '—')}</td>` +
+              `<td>${ok ? '<span class="conn ok">✓已升级</span>' : '<span class="muted">⏳待升级</span>'}</td>` +
+              `<td>${esc(p.ready)}</td></tr>`;
+          }).join('') + '</tbody></table>'
+        : '<div class="muted">未找到该实例的 pod（或未连接集群）</div>');
+  };
+  m.body.querySelector('#prog-refresh').onclick = render;
+  render();
 }
 
 async function renderDeps() {

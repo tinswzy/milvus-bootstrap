@@ -148,3 +148,10 @@ def test_milvus_card_upgrade_modal(client):
     js = client.get("/assets/web.js").text
     for m in ["function openUpgrade", "function submitUpgrade", "data-upgrade", "api/upgrade", "up-force"]:
         assert m in js, m
+
+
+def test_milvus_card_rollout_progress(client):
+    js = client.get("/assets/web.js").text
+    for m in ["function statusPill", "function openProgress", "data-progress", "api/pods?instance=", "prog-refresh", "升级中"]:
+        assert m in js, m
+    assert ".progbar" in client.get("/assets/web.css").text
