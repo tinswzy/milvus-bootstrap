@@ -173,3 +173,11 @@ def test_upgrade_apply_reframed(client):
     up = up[:up.index("function openUpgrade")] if "function openUpgrade" in up else up
     assert "已提交升级" in up and "openProgress" in up
     assert "pollInstall" not in up   # apply path no longer polls the (falsely-succeeding) task
+
+
+def test_exec_log_panel_present(client):
+    js = client.get("/assets/web.js").text
+    assert "function logPanel" in js and "function pollTask" in js
+    assert ".slice().reverse()" in js          # newest-on-top
+    assert "logcmd" in js                       # command shown mono
+    assert "function pollInstall" not in js     # old countdown poller removed
