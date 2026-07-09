@@ -135,3 +135,10 @@ def test_install_milvus_per_dep_isolation(client):
               "etcdRootPath", "minioBucket", "minioRootPath", "mqChanPrefix", "title="]:
         assert m in js, m
     assert "isolationPrefix" not in js and 'id="inst-iso"' not in js and 'id="iso-preview"' not in js
+
+
+def test_milvus_card_pods_modal(client):
+    js = client.get("/assets/web.js").text
+    for m in ["function openModal", "function closeModal", "function openPods", "data-pods", "api/pods", "function ageOf"]:
+        assert m in js, m
+    assert ".modal" in client.get("/assets/web.css").text

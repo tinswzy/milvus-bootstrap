@@ -399,7 +399,7 @@ async function renderMilvus() {
             `<div class="bt"><span class="lo">M</span><div><div class="nm">${esc(i.name)}</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
             `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(i.name)} · ${imageCell(i)}</div>` +
             `<div class="mvmeta"><span class="badge b-accent"><span class="d"></span>MQ: ${esc(d.mq || '—')}</span></div>` +
-            `<div class="mv-actions">${ph('切换 MQ')}${ph('配置')}${ph('Pods')}${delButton(i)}</div>` +
+            `<div class="mv-actions">${ph('切换 MQ')}${ph('配置')}${podsButton(i)}${delButton(i)}</div>` +
           `</div>` +
           `<div class="flow-h col4"></div>` +
           depBox('cell-store', '🪣', '对象存储', 'Object Storage', d.storage) +
@@ -408,9 +408,56 @@ async function renderMilvus() {
         `</div></div>`;
     }).join('') : '<div class="card"><div class="card-pad muted">暂无 Milvus 实例</div></div>');
     box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderMilvus); });
+    box.querySelectorAll('[data-pods]').forEach(b => { b.onclick = () => openPods(b.getAttribute('data-pods')); });
   } catch (e) {
     box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
   }
+}
+
+function closeModal() {
+  const o = document.getElementById('modal-overlay');
+  if (o) o.remove();
+  document.onkeydown = null;
+}
+function openModal(title, bodyHTML) {
+  closeModal();
+  const o = document.createElement('div');
+  o.id = 'modal-overlay';
+  o.className = 'modal-overlay';
+  o.innerHTML = `<div class="modal"><div class="modal-head"><h3>${esc(title)}</h3>` +
+    `<button class="modal-x" id="modal-x">✕</button></div><div class="modal-body">${bodyHTML}</div></div>`;
+  document.body.appendChild(o);
+  o.onclick = e => { if (e.target === o) closeModal(); };
+  document.getElementById('modal-x').onclick = closeModal;
+  document.onkeydown = e => { if (e.key === 'Escape') closeModal(); };
+  return { root: o, body: o.querySelector('.modal-body'), close: closeModal };
+}
+function ageOf(iso) {
+  if (!iso) return '—';
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 3600) return Math.round(s / 60) + 'm';
+  if (s < 86400) return Math.round(s / 3600) + 'h';
+  return Math.round(s / 86400) + 'd';
+}
+async function openPods(name) {
+  const m = openModal('Pods · ' + name, '<div id="pods-body" class="muted">加载中…</div>');
+  const el = m.body.querySelector('#pods-body');
+  let d;
+  try { d = await getJSON('api/pods?instance=' + encodeURIComponent(name)); }
+  catch (e) { el.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>'; return; }
+  const pods = d.pods || [];
+  el.innerHTML = pods.length
+    ? '<table class="tbl"><thead><tr><th>Pod</th><th>状态</th><th>Ready</th><th>重启</th><th>龄</th></tr></thead><tbody>' +
+      pods.map(p => `<tr><td class="mono">${esc(p.pod)}</td>` +
+        `<td>${badge(p.phase === 'Running' ? 'PASS' : 'WARN', p.phase)}</td>` +
+        `<td>${esc(p.ready)}</td><td>${p.restarts}</td><td>${esc(ageOf(p.created))}</td></tr>`).join('') +
+      '</tbody></table>'
+    : `<div class="muted">ns:${esc(d.namespace)} 下未找到该实例的 pod（或未连接集群）</div>`;
+}
+function podsButton(i) {
+  return i.ownership === 'managed'
+    ? `<button class="btn btn-ghost btn-sm" data-pods="${esc(i.name)}">Pods</button>`
+    : `<button class="btn btn-ghost btn-sm" disabled title="external：仅 managed 可查">Pods</button>`;
 }
 
 const DEP_KINDS = ['etcd', 'minio', 'kafka', 'pulsar'];
