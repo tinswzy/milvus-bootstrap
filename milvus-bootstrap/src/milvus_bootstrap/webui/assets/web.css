@@ -550,6 +550,10 @@ select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
 .modal-body { padding:18px 20px; overflow-y:auto; }
 
 /* --- upgrade rollout pill + progress bar --- */
-.rollpill { border-color:var(--accent); color:var(--accent-ink); }
+.rollpill { border-color:var(--warn); color:#7a5304; background:var(--warn-soft); font-weight:600;
+  animation:rollpulse 1.7s ease-in-out infinite; }
+.rollpill:hover { background:var(--warn); color:#fff; box-shadow:0 4px 12px rgba(207,138,9,.32); }
+@keyframes rollpulse { 0%,100%{ box-shadow:0 0 0 0 rgba(207,138,9,.40);} 55%{ box-shadow:0 0 0 5px rgba(207,138,9,0);} }
+@media (prefers-reduced-motion: reduce){ .rollpill{ animation:none; } }
 .progbar { height:8px; background:var(--surface-3); border-radius:6px; overflow:hidden; }
 .progbar > i { display:block; height:100%; background:var(--accent); border-radius:6px; transition:width .2s; }
