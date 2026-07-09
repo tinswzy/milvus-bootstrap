@@ -96,7 +96,7 @@ def test_api_upgrade_dry_run_and_apply(client):
     assert r.status_code == 200 and "task" in r.json()
     # apply → 202 → poll to completion
     r = client.post("/api/upgrade", json={"instance": "mv-up", "image": "milvusdb/milvus:v2.6.20", "dry_run": False})
-    assert r.status_code == 202
+    assert r.status_code == 202 and r.json()["state"] == "running"
     tid = r.json()["task_id"]
     end = time.monotonic() + 5
     state = "running"
