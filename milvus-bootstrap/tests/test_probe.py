@@ -103,3 +103,7 @@ def test_rollout_of_tag_compare():
     assert probe.rollout_of(pods2, "mv-a", "default", "milvusdb/milvus:v2.6.20")["rolling"] is False
     # no pods → total 0, not rolling
     assert probe.rollout_of([], "mv-a", "default", "x")["pods_total"] == 0
+    # unparseable desired (no tag) + real pods → all counted upgraded, not rolling
+    pods3 = [PodImage("default", "mv-a-0", "busybox", "")]
+    assert probe.rollout_of(pods3, "mv-a", "default", "no-colon-image") == {
+        "rolling": False, "pods_upgraded": 1, "pods_total": 1}

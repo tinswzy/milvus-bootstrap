@@ -106,6 +106,7 @@ def rollout_of(pods, name: str, ns: str, desired: str) -> dict:
     dtag = _tag(desired)
     mine = [p for p in pods if p.namespace == ns and (p.pod == name or p.pod.startswith(name + "-"))]
     total = len(mine)
+    # short-circuit: if desired has no parseable tag, treat all matched pods as on-target
     upgraded = sum(1 for p in mine if not dtag or _tag(p.image) == dtag)
     return {"rolling": total > 0 and upgraded < total, "pods_upgraded": upgraded, "pods_total": total}
 
