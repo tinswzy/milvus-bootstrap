@@ -181,3 +181,11 @@ def test_exec_log_panel_present(client):
     assert ".slice().reverse()" in js          # newest-on-top
     assert "logcmd" in js                       # command shown mono
     assert "function pollInstall" not in js     # old countdown poller removed
+
+
+def test_upgrade_streams_then_handoff(client):
+    js = client.get("/assets/web.js").text
+    body = js.split("async function submitUpgrade", 1)[1].split("\nasync function ", 1)[0]
+    assert "pollTask(" in body                 # streams the apply steps
+    assert "已提交升级" in body and "查看进展" in body   # honest handoff kept
+    assert "openProgress(" in body             # progress modal still reachable

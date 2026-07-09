@@ -510,10 +510,14 @@ async function submitUpgrade(name, image, dryRun, force, resultEl) {
   const { status, data } = resp;
   if (status === 200) { resultEl.innerHTML = renderTaskResult(data.task); return; }
   if (status === 202) {
-    resultEl.innerHTML = '<div class="conn ok">已提交升级 · operator 正在滚动</div>' +
-      '<button class="btn btn-primary btn-sm" id="up-prog" style="margin-top:8px">查看进展</button>';
-    document.getElementById('up-prog').onclick = () => { closeModal(); openProgress(name); };
-    renderMilvus();
+    await pollTask(data.task_id, resultEl, () => {
+      resultEl.innerHTML +=
+        '<div class="conn ok" style="margin-top:8px">已提交升级 · operator 正在滚动</div>' +
+        '<button class="btn btn-ghost btn-sm" id="up-prog" style="margin-top:6px">查看进展</button>';
+      const b = document.getElementById('up-prog');
+      if (b) b.onclick = () => { closeModal(); openProgress(name); };
+      renderMilvus();
+    });
     return;
   }
   if (status === 409) {
