@@ -131,3 +131,12 @@ def test_api_pods_returns_desired_image(client):
         "mq": "kafka", "image": "milvusdb/milvus:v2.6.20"}), dry_run=False)
     body = client.get("/api/pods", params={"instance": "mv-di"}).json()
     assert body["desired_image"] == "milvusdb/milvus:v2.6.20" and body["pods"] == []
+
+
+def test_api_instances_has_rollout_fields(client):
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    app_module.core.install(InstallSpec(kind="milvus", name="mv-ro", params={
+        "mq": "kafka", "image": "milvusdb/milvus:v2.6.18"}), dry_run=False)
+    row = next(r for r in client.get("/api/instances").json()["instances"] if r["name"] == "mv-ro")
+    assert row["rolling"] is False and row["pods_total"] == 0 and "pods_upgraded" in row

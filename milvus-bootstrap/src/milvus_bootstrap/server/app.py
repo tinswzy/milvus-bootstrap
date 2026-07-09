@@ -111,8 +111,13 @@ def api_instances() -> dict[str, Any]:
             status = milvus_status_safe(i.name)
         seen.add((kind, i.name, ns))
         managed_names.setdefault((kind, ns), []).append(i.name)
-        out.append({"name": i.name, "kind": kind, "namespace": ns, "ownership": "managed",
-                    "image": image, "image_id": img_id or None, "status": status, "deps": deps})
+        row = {"name": i.name, "kind": kind, "namespace": ns, "ownership": "managed",
+               "image": image, "image_id": img_id or None, "status": status, "deps": deps}
+        if kind == "milvus":
+            row.update(probe.rollout_of(pods, i.name, ns, params.get("image", "")))
+        else:
+            row.update({"rolling": False, "pods_upgraded": 0, "pods_total": 0})
+        out.append(row)
     # external (from discovery)
     try:
         cands = core.discovery.discover()

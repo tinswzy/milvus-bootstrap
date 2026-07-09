@@ -87,3 +87,19 @@ def test_pods_of_parses_and_filters():
                        "ready": "2/2", "restarts": 1, "image": "milvusdb/milvus:v2.6.20", "created": "2026-07-01T00:00:00Z"}
     assert pods[1]["image"] == "milvusdb/milvus:v2.6.18" and pods[1]["ready"] == "0/1"
     assert probe.pods_of("milvus-dev", "default", run=lambda a: (1, "", "boom")) == []
+
+
+def test_rollout_of_tag_compare():
+    from milvus_bootstrap.core.probe import PodImage
+    pods = [
+        PodImage("default", "mv-a-milvus-standalone-1", "docker.io/milvusdb/milvus:v2.6.20", ""),  # registry prefix, on target
+        PodImage("default", "mv-a-milvus-standalone-2", "milvusdb/milvus:v2.6.18", ""),            # old
+        PodImage("default", "other-x", "busybox", ""),                                             # not this instance
+    ]
+    r = probe.rollout_of(pods, "mv-a", "default", "milvusdb/milvus:v2.6.20")
+    assert r == {"rolling": True, "pods_upgraded": 1, "pods_total": 2}
+    # all on target → not rolling
+    pods2 = [PodImage("default", "mv-a-milvus-standalone-1", "milvusdb/milvus:v2.6.20", "")]
+    assert probe.rollout_of(pods2, "mv-a", "default", "milvusdb/milvus:v2.6.20")["rolling"] is False
+    # no pods → total 0, not rolling
+    assert probe.rollout_of([], "mv-a", "default", "x")["pods_total"] == 0

@@ -101,6 +101,15 @@ def pod_images(run=run_kubectl) -> list[PodImage]:
     return pods
 
 
+def rollout_of(pods, name: str, ns: str, desired: str) -> dict:
+    """How many of an instance's pods are on the desired image tag (best-effort)."""
+    dtag = _tag(desired)
+    mine = [p for p in pods if p.namespace == ns and (p.pod == name or p.pod.startswith(name + "-"))]
+    total = len(mine)
+    upgraded = sum(1 for p in mine if not dtag or _tag(p.image) == dtag)
+    return {"rolling": total > 0 and upgraded < total, "pods_upgraded": upgraded, "pods_total": total}
+
+
 def match_pod_image(pods, name: str, ns: str) -> tuple[str, str]:
     """First pod in ns at a name-segment boundary (name itself or name-…) → (image, sha256-or-'').
 
