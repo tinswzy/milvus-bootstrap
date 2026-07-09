@@ -111,3 +111,14 @@ def test_api_instances_collapses_managed_subworkloads(client):
     assert ("etcd", "milvus-etcd") not in by           # its discovered sub-workload, collapsed
     # an unrelated external of a different kind (no managed prefix) still shows
     assert ("minio", "milvus-minio") in by
+
+
+def test_api_pods_known_and_unknown(client):
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    app_module.core.install(InstallSpec(kind="milvus", name="mv-pods", params={"mq": "kafka"}), dry_run=False)
+    r = client.get("/api/pods", params={"instance": "mv-pods"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["instance"] == "mv-pods" and body["namespace"] == "default" and body["pods"] == []
+    assert client.get("/api/pods", params={"instance": "nope"}).status_code == 400

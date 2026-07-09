@@ -136,6 +136,21 @@ def api_instances() -> dict[str, Any]:
     return {"instances": out}
 
 
+@app.get("/api/pods")
+def api_pods(instance: str) -> dict[str, Any]:
+    core = _core()
+    inst = core.state.get_instance(instance)
+    if inst is None:
+        raise ValueError(f"未找到实例：{instance}")
+    pods: list[dict] = []
+    if getattr(core.adapter, "name", "") == "k8s":
+        try:
+            pods = probe.pods_of(instance, inst.namespace)
+        except Exception:
+            pods = []
+    return {"instance": instance, "namespace": inst.namespace, "pods": pods}
+
+
 @app.get("/api/compat-rules")
 def api_compat_rules() -> dict[str, Any]:
     return webapi.compat_rules()
