@@ -60,7 +60,17 @@ def test_deps_page_served(client):
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
     assert 'id="deps-list"' in r.text
     js = client.get("/assets/web.js").text
-    assert "renderDeps" in js and "deleteInstance" in js
+    assert "renderDeps" in js and "openDelete" in js
+
+
+def test_delete_flow_is_honest_no_poll(client):
+    js = client.get("/assets/web.js").text
+    # modal-based confirm + "已提交" prompt + manual refresh, mirroring the upgrade flow
+    assert "function openDelete" in js
+    assert "已提交删除" in js and "del-refresh" in js
+    # honest / no-polling: the delete flow must not auto-poll the task endpoint
+    body = js.split("function openDelete", 1)[1].split("\nfunction ", 1)[0]
+    assert "api/task/" not in body and "setTimeout" not in body
 
 
 def test_milvus_page_served(client):

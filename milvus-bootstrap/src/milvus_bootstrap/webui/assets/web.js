@@ -328,25 +328,30 @@ function renderInstall() {
   document.getElementById('inst-apply').onclick = () => submitInstall(false, false);
 }
 
-async function deleteInstance(name, onDone) {
-  if (!confirm(`确认删除实例 ${name}？（依赖 / PVC 默认保留）`)) return;
-  const err = document.getElementById('err');
-  if (err) err.style.display = 'none';
-  let resp;
-  try { resp = await postJSON('api/delete', { instance: name }); }
-  catch (e) { if (err) { err.style.display = 'block'; err.textContent = '删除失败：' + esc(e.message); } return; }
-  if (resp.status !== 202) {
-    if (err) { err.style.display = 'block'; err.textContent = '删除失败：' + esc((resp.data && resp.data.reason) || ('HTTP ' + resp.status)); }
-    return;
-  }
-  const tid = resp.data.task_id;
-  while (true) {
-    let j;
-    try { j = await getJSON('api/task/' + tid); } catch (e) { break; }
-    if (j.state === 'running') { await new Promise(r => setTimeout(r, 1200)); continue; }
-    break;
-  }
-  onDone();
+// Honest, no-poll delete: submit + hand off to operator; verify by refreshing
+// the list (card gone = deleted; still there = not done / failed). Same on-demand
+// model as the upgrade flow — no auto-poll, no false "删除成功".
+function openDelete(name, onDone) {
+  const m = openModal('删除 · ' + name,
+    `<div>确认删除实例 <b>${esc(name)}</b>？<span class="muted">（依赖 / PVC 默认保留）</span></div>` +
+    `<div style="margin-top:12px"><button class="btn btn-primary btn-sm" id="del-go">确认删除</button></div>` +
+    `<div id="del-result" style="margin-top:12px"></div>`);
+  const res = m.body.querySelector('#del-result');
+  m.body.querySelector('#del-go').onclick = async () => {
+    res.innerHTML = '<span class="muted">提交中…</span>';
+    let resp;
+    try { resp = await postJSON('api/delete', { instance: name }); }
+    catch (e) { res.innerHTML = '<span class="conn bad">提交失败：' + esc(e.message) + '</span>'; return; }
+    const { status, data } = resp;
+    if (status === 202) {
+      res.innerHTML = '<div class="conn ok">已提交删除 · operator 正在处理</div>' +
+        '<div class="muted" style="margin:6px 0 10px">刷新列表确认：卡片消失 = 删除成功；仍在 = 尚未完成或失败。</div>' +
+        '<button class="btn btn-ghost btn-sm" id="del-refresh">🔄 刷新列表</button>';
+      document.getElementById('del-refresh').onclick = () => { closeModal(); onDone(); };
+      return;
+    }
+    res.innerHTML = '<span class="conn bad">失败（HTTP ' + status + '）：' + esc((data && data.reason) || '未知错误') + '</span>';
+  };
 }
 
 function mqLogo(mq) { return ({ kafka: '🌊', pulsar: '📡', woodpecker: '🪶', rocksmq: '🪨' })[mq] || '📨'; }
@@ -406,7 +411,7 @@ async function renderMilvus() {
           depBox('cell-mq', mqLogo(d.mq), d.mq || 'MQ', '消息队列 · WAL', d.mq_endpoint) +
         `</div></div>`;
     }).join('') : '<div class="card"><div class="card-pad muted">暂无 Milvus 实例</div></div>');
-    box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderMilvus); });
+    box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => openDelete(b.getAttribute('data-del'), renderMilvus); });
     box.querySelectorAll('[data-pods]').forEach(b => { b.onclick = () => openPods(b.getAttribute('data-pods')); });
     box.querySelectorAll('[data-upgrade]').forEach(b => { b.onclick = () => openUpgrade(b.getAttribute('data-upgrade'), b.getAttribute('data-image')); });
     box.querySelectorAll('[data-progress]').forEach(b => { b.onclick = () => openProgress(b.getAttribute('data-progress')); });
@@ -588,7 +593,7 @@ async function renderDeps() {
     box.querySelectorAll('.acc-head').forEach(h => {
       h.onclick = e => { if (e.target.closest('a,button')) return; h.parentElement.classList.toggle('open'); };
     });
-    box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => deleteInstance(b.getAttribute('data-del'), renderDeps); });
+    box.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => openDelete(b.getAttribute('data-del'), renderDeps); });
   } catch (e) {
     box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
   }
