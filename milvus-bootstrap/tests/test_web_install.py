@@ -83,3 +83,37 @@ def test_delete_async_then_gone(client):
 def test_delete_unknown_instance_400(client):
     r = client.post("/api/delete", json={"instance": "nope"})
     assert r.status_code == 400 and r.json()["error"] == "bad_request"
+
+
+def test_api_upgrade_dry_run_and_apply(client):
+    import time
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    app_module.core.install(InstallSpec(kind="milvus", name="mv-up", params={
+        "mq": "kafka", "image": "milvusdb/milvus:v2.6.18"}), dry_run=False)
+    # dry-run → 200 with a task plan
+    r = client.post("/api/upgrade", json={"instance": "mv-up", "image": "milvusdb/milvus:v2.6.20", "dry_run": True})
+    assert r.status_code == 200 and "task" in r.json()
+    # apply → 202 → poll to completion
+    r = client.post("/api/upgrade", json={"instance": "mv-up", "image": "milvusdb/milvus:v2.6.20", "dry_run": False})
+    assert r.status_code == 202
+    tid = r.json()["task_id"]
+    end = time.monotonic() + 5
+    state = "running"
+    while time.monotonic() < end:
+        state = client.get(f"/api/task/{tid}").json()["state"]
+        if state != "running":
+            break
+        time.sleep(0.05)
+    assert state == "succeeded"
+
+
+def test_api_upgrade_gate_409_and_unknown_400(client):
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server import app as app_module
+    # a woodpecker-service milvus (needs milvus >=3.0) — upgrading down to 2.6.3 must trip the compat gate
+    app_module.core.install(InstallSpec(kind="milvus", name="mv-wp", params={
+        "mq": "woodpecker-service", "image": "milvusdb/milvus:v3.0.0"}), dry_run=False)
+    r = client.post("/api/upgrade", json={"instance": "mv-wp", "image": "milvusdb/milvus:v2.6.3", "dry_run": True})
+    assert r.status_code == 409 and r.json()["error"] == "compat"
+    assert client.post("/api/upgrade", json={"instance": "nope", "image": "x", "dry_run": True}).status_code == 400

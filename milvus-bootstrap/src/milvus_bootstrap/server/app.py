@@ -253,6 +253,18 @@ def upgrade(req: UpgradeReq) -> dict[str, Any]:
     return _core().upgrade(req.instance, req.image, dry_run=req.dry_run, force=req.force).model_dump()
 
 
+@app.post("/api/upgrade")
+def api_upgrade(req: UpgradeReq) -> Any:
+    if _core().state.get_instance(req.instance) is None:
+        raise ValueError(f"未找到实例：{req.instance}")
+    if req.dry_run:
+        task = _core().upgrade(req.instance, req.image, dry_run=True, force=req.force)
+        return {"task": task.model_dump()}
+    _core().upgrade(req.instance, req.image, dry_run=True, force=req.force)   # sync gate pre-check
+    tid = runner.submit(lambda: _core().upgrade(req.instance, req.image, dry_run=False, force=req.force))
+    return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
+
+
 class AdoptReq(BaseModel):
     kind: str
     name: str
