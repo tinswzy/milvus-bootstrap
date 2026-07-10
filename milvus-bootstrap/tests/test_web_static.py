@@ -173,3 +173,37 @@ def test_upgrade_apply_reframed(client):
     up = up[:up.index("function openUpgrade")] if "function openUpgrade" in up else up
     assert "已提交升级" in up and "openProgress" in up
     assert "pollInstall" not in up   # apply path no longer polls the (falsely-succeeding) task
+
+
+def test_exec_log_panel_present(client):
+    js = client.get("/assets/web.js").text
+    assert "function logPanel" in js and "function pollTask" in js
+    assert ".slice().reverse()" in js          # newest-on-top
+    assert "logcmd" in js                       # command shown mono
+    assert "function pollInstall" not in js     # old countdown poller removed
+
+
+def test_upgrade_streams_then_handoff(client):
+    js = client.get("/assets/web.js").text
+    body = js.split("async function submitUpgrade", 1)[1].split("\nasync function ", 1)[0]
+    assert "pollTask(" in body                 # streams the apply steps
+    assert "已提交升级" in body and "查看进展" in body   # honest handoff kept
+    assert "openProgress(" in body             # progress modal still reachable
+
+
+def test_delete_has_dryrun_and_streams(client):
+    js = client.get("/assets/web.js").text
+    body = js.split("function openDelete", 1)[1].split("\nfunction ", 1)[0]
+    assert "预演" in body                       # dry-run button
+    assert "pollTask(" in body                  # confirm path streams steps
+    assert "dry_run: true" in body              # dry-run request
+    assert "刷新列表" in body                    # honest handoff kept
+
+
+def test_log_panel_css_and_readme(client):
+    css = client.get("/assets/web.css").text
+    assert ".logpanel" in css and ".logcmd" in css and ".logrow" in css
+    import pathlib
+    readme = pathlib.Path(__file__).resolve().parents[2] / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    assert "透明" in text and "黑盒" in text

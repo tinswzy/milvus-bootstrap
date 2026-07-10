@@ -557,3 +557,17 @@ select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
 @media (prefers-reduced-motion: reduce){ .rollpill{ animation:none; } }
 .progbar { height:8px; background:var(--surface-3); border-radius:6px; overflow:hidden; }
 .progbar > i { display:block; height:100%; background:var(--accent); border-radius:6px; transition:width .2s; }
+
+/* execution log panel (transparent step streaming) */
+.loghead { font-size:13px; font-weight:600; margin-bottom:6px; }
+.loghead.run { color:var(--warn); } .loghead.ok { color:var(--ok); } .loghead.bad { color:var(--err); }
+.logpanel { max-height:260px; overflow:auto; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
+.logrow { display:flex; gap:8px; padding:7px 10px; border-bottom:1px solid var(--border); }
+.logrow:last-child { border-bottom:none; }
+.logrow .ic { flex:0 0 16px; text-align:center; }
+.logrow.st-ok .ic { color:var(--ok); } .logrow.st-failed .ic { color:var(--err); }
+.logrow.st-running .ic { color:var(--warn); } .logrow.st-skipped .ic, .logrow.st-planned .ic { color:var(--muted); }
+.logbody { min-width:0; flex:1; }
+.logcmd { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--accent-ink);
+  background:var(--surface-3); padding:2px 6px; border-radius:4px; margin-top:3px; white-space:pre-wrap; word-break:break-all; }
+.logdet { font-size:12px; color:var(--muted); margin-top:3px; white-space:pre-wrap; word-break:break-all; }

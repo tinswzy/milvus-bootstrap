@@ -65,7 +65,7 @@ def test_delete_async_then_gone(client):
     from milvus_bootstrap.core.models import InstallSpec
     from milvus_bootstrap.server import app as app_module
     app_module.core.install(InstallSpec(kind="etcd", name="etcd-del"), dry_run=False)
-    r = client.post("/api/delete", json={"instance": "etcd-del"})
+    r = client.post("/api/delete", json={"instance": "etcd-del", "dry_run": False})
     assert r.status_code == 202
     tid = r.json()["task_id"]
     end = time.monotonic() + 5

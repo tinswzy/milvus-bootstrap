@@ -251,14 +251,46 @@ function collectParams() {
   return p;
 }
 
-function renderTaskResult(task) {
-  const st = { succeeded: 'PASS', failed: 'FAIL', rolled_back: 'FAIL' }[task.status] || 'WARN';
-  return `<div style="margin-bottom:8px">总状态：${badge(st, task.status)}${task.dry_run ? ' <span class="muted">(dry-run)</span>' : ''}</div>` +
-    '<table class="tbl"><thead><tr><th>步骤</th><th>状态</th><th>详情/计划</th></tr></thead><tbody>' +
-    task.steps.map(s => {
-      const lvl = { ok: 'PASS', failed: 'FAIL', skipped: 'SKIP', planned: 'WARN', running: 'WARN' }[s.status] || 'WARN';
-      return `<tr><td>${esc(s.name)}</td><td>${badge(lvl, s.status)}</td><td class="muted">${esc(s.detail || s.plan)}</td></tr>`;
-    }).join('') + '</tbody></table>';
+const STEP_ICON = { ok: '✓', failed: '✗', skipped: '⤼', running: '⏳', planned: '○', pending: '·' };
+
+function logPanel(task, running) {
+  const head = running
+    ? '<div class="loghead run">⏳ 执行中…</div>'
+    : (task && task.status === 'succeeded'
+        ? '<div class="loghead ok">✅ 完成</div>'
+        : '<div class="loghead bad">❌ 出错</div>');
+  const steps = (task && task.steps) ? task.steps.slice().reverse() : [];   // newest on top
+  const rows = steps.map(s => {
+    const ic = STEP_ICON[s.status] || '·';
+    const cmd = s.plan ? `<div class="logcmd">▸ ${esc(s.plan)}</div>` : '';
+    const det = s.detail ? `<div class="logdet">${esc(s.detail)}</div>` : '';
+    return `<div class="logrow st-${esc(s.status)}"><span class="ic">${ic}</span>` +
+           `<div class="logbody"><b>${esc(s.name)}</b>${cmd}${det}</div></div>`;
+  }).join('') || '<div class="muted" style="padding:8px">暂无步骤…</div>';
+  return head + `<div class="logpanel">${rows}</div>`;
+}
+
+function renderTaskResult(task) { return logPanel(task, false); }
+
+async function pollTask(taskId, el, onDone) {
+  while (true) {
+    let j;
+    try { j = await getJSON('api/task/' + taskId); }
+    catch (e) { el.innerHTML = '<span class="conn bad">轮询失败：' + esc(e.message) + '</span>'; return; }
+    if (j.state === 'running') {
+      el.innerHTML = logPanel(j.task, true);
+      await new Promise(r => setTimeout(r, 800));
+      continue;
+    }
+    if (j.state === 'error') {
+      el.innerHTML = logPanel(j.task, false) +
+        '<div class="conn bad" style="margin-top:8px">执行出错：' + esc(j.error) + '</div>';
+      return;
+    }
+    el.innerHTML = logPanel(j.task, false);
+    if (onDone) onDone(j.task);
+    return;
+  }
 }
 
 function installBody(dryRun, force) {
@@ -268,23 +300,6 @@ function installBody(dryRun, force) {
     namespace: document.getElementById('inst-ns').value.trim() || 'default',
     params: collectParams(), dry_run: dryRun, force: !!force,
   };
-}
-
-async function pollInstall(taskId, resultEl) {
-  const started = Date.now();
-  while (true) {
-    let j;
-    try { j = await getJSON('api/task/' + taskId); }
-    catch (e) { resultEl.innerHTML = '<span class="conn bad">轮询失败：' + esc(e.message) + '</span>'; return; }
-    if (j.state === 'running') {
-      resultEl.innerHTML = `<span class="muted">处理中… ${Math.round((Date.now() - started) / 1000)}s</span>`;
-      await new Promise(r => setTimeout(r, 1500));
-      continue;
-    }
-    if (j.state === 'error') { resultEl.innerHTML = '<span class="conn bad">执行出错：' + esc(j.error) + '</span>'; return; }
-    resultEl.innerHTML = renderTaskResult(j.task);
-    return;
-  }
 }
 
 async function submitInstall(dryRun, force) {
@@ -302,7 +317,7 @@ async function submitInstall(dryRun, force) {
     return;
   }
   if (status === 200) { resultEl.innerHTML = renderTaskResult(data.task); return; }
-  if (status === 202) { await pollInstall(data.task_id, resultEl); return; }
+  if (status === 202) { await pollTask(data.task_id, resultEl); return; }
   if (status === 409) {
     resultEl.innerHTML = `<div class="conn bad">被兼容门禁拦截：${esc((data && data.reason) || '兼容门禁拦截')}</div>` +
       `<button class="btn btn-primary btn-sm" id="inst-force" style="margin-top:8px">强制安装 --force</button>`;
@@ -328,26 +343,41 @@ function renderInstall() {
   document.getElementById('inst-apply').onclick = () => submitInstall(false, false);
 }
 
-// Honest, no-poll delete: submit + hand off to operator; verify by refreshing
-// the list (card gone = deleted; still there = not done / failed). Same on-demand
-// model as the upgrade flow — no auto-poll, no false "删除成功".
+// Honest, transparent delete: 预演 shows planned steps; 确认删除 streams the mb-side
+// steps, then hands off (card gone on refresh = deleted). No k8s polling.
 function openDelete(name, onDone) {
   const m = openModal('删除 · ' + name,
-    `<div>确认删除实例 <b>${esc(name)}</b>？<span class="muted">（依赖 / PVC 默认保留）</span></div>` +
-    `<div style="margin-top:12px"><button class="btn btn-primary btn-sm" id="del-go">确认删除</button></div>` +
+    `<div>删除实例 <b>${esc(name)}</b>？<span class="muted">（依赖 / PVC 默认保留）</span></div>` +
+    `<div style="margin-top:12px;display:flex;gap:8px">` +
+    `<button class="btn btn-ghost btn-sm" id="del-dry">预演</button>` +
+    `<button class="btn btn-primary btn-sm" id="del-go">确认删除</button></div>` +
     `<div id="del-result" style="margin-top:12px"></div>`);
   const res = m.body.querySelector('#del-result');
+
+  m.body.querySelector('#del-dry').onclick = async () => {
+    res.innerHTML = '<span class="muted">预演中…</span>';
+    let resp;
+    try { resp = await postJSON('api/delete', { instance: name, dry_run: true }); }
+    catch (e) { res.innerHTML = '<span class="conn bad">预演失败：' + esc(e.message) + '</span>'; return; }
+    if (resp.status === 200 && resp.data && resp.data.task) { res.innerHTML = logPanel(resp.data.task, false); return; }
+    res.innerHTML = '<span class="conn bad">预演失败：' + esc((resp.data && resp.data.reason) || ('HTTP ' + resp.status)) + '</span>';
+  };
+
   m.body.querySelector('#del-go').onclick = async () => {
     res.innerHTML = '<span class="muted">提交中…</span>';
     let resp;
-    try { resp = await postJSON('api/delete', { instance: name }); }
+    try { resp = await postJSON('api/delete', { instance: name, dry_run: false }); }
     catch (e) { res.innerHTML = '<span class="conn bad">提交失败：' + esc(e.message) + '</span>'; return; }
     const { status, data } = resp;
     if (status === 202) {
-      res.innerHTML = '<div class="conn ok">已提交删除 · operator 正在处理</div>' +
-        '<div class="muted" style="margin:6px 0 10px">刷新列表确认：卡片消失 = 删除成功；仍在 = 尚未完成或失败。</div>' +
-        '<button class="btn btn-ghost btn-sm" id="del-refresh">🔄 刷新列表</button>';
-      document.getElementById('del-refresh').onclick = () => { closeModal(); onDone(); };
+      await pollTask(data.task_id, res, () => {
+        res.innerHTML +=
+          '<div class="conn ok" style="margin-top:8px">已提交删除 · operator 正在回收</div>' +
+          '<div class="muted" style="margin:6px 0 8px">刷新列表确认：卡片消失 = 删除成功；仍在 = 尚未完成或失败。</div>' +
+          '<button class="btn btn-ghost btn-sm" id="del-refresh">🔄 刷新列表</button>';
+        const b = document.getElementById('del-refresh');
+        if (b) b.onclick = () => { closeModal(); onDone(); };
+      });
       return;
     }
     res.innerHTML = '<span class="conn bad">失败（HTTP ' + status + '）：' + esc((data && data.reason) || '未知错误') + '</span>';
@@ -495,10 +525,14 @@ async function submitUpgrade(name, image, dryRun, force, resultEl) {
   const { status, data } = resp;
   if (status === 200) { resultEl.innerHTML = renderTaskResult(data.task); return; }
   if (status === 202) {
-    resultEl.innerHTML = '<div class="conn ok">已提交升级 · operator 正在滚动</div>' +
-      '<button class="btn btn-primary btn-sm" id="up-prog" style="margin-top:8px">查看进展</button>';
-    document.getElementById('up-prog').onclick = () => { closeModal(); openProgress(name); };
-    renderMilvus();
+    await pollTask(data.task_id, resultEl, () => {
+      resultEl.innerHTML +=
+        '<div class="conn ok" style="margin-top:8px">已提交升级 · operator 正在滚动</div>' +
+        '<button class="btn btn-ghost btn-sm" id="up-prog" style="margin-top:6px">查看进展</button>';
+      const b = document.getElementById('up-prog');
+      if (b) b.onclick = () => { closeModal(); openProgress(name); };
+      renderMilvus();
+    });
     return;
   }
   if (status === 409) {

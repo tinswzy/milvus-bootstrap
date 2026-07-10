@@ -9,6 +9,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from .. import progress
 from ..models import StepResult, StepStatus, Task, TaskStatus
 
 
@@ -41,17 +42,21 @@ class TaskEngine:
         for s in steps:
             res = StepResult(name=s.name, plan=s.plan, status=StepStatus.running)
             task.steps.append(res)
+            progress.publish(task)
             try:
                 if s.precheck and s.precheck():
                     res.status = StepStatus.skipped
                     res.detail = "precheck: 已是目标态，跳过"
+                    progress.publish(task)
                     continue
                 res.detail = s.action() if s.action else ""
                 res.status = StepStatus.ok
+                progress.publish(task)
                 done.append(s)
             except Exception as exc:  # noqa: BLE001
                 res.status = StepStatus.failed
                 res.detail = str(exc)
+                progress.publish(task)
                 task.audit.append(f"step '{s.name}' failed: {exc}")
                 for d in reversed(done):
                     if d.compensate:
