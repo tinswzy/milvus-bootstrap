@@ -220,7 +220,7 @@ def api_task(task_id: str) -> dict[str, Any]:
 
 class DeleteReq(BaseModel):
     instance: str
-    dry_run: bool = False
+    dry_run: bool = True
 
 
 @app.post("/delete")
