@@ -404,6 +404,19 @@ def api_switch_mq(req: SwitchMqApiReq) -> Any:
     return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
 
 
+@app.get("/api/resources")
+def api_resources() -> dict[str, Any]:
+    from ..core import hostinfo, resources
+    host = hostinfo.collect()
+    k8s = None
+    if getattr(_core().adapter, "name", "") == "k8s":
+        try:
+            k8s = resources.cluster_resources()
+        except Exception:  # noqa: BLE001
+            k8s = None
+    return {"host": host, "k8s": k8s}
+
+
 # --- WebUI static frontend (registered LAST so /api/* and /status win) ---
 import pathlib
 from fastapi.staticfiles import StaticFiles
