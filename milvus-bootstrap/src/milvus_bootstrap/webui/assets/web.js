@@ -544,14 +544,16 @@ async function openLogs(pod, ns) {
     '<div style="margin-bottom:8px;display:flex;gap:8px">' +
     '<button id="log-refresh" class="btn btn-ghost btn-sm">🔄 刷新</button>' +
     '<button id="log-copy" class="btn btn-ghost btn-sm">复制</button>' +
-    '<span class="muted" style="align-self:center;font-size:12px">最后 100 条 · 单次读取</span></div>' +
+    '<span class="muted" style="align-self:center;font-size:12px">最后 100 条 · 最新在上 · 单次读取</span></div>' +
     '<pre id="log-view" class="logview">读取中…</pre>');
   const view = m.body.querySelector('#log-view');
   const load = async () => {
     view.textContent = '读取中…';
     try {
       const d = await getJSON('api/logs?pod=' + encodeURIComponent(pod) + '&namespace=' + encodeURIComponent(ns));
-      view.textContent = d.logs || '（无日志）';
+      const lines = (d.logs || '').split('\n');
+      while (lines.length && lines[lines.length - 1] === '') lines.pop();   // drop trailing blank
+      view.textContent = lines.length ? lines.reverse().join('\n') : '（无日志）';   // newest first
     } catch (e) {
       view.textContent = '读取失败：' + e.message;
     }
@@ -655,6 +657,21 @@ function cfgRow(k, v) {
          `<button class="btn btn-ghost btn-sm cdel">删</button></div>`;
 }
 
+// Pretty-render the current config (configmap). A dict of {filename: yaml-text} is
+// shown per-file with real line breaks preserved in <pre> (not JSON-escaped).
+function cfgView(cur) {
+  if (cur == null) return '<div class="muted">无法读取当前配置（可能尚未生成）</div>';
+  let inner;
+  if (typeof cur === 'string') {
+    inner = '<pre>' + esc(cur) + '</pre>';
+  } else {
+    inner = Object.keys(cur).map(k =>
+      `<div class="cfg-file"><div class="cfg-fn">${esc(k)}</div><pre>${esc(String(cur[k]))}</pre></div>`
+    ).join('') || '<div class="muted">（空）</div>';
+  }
+  return '<details class="cfg-view"><summary>当前生效配置（只读）</summary>' + inner + '</details>';
+}
+
 async function openConfig(name) {
   const m = openModal('配置 · ' + name,
     '<div id="cfg-top" class="muted">加载中…</div>' +
@@ -676,11 +693,7 @@ async function openConfig(name) {
   let data;
   try { data = await getJSON('api/config?instance=' + encodeURIComponent(name)); }
   catch (e) { m.body.querySelector('#cfg-top').innerHTML = '<span class="conn bad">读取失败：' + esc(e.message) + '</span>'; return; }
-  const cur = data.current;
-  m.body.querySelector('#cfg-top').innerHTML = cur
-    ? '<details class="cfg-view"><summary>当前生效配置（只读）</summary><pre>' +
-      esc(typeof cur === 'string' ? cur : JSON.stringify(cur, null, 2)) + '</pre></details>'
-    : '<div class="muted">无法读取当前配置（可能尚未生成）</div>';
+  m.body.querySelector('#cfg-top').innerHTML = cfgView(data.current);
   const ov = data.overrides || {};
   Object.keys(ov).forEach(k => addRow(k, ov[k]));
   if (!Object.keys(ov).length) addRow('', '');
