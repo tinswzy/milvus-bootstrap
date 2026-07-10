@@ -587,3 +587,8 @@ select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
 .resbar > i { display:block; height:100%; background:var(--accent); border-radius:6px; }
 .resbar.hot > i { background:var(--warn); }
 .resbar.crit > i { background:var(--err); }
+
+/* pod log view (single-shot tail, scrollable) */
+.logview { max-height:420px; overflow:auto; background:var(--surface-2); border:1px solid var(--border);
+  border-radius:8px; padding:10px 12px; margin:0; font-size:12px; line-height:1.5;
+  white-space:pre-wrap; word-break:break-all; }

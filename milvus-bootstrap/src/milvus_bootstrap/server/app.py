@@ -417,6 +417,19 @@ def api_resources() -> dict[str, Any]:
     return {"host": host, "k8s": k8s}
 
 
+@app.get("/api/logs")
+def api_logs(pod: str, namespace: str = "default") -> dict[str, Any]:
+    core = _core()
+    if getattr(core.adapter, "name", "") == "k8s":
+        try:
+            logs = probe.pod_logs(pod, namespace)
+        except Exception:  # noqa: BLE001
+            logs = "（读取失败）"
+    else:
+        logs = "（非 k8s 环境，无 pod 日志）"
+    return {"pod": pod, "namespace": namespace, "logs": logs}
+
+
 # --- WebUI static frontend (registered LAST so /api/* and /status win) ---
 import pathlib
 from fastapi.staticfiles import StaticFiles

@@ -528,12 +528,39 @@ async function openPods(name) {
   catch (e) { el.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>'; return; }
   const pods = d.pods || [];
   el.innerHTML = pods.length
-    ? '<table class="tbl"><thead><tr><th>Pod</th><th>状态</th><th>Ready</th><th>重启</th><th>龄</th></tr></thead><tbody>' +
+    ? '<table class="tbl"><thead><tr><th>Pod</th><th>状态</th><th>Ready</th><th>重启</th><th>龄</th><th>日志</th></tr></thead><tbody>' +
       pods.map(p => `<tr><td class="mono">${esc(p.pod)}</td>` +
         `<td>${badge(p.phase === 'Running' ? 'PASS' : 'WARN', p.phase)}</td>` +
-        `<td>${esc(p.ready)}</td><td>${esc(String(p.restarts))}</td><td>${esc(ageOf(p.created))}</td></tr>`).join('') +
+        `<td>${esc(p.ready)}</td><td>${esc(String(p.restarts))}</td><td>${esc(ageOf(p.created))}</td>` +
+        `<td><button class="btn btn-ghost btn-sm" data-log-pod="${esc(p.pod)}" data-log-ns="${esc(d.namespace)}">日志</button></td></tr>`).join('') +
       '</tbody></table>'
     : `<div class="muted">ns:${esc(d.namespace)} 下未找到该实例的 pod（或未连接集群）</div>`;
+  el.querySelectorAll('[data-log-pod]').forEach(b => {
+    b.onclick = () => openLogs(b.getAttribute('data-log-pod'), b.getAttribute('data-log-ns'));
+  });
+}
+async function openLogs(pod, ns) {
+  const m = openModal('日志 · ' + pod,
+    '<div style="margin-bottom:8px;display:flex;gap:8px">' +
+    '<button id="log-refresh" class="btn btn-ghost btn-sm">🔄 刷新</button>' +
+    '<button id="log-copy" class="btn btn-ghost btn-sm">复制</button>' +
+    '<span class="muted" style="align-self:center;font-size:12px">最后 100 条 · 单次读取</span></div>' +
+    '<pre id="log-view" class="logview">读取中…</pre>');
+  const view = m.body.querySelector('#log-view');
+  const load = async () => {
+    view.textContent = '读取中…';
+    try {
+      const d = await getJSON('api/logs?pod=' + encodeURIComponent(pod) + '&namespace=' + encodeURIComponent(ns));
+      view.textContent = d.logs || '（无日志）';
+    } catch (e) {
+      view.textContent = '读取失败：' + e.message;
+    }
+  };
+  m.body.querySelector('#log-refresh').onclick = load;
+  m.body.querySelector('#log-copy').onclick = () => {
+    try { navigator.clipboard.writeText(view.textContent); } catch (e) { /* best-effort */ }
+  };
+  load();
 }
 function podsButton(i) {
   return i.ownership === 'managed'
