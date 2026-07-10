@@ -199,3 +199,12 @@ def detect_versions(run=run_kubectl) -> DetectedVersions:
                         setattr(dv, field, _tag(image) or tag)  # semver-reduce others
 
     return dv
+
+
+def pod_logs(pod: str, namespace: str, run=run_kubectl) -> str:
+    """Last 100 lines of a pod's container logs (all containers, prefixed). One-shot, best-effort."""
+    rc, out, err = run(["logs", pod, "-n", namespace, "--tail=100",
+                        "--all-containers=true", "--prefix=true"])
+    if rc != 0:
+        return err.strip() or "（无日志或读取失败）"
+    return out

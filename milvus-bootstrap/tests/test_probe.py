@@ -89,6 +89,20 @@ def test_pods_of_parses_and_filters():
     assert probe.pods_of("milvus-dev", "default", run=lambda a: (1, "", "boom")) == []
 
 
+def test_pod_logs_ok_and_error():
+    from milvus_bootstrap.core import probe
+
+    def ok(args):
+        assert "logs" in args and "--tail=100" in args and "--all-containers=true" in args
+        return (0, "line1\nline2\n", "")
+    assert probe.pod_logs("mypod", "default", run=ok) == "line1\nline2\n"
+
+    def fail(args):
+        return (1, "", "Error from server (NotFound): pods \"x\" not found")
+    out = probe.pod_logs("x", "default", run=fail)
+    assert "NotFound" in out
+
+
 def test_rollout_of_tag_compare():
     from milvus_bootstrap.core.probe import PodImage
     pods = [
