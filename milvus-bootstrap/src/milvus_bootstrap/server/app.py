@@ -368,6 +368,42 @@ def api_config_set(req: ConfigSetApiReq) -> Any:
     return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
 
 
+@app.get("/api/mq-options")
+def api_mq_options(instance: str) -> dict[str, Any]:
+    inst = _core().state.get_instance(instance)
+    if inst is None:
+        raise ValueError(f"未找到实例：{instance}")
+    params = (inst.spec_snapshot or {}).get("params", {}) or {}
+    from ..core import compat, probe
+    version = probe._tag(params.get("image", "")) or ""
+    mode = params.get("mode", "standalone")
+    cur_mq = params.get("mq", "")
+    cur_opt = compat.get_option(cur_mq)
+    current_wal = cur_opt.wal if cur_opt else cur_mq
+    return {"instance": instance, "current_mq": cur_mq, "current_wal": current_wal,
+            "options": _core().mq_options(version, mode)}
+
+
+class SwitchMqApiReq(BaseModel):
+    instance: str
+    target_wal: str
+    dry_run: bool = True
+    force: bool = False
+
+
+@app.post("/api/switch-mq")
+def api_switch_mq(req: SwitchMqApiReq) -> Any:
+    if _core().state.get_instance(req.instance) is None:
+        raise ValueError(f"未找到实例：{req.instance}")
+    if req.dry_run:
+        task = _core().switch_mq(req.instance, req.target_wal, dry_run=True, force=req.force)
+        return {"task": task.model_dump(mode="json")}
+    # apply: sync gate pre-check (CompatError -> 409 via handler), then submit
+    _core().switch_mq(req.instance, req.target_wal, dry_run=True, force=req.force)
+    tid = runner.submit(lambda: _core().switch_mq(req.instance, req.target_wal, dry_run=False, force=req.force))
+    return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
+
+
 # --- WebUI static frontend (registered LAST so /api/* and /status win) ---
 import pathlib
 from fastapi.staticfiles import StaticFiles
