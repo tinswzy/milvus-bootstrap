@@ -198,3 +198,12 @@ def test_delete_has_dryrun_and_streams(client):
     assert "pollTask(" in body                  # confirm path streams steps
     assert "dry_run: true" in body              # dry-run request
     assert "刷新列表" in body                    # honest handoff kept
+
+
+def test_log_panel_css_and_readme(client):
+    css = client.get("/assets/web.css").text
+    assert ".logpanel" in css and ".logcmd" in css and ".logrow" in css
+    import pathlib
+    readme = pathlib.Path(__file__).resolve().parents[2] / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    assert "透明" in text and "黑盒" in text
