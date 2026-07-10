@@ -226,3 +226,14 @@ def test_switch_mq_ui_present(client):
     assert "pollTask(" in body and "409" in body and "已提交 MQ 切换" in body   # stream + gate + honest handoff
     ob = js.split("function openSwitchMq", 1)[1].split("\nfunction ", 1)[0]
     assert "确认切换 MQ" in ob                     # D4 second confirmation
+
+
+def test_overview_resources_present(client):
+    html = client.get("/index.html").text
+    assert 'id="host-info"' in html and 'id="k8s-res"' in html
+    js = client.get("/assets/web.js").text
+    assert "api/resources" in js and "function resBar" in js
+    assert "host-info" in js and "k8s-res" in js
+    assert "setInterval" not in js               # no-polling: no timers anywhere
+    css = client.get("/assets/web.css").text
+    assert ".resbar" in css
