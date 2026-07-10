@@ -220,7 +220,7 @@ def api_task(task_id: str) -> dict[str, Any]:
 
 class DeleteReq(BaseModel):
     instance: str
-    dry_run: bool = True
+    dry_run: bool = False
 
 
 @app.post("/delete")
@@ -232,6 +232,9 @@ def delete(req: DeleteReq) -> dict[str, Any]:
 def api_delete(req: DeleteReq) -> Any:
     if _core().state.get_instance(req.instance) is None:
         raise ValueError(f"未找到实例：{req.instance}")
+    if req.dry_run:
+        task = _core().delete(req.instance, dry_run=True)
+        return {"task": task.model_dump(mode="json")}
     tid = runner.submit(lambda: _core().delete(req.instance, dry_run=False))
     return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
 

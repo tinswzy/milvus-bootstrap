@@ -346,23 +346,41 @@ function renderInstall() {
 // Honest, no-poll delete: submit + hand off to operator; verify by refreshing
 // the list (card gone = deleted; still there = not done / failed). Same on-demand
 // model as the upgrade flow — no auto-poll, no false "删除成功".
+// Honest, transparent delete: 预演 shows planned steps; 确认删除 streams the mb-side
+// steps, then hands off (card gone on refresh = deleted). No k8s polling.
 function openDelete(name, onDone) {
   const m = openModal('删除 · ' + name,
-    `<div>确认删除实例 <b>${esc(name)}</b>？<span class="muted">（依赖 / PVC 默认保留）</span></div>` +
-    `<div style="margin-top:12px"><button class="btn btn-primary btn-sm" id="del-go">确认删除</button></div>` +
+    `<div>删除实例 <b>${esc(name)}</b>？<span class="muted">（依赖 / PVC 默认保留）</span></div>` +
+    `<div style="margin-top:12px;display:flex;gap:8px">` +
+    `<button class="btn btn-ghost btn-sm" id="del-dry">预演</button>` +
+    `<button class="btn btn-primary btn-sm" id="del-go">确认删除</button></div>` +
     `<div id="del-result" style="margin-top:12px"></div>`);
   const res = m.body.querySelector('#del-result');
+
+  m.body.querySelector('#del-dry').onclick = async () => {
+    res.innerHTML = '<span class="muted">预演中…</span>';
+    let resp;
+    try { resp = await postJSON('api/delete', { instance: name, dry_run: true }); }
+    catch (e) { res.innerHTML = '<span class="conn bad">预演失败：' + esc(e.message) + '</span>'; return; }
+    if (resp.status === 200 && resp.data && resp.data.task) { res.innerHTML = logPanel(resp.data.task, false); return; }
+    res.innerHTML = '<span class="conn bad">预演失败：' + esc((resp.data && resp.data.reason) || ('HTTP ' + resp.status)) + '</span>';
+  };
+
   m.body.querySelector('#del-go').onclick = async () => {
     res.innerHTML = '<span class="muted">提交中…</span>';
     let resp;
-    try { resp = await postJSON('api/delete', { instance: name }); }
+    try { resp = await postJSON('api/delete', { instance: name, dry_run: false }); }
     catch (e) { res.innerHTML = '<span class="conn bad">提交失败：' + esc(e.message) + '</span>'; return; }
     const { status, data } = resp;
     if (status === 202) {
-      res.innerHTML = '<div class="conn ok">已提交删除 · operator 正在处理</div>' +
-        '<div class="muted" style="margin:6px 0 10px">刷新列表确认：卡片消失 = 删除成功；仍在 = 尚未完成或失败。</div>' +
-        '<button class="btn btn-ghost btn-sm" id="del-refresh">🔄 刷新列表</button>';
-      document.getElementById('del-refresh').onclick = () => { closeModal(); onDone(); };
+      await pollTask(data.task_id, res, () => {
+        res.innerHTML +=
+          '<div class="conn ok" style="margin-top:8px">已提交删除 · operator 正在回收</div>' +
+          '<div class="muted" style="margin:6px 0 8px">刷新列表确认：卡片消失 = 删除成功；仍在 = 尚未完成或失败。</div>' +
+          '<button class="btn btn-ghost btn-sm" id="del-refresh">🔄 刷新列表</button>';
+        const b = document.getElementById('del-refresh');
+        if (b) b.onclick = () => { closeModal(); onDone(); };
+      });
       return;
     }
     res.innerHTML = '<span class="conn bad">失败（HTTP ' + status + '）：' + esc((data && data.reason) || '未知错误') + '</span>';
