@@ -80,6 +80,46 @@ async function renderCompat() {
   }
 }
 
+function fmtCpu(m) { return (m == null) ? '—' : (m / 1000).toFixed(1) + ' 核'; }
+function fmtGiB(b) { return (b == null) ? '—' : (b / 1073741824).toFixed(1) + ' GiB'; }
+function resBar(label, used, total, fmt) {
+  const pct = total > 0 ? Math.round(100 * used / total) : 0;
+  const cls = pct >= 95 ? ' crit' : (pct >= 85 ? ' hot' : '');
+  return `<div class="resrow"><div class="resl">${esc(label)}<span class="muted">${esc(fmt(used))} / ${esc(fmt(total))} · ${pct}%</span></div>` +
+         `<div class="resbar${cls}"><i style="width:${Math.min(pct, 100)}%"></i></div></div>`;
+}
+function renderHostInfo(h) {
+  if (!h) return '<div class="muted">无法读取物理机信息</div>';
+  const memPct = h.mem_used_pct == null ? '—' : h.mem_used_pct + '%';
+  const load = [h.load1, h.load5, h.load15].map(x => x == null ? '—' : x).join(' / ');
+  return '<table class="tbl"><tbody>' +
+    `<tr><td>主机名</td><td>${esc(h.hostname || '—')}</td></tr>` +
+    `<tr><td>系统 / 内核</td><td>${esc((h.os || '—') + ' · ' + (h.kernel || '—'))}</td></tr>` +
+    `<tr><td>CPU 逻辑核</td><td>${esc(h.cpu_count == null ? '—' : String(h.cpu_count))}</td></tr>` +
+    `<tr><td>内存</td><td>${esc(fmtGiB(h.mem_available_b))} 可用 / ${esc(fmtGiB(h.mem_total_b))} · 已用 ${esc(memPct)}</td></tr>` +
+    `<tr><td>负载 1/5/15</td><td>${esc(load)}</td></tr>` +
+    `<tr><td>磁盘 ${esc(h.disk_path || '—')}</td><td>${esc(fmtGiB(h.disk_used_b))} / ${esc(fmtGiB(h.disk_total_b))} · ${esc(h.disk_pct == null ? '—' : h.disk_pct + '%')}</td></tr>` +
+    '</tbody></table>';
+}
+function renderK8sRes(k) {
+  if (!k) return '<div class="muted">未连接 k8s，无集群资源</div>';
+  const c = k.cluster;
+  let html = `<div class="muted" style="margin-bottom:8px">${c.nodes} 节点 · ${c.pods} pod · 合计 ${esc(fmtCpu(c.cpu_alloc_m))} / ${esc(fmtGiB(c.mem_alloc_b))} 可分配</div>`;
+  html += k.nodes.map(n => {
+    let rows = `<div class="resnode"><b>${esc(n.name)}</b> <span class="muted">${esc(fmtCpu(n.cpu_alloc_m))} / ${esc(fmtGiB(n.mem_alloc_b))} · ${n.pods} pod</span></div>`;
+    rows += resBar('CPU 请求', n.cpu_req_m, n.cpu_alloc_m, fmtCpu);
+    rows += resBar('CPU 上限', n.cpu_lim_m, n.cpu_alloc_m, fmtCpu);
+    rows += resBar('内存请求', n.mem_req_b, n.mem_alloc_b, fmtGiB);
+    rows += resBar('内存上限', n.mem_lim_b, n.mem_alloc_b, fmtGiB);
+    if (k.metrics_available) {
+      rows += resBar('CPU 用量', n.cpu_usage_m, n.cpu_alloc_m, fmtCpu);
+      rows += resBar('内存用量', n.mem_usage_b, n.mem_alloc_b, fmtGiB);
+    }
+    return `<div class="rescard">${rows}</div>`;
+  }).join('');
+  if (!k.metrics_available) html += '<div class="muted" style="margin-top:6px">真实用量：N/A（metrics-server 未装）</div>';
+  return html;
+}
 async function renderOverview() {
   shell('overview');
   const err = document.getElementById('err');
@@ -97,6 +137,9 @@ async function renderOverview() {
     document.getElementById('conn').innerHTML = connected
       ? `<div class="conn ok">✅ 已连接　<span class="muted">${esc(cluster.reason)}</span></div>`
       : `<div class="conn bad">❌ 未连接　<span class="muted">${esc(cluster ? cluster.reason : '未探测')}</span></div>`;
+    const rsrc = await getJSON('api/resources');
+    document.getElementById('host-info').innerHTML = renderHostInfo(rsrc.host);
+    document.getElementById('k8s-res').innerHTML = renderK8sRes(rsrc.k8s);
   } catch (e) {
     err.style.display = 'block';
     err.textContent = '加载失败：' + e.message;
