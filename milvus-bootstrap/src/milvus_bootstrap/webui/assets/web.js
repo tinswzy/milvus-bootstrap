@@ -433,7 +433,7 @@ async function renderMilvus() {
             `<div class="bt"><span class="lo">M</span><div><div class="nm">${esc(i.name)}</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
             `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(i.name)} · ${imageCell(i)}</div>` +
             `<div class="mvmeta"><span class="badge b-accent"><span class="d"></span>MQ: ${esc(d.mq || '—')}</span></div>` +
-            `<div class="mv-actions">${upgradeButton(i)}${configButton(i)}${podsButton(i)}${ph('切换 MQ')}${delButton(i)}</div>` +
+            `<div class="mv-actions">${upgradeButton(i)}${configButton(i)}${podsButton(i)}${switchMqButton(i)}${delButton(i)}</div>` +
           `</div>` +
           `<div class="flow-h col4"></div>` +
           depBox('cell-store', '🪣', '对象存储', 'Object Storage', d.storage) +
@@ -446,6 +446,7 @@ async function renderMilvus() {
     box.querySelectorAll('[data-upgrade]').forEach(b => { b.onclick = () => openUpgrade(b.getAttribute('data-upgrade'), b.getAttribute('data-image')); });
     box.querySelectorAll('[data-progress]').forEach(b => { b.onclick = () => openProgress(b.getAttribute('data-progress')); });
     box.querySelectorAll('[data-config]').forEach(b => { b.onclick = () => openConfig(b.getAttribute('data-config')); });
+    box.querySelectorAll('[data-switch]').forEach(b => { b.onclick = () => openSwitchMq(b.getAttribute('data-switch')); });
   } catch (e) {
     box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
   }
@@ -522,6 +523,11 @@ function configButton(i) {
   return i.ownership === 'managed'
     ? `<button class="btn btn-ghost btn-sm" data-config="${esc(i.name)}">配置</button>`
     : `<button class="btn btn-ghost btn-sm" disabled title="external：mb 未安装，不可改配置">配置</button>`;
+}
+function switchMqButton(i) {
+  return i.ownership === 'managed'
+    ? `<button class="btn btn-ghost btn-sm" data-switch="${esc(i.name)}">切换 MQ</button>`
+    : `<button class="btn btn-ghost btn-sm" disabled title="external：mb 未安装，不可切 MQ">切换 MQ</button>`;
 }
 async function submitUpgrade(name, image, dryRun, force, resultEl) {
   resultEl.innerHTML = '<span class="muted">提交中…</span>';
@@ -629,6 +635,61 @@ async function openConfig(name) {
   };
   m.body.querySelector('#cfg-dry').onclick = () => submit(true);
   m.body.querySelector('#cfg-go').onclick = () => submit(false);
+}
+
+async function submitSwitchMq(name, targetWal, dryRun, force, el) {
+  el.innerHTML = '<span class="muted">提交中…</span>';
+  let resp;
+  try { resp = await postJSON('api/switch-mq', { instance: name, target_wal: targetWal, dry_run: dryRun, force: !!force }); }
+  catch (e) { el.innerHTML = '<span class="conn bad">提交失败：' + esc(e.message) + '</span>'; return; }
+  const { status, data } = resp;
+  if (status === 200) { el.innerHTML = logPanel(data.task, false); return; }
+  if (status === 202) {
+    await pollTask(data.task_id, el, () => {
+      el.innerHTML += '<div class="conn ok" style="margin-top:8px">已提交 MQ 切换 · operator 处理中</div>' +
+        '<button class="btn btn-ghost btn-sm" id="mq-refresh" style="margin-top:6px">🔄 刷新</button>';
+      const b = document.getElementById('mq-refresh');
+      if (b) b.onclick = () => { closeModal(); renderMilvus(); };
+    });
+    return;
+  }
+  if (status === 409) {
+    el.innerHTML = `<div class="conn bad">被兼容门禁拦截：${esc((data && data.reason) || '兼容门禁')}</div>` +
+      `<button class="btn btn-primary btn-sm" id="mq-force" style="margin-top:8px">强制切换 --force</button>`;
+    const b = document.getElementById('mq-force');
+    if (b) b.onclick = () => { if (confirm('确认跳过兼容门禁强制切换 MQ？')) submitSwitchMq(name, targetWal, dryRun, true, el); };
+    return;
+  }
+  el.innerHTML = '<span class="conn bad">失败（HTTP ' + status + '）：' + esc((data && data.reason) || '未知错误') + '</span>';
+}
+
+async function openSwitchMq(name) {
+  const m = openModal('切换 MQ · ' + name,
+    '<div id="mq-top" class="muted">加载中…</div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-ghost btn-sm" id="mq-dry">预演</button>' +
+    '<button class="btn btn-primary btn-sm" id="mq-go">切换</button></div>' +
+    '<div id="mq-result" style="margin-top:12px"></div>');
+  const res = m.body.querySelector('#mq-result');
+  let data;
+  try { data = await getJSON('api/mq-options?instance=' + encodeURIComponent(name)); }
+  catch (e) { m.body.querySelector('#mq-top').innerHTML = '<span class="conn bad">读取失败：' + esc(e.message) + '</span>'; return; }
+  const curWal = data.current_wal || '';
+  const opts = (data.options || []).map(o => {
+    const dis = (!o.supported || o.wal === curWal) ? ' disabled' : '';
+    const tag = o.wal === curWal ? '（当前）' : (o.supported ? '' : '（不兼容：' + esc(o.reason || '') + '）');
+    return `<option value="${esc(o.wal)}"${dis}>${esc(o.label)} · ${esc(o.dep_kind || '嵌入')}${tag}</option>`;
+  }).join('');
+  m.body.querySelector('#mq-top').innerHTML =
+    `<div>当前 MQ：<b>${esc(data.current_mq || '—')}</b> <span class="muted">(wal=${esc(curWal || '—')})</span></div>` +
+    `<label class="mvl" style="margin-top:8px">目标 MQ</label><select id="mq-target" class="f-in">${opts}</select>`;
+  const target = () => { const s = m.body.querySelector('#mq-target'); return s ? s.value : ''; };
+  m.body.querySelector('#mq-dry').onclick = () => { if (target()) submitSwitchMq(name, target(), true, false, res); };
+  m.body.querySelector('#mq-go').onclick = () => {
+    const t = target();
+    if (!t) return;
+    if (confirm('确认切换 MQ 到 ' + t + '？这会更改消息队列/WAL 并在 pod 内执行变更，可能影响写入。'))
+      submitSwitchMq(name, t, false, false, res);
+  };
 }
 
 function statusPill(i) {

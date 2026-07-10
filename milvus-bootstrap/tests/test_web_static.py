@@ -216,3 +216,13 @@ def test_log_panel_css_and_readme(client):
     readme = pathlib.Path(__file__).resolve().parents[2] / "README.md"
     text = readme.read_text(encoding="utf-8")
     assert "透明" in text and "黑盒" in text
+
+
+def test_switch_mq_ui_present(client):
+    js = client.get("/assets/web.js").text
+    assert "function openSwitchMq" in js and "function submitSwitchMq" in js and "function switchMqButton" in js
+    assert "api/switch-mq" in js and "api/mq-options" in js and "data-switch" in js
+    body = js.split("function submitSwitchMq", 1)[1].split("\nfunction ", 1)[0]
+    assert "pollTask(" in body and "409" in body and "已提交 MQ 切换" in body   # stream + gate + honest handoff
+    ob = js.split("function openSwitchMq", 1)[1].split("\nfunction ", 1)[0]
+    assert "确认切换 MQ" in ob                     # D4 second confirmation
