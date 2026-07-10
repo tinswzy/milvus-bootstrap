@@ -249,3 +249,17 @@ def test_pod_logs_ui_present(client):
     assert "setInterval" not in js
     css = client.get("/assets/web.css").text
     assert ".logview" in css
+
+
+def test_pod_logs_newest_first(client):
+    js = client.get("/assets/web.js").text
+    body = js.split("async function openLogs", 1)[1].split("\nfunction ", 1)[0]
+    assert ".reverse()" in body and "最新在上" in body   # newest-on-top
+
+
+def test_config_view_pretty_yaml(client):
+    js = client.get("/assets/web.js").text
+    assert "function cfgView" in js
+    assert "cfg-file" in js and "JSON.stringify(cur" not in js   # per-file <pre>, not JSON blob
+    css = client.get("/assets/web.css").text
+    assert ".cfg-fn" in css
