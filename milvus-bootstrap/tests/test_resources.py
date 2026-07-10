@@ -71,3 +71,78 @@ def test_cluster_resources_top_populates_usage():
 
 def test_cluster_resources_nodes_fail_returns_none():
     assert resources.cluster_resources(run=lambda a: (1, "", "boom")) is None
+
+
+def _pods_json(pods):
+    return {"items": [{"metadata": {"name": n, "namespace": ns},
+                       "spec": {"containers": conts}} for (n, ns, conts) in pods]}
+
+
+def test_instance_resources_aggregates_and_filters():
+    from milvus_bootstrap.core import resources
+    import json as _json
+    conts_full = [{"resources": {"requests": {"cpu": "500m", "memory": "1Gi"},
+                                 "limits": {"cpu": "1", "memory": "2Gi"}}}]
+    conts_partial = [{"resources": {"requests": {"cpu": "250m"}}}]
+    payload = _pods_json([
+        ("mv-milvus-standalone-a", "default", conts_full),
+        ("mv-milvus-standalone-b", "default", conts_partial),
+        ("other-x", "default", conts_full),                # different instance -> filtered
+    ])
+
+    def run(args):
+        if "get" in args and "pods" in args:
+            return (0, _json.dumps(payload), "")
+        return (1, "", "no")                               # top pods -> not available
+
+    r = resources.instance_resources("mv", "default", run=run)
+    assert r["metrics_available"] is False
+    assert r["total"]["pods"] == 2
+    assert r["total"]["cpu_req_m"] == 750 and r["total"]["mem_req_b"] == 1024 ** 3
+    assert r["total"]["cpu_lim_m"] == 1000 and r["total"]["mem_lim_b"] == 2 * 1024 ** 3
+    assert [p["pod"] for p in r["pods"]] == ["mv-milvus-standalone-a", "mv-milvus-standalone-b"]
+    assert r["pods"][0]["cpu_usage_m"] is None
+
+
+def test_instance_resources_top_usage():
+    from milvus_bootstrap.core import resources
+    import json as _json
+    payload = _pods_json([("mv-milvus-standalone-a", "default",
+                           [{"resources": {"requests": {"cpu": "500m"}}}])])
+
+    def run(args):
+        if "top" in args:
+            return (0, "mv-milvus-standalone-a 300m 900Mi\n", "")
+        return (0, _json.dumps(payload), "")
+
+    r = resources.instance_resources("mv", "default", run=run)
+    assert r["metrics_available"] is True
+    assert r["pods"][0]["cpu_usage_m"] == 300 and r["pods"][0]["mem_usage_b"] == 900 * 1024 ** 2
+    assert r["total"]["cpu_usage_m"] == 300
+
+
+def test_instance_resources_get_fail_empty():
+    from milvus_bootstrap.core import resources
+    r = resources.instance_resources("mv", "default", run=lambda a: (1, "", "boom"))
+    assert r["total"]["pods"] == 0 and r["pods"] == []
+
+
+def test_instances_totals_longest_prefix_no_double_count():
+    from milvus_bootstrap.core import resources
+    import json as _json
+    c = [{"resources": {"requests": {"cpu": "100m", "memory": "128Mi"}}}]
+    payload = _pods_json([
+        ("a-milvus-standalone-1", "default", c),          # -> instance "a"
+        ("a-b-milvus-standalone-1", "default", c),        # -> instance "a-b" (longest prefix), NOT "a"
+        ("a-x", "other-ns", c),                            # ns mismatch -> ignored
+    ])
+    insts = [{"name": "a", "namespace": "default"}, {"name": "a-b", "namespace": "default"}]
+    t = resources.instances_totals(insts, run=lambda args: (0, _json.dumps(payload), ""))
+    assert t["a"]["pods"] == 1 and t["a"]["cpu_req_m"] == 100
+    assert t["a-b"]["pods"] == 1 and t["a-b"]["cpu_req_m"] == 100
+
+
+def test_instances_totals_get_fail_empty():
+    from milvus_bootstrap.core import resources
+    assert resources.instances_totals([{"name": "a", "namespace": "default"}],
+                                      run=lambda a: (1, "", "boom")) == {}

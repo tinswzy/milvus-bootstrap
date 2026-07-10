@@ -110,3 +110,82 @@ def cluster_resources(run=run_kubectl) -> dict | None:
         cluster["cpu_usage_m"] = _sum("cpu_usage_m")
         cluster["mem_usage_b"] = _sum("mem_usage_b")
     return {"metrics_available": metrics, "cluster": cluster, "nodes": nlist}
+
+
+def _pod_matches(pod_name: str, inst: str) -> bool:
+    return pod_name == inst or pod_name.startswith(inst + "-")
+
+
+def instance_resources(name: str, ns: str, run=run_kubectl) -> dict:
+    """Per-pod + total requests/limits for one instance; best-effort actual usage."""
+    empty = {"metrics_available": False,
+             "total": {"cpu_req_m": 0, "cpu_lim_m": 0, "mem_req_b": 0, "mem_lim_b": 0, "pods": 0},
+             "pods": []}
+    rc, out, _ = run(["get", "pods", "-n", ns, "-o", "json"])
+    if rc != 0:
+        return empty
+    try:
+        items = json.loads(out).get("items", [])
+    except Exception:  # noqa: BLE001
+        return empty
+    pods = []
+    for p in items:
+        pod_name = p.get("metadata", {}).get("name", "")
+        if not _pod_matches(pod_name, name):
+            continue
+        conts = (p.get("spec") or {}).get("containers", [])
+        rq, mq = _sum_reqs(conts, "requests")
+        lq, lm = _sum_reqs(conts, "limits")
+        pods.append({"pod": pod_name, "cpu_req_m": rq, "cpu_lim_m": lq,
+                     "mem_req_b": mq, "mem_lim_b": lm, "cpu_usage_m": None, "mem_usage_b": None})
+    total = {"cpu_req_m": sum(x["cpu_req_m"] for x in pods),
+             "cpu_lim_m": sum(x["cpu_lim_m"] for x in pods),
+             "mem_req_b": sum(x["mem_req_b"] for x in pods),
+             "mem_lim_b": sum(x["mem_lim_b"] for x in pods), "pods": len(pods)}
+    metrics = False
+    rc, out, _ = run(["top", "pods", "-n", ns, "--no-headers"])
+    if rc == 0 and out.strip():
+        metrics = True
+        by = {x["pod"]: x for x in pods}
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 3 and parts[0] in by:          # NAME  CPU(cores)  MEMORY(bytes)
+                by[parts[0]]["cpu_usage_m"] = parse_cpu(parts[1])
+                by[parts[0]]["mem_usage_b"] = parse_mem(parts[2])
+        total["cpu_usage_m"] = sum((x["cpu_usage_m"] or 0) for x in pods)
+        total["mem_usage_b"] = sum((x["mem_usage_b"] or 0) for x in pods)
+    return {"metrics_available": metrics, "total": total, "pods": pods}
+
+
+def instances_totals(instances, run=run_kubectl) -> dict:
+    """One get-pods-A-json aggregated per instance (longest-prefix ownership). {name: total}."""
+    rc, out, _ = run(["get", "pods", "-A", "-o", "json"])
+    if rc != 0:
+        return {}
+    try:
+        items = json.loads(out).get("items", [])
+    except Exception:  # noqa: BLE001
+        return {}
+    totals = {i["name"]: {"cpu_req_m": 0, "cpu_lim_m": 0, "mem_req_b": 0, "mem_lim_b": 0, "pods": 0}
+              for i in instances}
+    by_ns: dict[str, list] = {}
+    for i in instances:
+        by_ns.setdefault(i["namespace"], []).append(i["name"])
+    for p in items:
+        md = p.get("metadata", {})
+        ns = md.get("namespace", "")
+        pod_name = md.get("name", "")
+        cands = [n for n in by_ns.get(ns, []) if _pod_matches(pod_name, n)]
+        if not cands:
+            continue
+        owner = max(cands, key=len)                          # longest prefix = most specific
+        conts = (p.get("spec") or {}).get("containers", [])
+        rq, mq = _sum_reqs(conts, "requests")
+        lq, lm = _sum_reqs(conts, "limits")
+        t = totals[owner]
+        t["cpu_req_m"] += rq
+        t["cpu_lim_m"] += lq
+        t["mem_req_b"] += mq
+        t["mem_lim_b"] += lm
+        t["pods"] += 1
+    return totals
