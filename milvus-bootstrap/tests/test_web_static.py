@@ -200,6 +200,15 @@ def test_delete_has_dryrun_and_streams(client):
     assert "刷新列表" in body                    # honest handoff kept
 
 
+def test_config_ui_present(client):
+    js = client.get("/assets/web.js").text
+    assert "function openConfig" in js and "function collectKv" in js and "function configButton" in js
+    assert "api/config" in js and "data-config" in js
+    assert "cfg-view" in js                       # collapsed current-config view
+    css = client.get("/assets/web.css").text
+    assert ".cfg-view" in css
+
+
 def test_log_panel_css_and_readme(client):
     css = client.get("/assets/web.css").text
     assert ".logpanel" in css and ".logcmd" in css and ".logrow" in css
@@ -207,3 +216,13 @@ def test_log_panel_css_and_readme(client):
     readme = pathlib.Path(__file__).resolve().parents[2] / "README.md"
     text = readme.read_text(encoding="utf-8")
     assert "透明" in text and "黑盒" in text
+
+
+def test_switch_mq_ui_present(client):
+    js = client.get("/assets/web.js").text
+    assert "function openSwitchMq" in js and "function submitSwitchMq" in js and "function switchMqButton" in js
+    assert "api/switch-mq" in js and "api/mq-options" in js and "data-switch" in js
+    body = js.split("function submitSwitchMq", 1)[1].split("\nfunction ", 1)[0]
+    assert "pollTask(" in body and "409" in body and "已提交 MQ 切换" in body   # stream + gate + honest handoff
+    ob = js.split("function openSwitchMq", 1)[1].split("\nfunction ", 1)[0]
+    assert "确认切换 MQ" in ob                     # D4 second confirmation

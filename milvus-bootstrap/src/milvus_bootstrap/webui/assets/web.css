@@ -570,4 +570,10 @@ select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
 .logbody { min-width:0; flex:1; }
 .logcmd { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--accent-ink);
   background:var(--surface-3); padding:2px 6px; border-radius:4px; margin-top:3px; white-space:pre-wrap; word-break:break-all; }
+
+/* config view (collapsed current config) */
+.cfg-view { border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
+.cfg-view > summary { cursor:pointer; padding:8px 10px; font-weight:600; }
+.cfg-view pre { max-height:220px; overflow:auto; margin:0; padding:8px 10px; font-size:12px;
+  white-space:pre-wrap; word-break:break-all; }
 .logdet { font-size:12px; color:var(--muted); margin-top:3px; white-space:pre-wrap; word-break:break-all; }
