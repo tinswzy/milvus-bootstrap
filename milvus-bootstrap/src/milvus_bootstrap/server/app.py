@@ -337,6 +337,37 @@ def config_restart(req: ConfigRestartReq) -> dict[str, Any]:
     return _core().config_restart(req.instance, dry_run=req.dry_run).model_dump()
 
 
+@app.get("/api/config")
+def api_config(instance: str) -> dict[str, Any]:
+    inst = _core().state.get_instance(instance)
+    if inst is None:
+        raise ValueError(f"未找到实例：{instance}")
+    snap = inst.spec_snapshot or {}
+    overrides = (snap.get("params", {}) or {}).get("_conf", {}) or {}
+    try:
+        current = _core().config_get(instance)
+    except Exception:  # noqa: BLE001  — CM may not exist yet; best-effort
+        current = None
+    return {"instance": instance, "current": current, "overrides": overrides}
+
+
+class ConfigSetApiReq(BaseModel):
+    instance: str
+    kv: dict[str, Any] = {}
+    dry_run: bool = True
+
+
+@app.post("/api/config/set")
+def api_config_set(req: ConfigSetApiReq) -> Any:
+    if _core().state.get_instance(req.instance) is None:
+        raise ValueError(f"未找到实例：{req.instance}")
+    if req.dry_run:
+        task = _core().config_set(req.instance, req.kv, dry_run=True)
+        return {"task": task.model_dump(mode="json")}
+    tid = runner.submit(lambda: _core().config_set(req.instance, req.kv, dry_run=False))
+    return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
+
+
 # --- WebUI static frontend (registered LAST so /api/* and /status win) ---
 import pathlib
 from fastapi.staticfiles import StaticFiles
