@@ -200,6 +200,15 @@ def test_delete_has_dryrun_and_streams(client):
     assert "刷新列表" in body                    # honest handoff kept
 
 
+def test_config_ui_present(client):
+    js = client.get("/assets/web.js").text
+    assert "function openConfig" in js and "function collectKv" in js and "function configButton" in js
+    assert "api/config" in js and "data-config" in js
+    assert "cfg-view" in js                       # collapsed current-config view
+    css = client.get("/assets/web.css").text
+    assert ".cfg-view" in css
+
+
 def test_log_panel_css_and_readme(client):
     css = client.get("/assets/web.css").text
     assert ".logpanel" in css and ".logcmd" in css and ".logrow" in css

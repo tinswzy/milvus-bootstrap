@@ -433,7 +433,7 @@ async function renderMilvus() {
             `<div class="bt"><span class="lo">M</span><div><div class="nm">${esc(i.name)}</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
             `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(i.name)} · ${imageCell(i)}</div>` +
             `<div class="mvmeta"><span class="badge b-accent"><span class="d"></span>MQ: ${esc(d.mq || '—')}</span></div>` +
-            `<div class="mv-actions">${upgradeButton(i)}${ph('配置')}${podsButton(i)}${ph('切换 MQ')}${delButton(i)}</div>` +
+            `<div class="mv-actions">${upgradeButton(i)}${configButton(i)}${podsButton(i)}${ph('切换 MQ')}${delButton(i)}</div>` +
           `</div>` +
           `<div class="flow-h col4"></div>` +
           depBox('cell-store', '🪣', '对象存储', 'Object Storage', d.storage) +
@@ -445,6 +445,7 @@ async function renderMilvus() {
     box.querySelectorAll('[data-pods]').forEach(b => { b.onclick = () => openPods(b.getAttribute('data-pods')); });
     box.querySelectorAll('[data-upgrade]').forEach(b => { b.onclick = () => openUpgrade(b.getAttribute('data-upgrade'), b.getAttribute('data-image')); });
     box.querySelectorAll('[data-progress]').forEach(b => { b.onclick = () => openProgress(b.getAttribute('data-progress')); });
+    box.querySelectorAll('[data-config]').forEach(b => { b.onclick = () => openConfig(b.getAttribute('data-config')); });
   } catch (e) {
     box.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>';
   }
@@ -517,6 +518,11 @@ function upgradeButton(i) {
     ? `<button class="btn btn-ghost btn-sm" data-upgrade="${esc(i.name)}" data-image="${esc(i.image || '')}">升级</button>`
     : `<button class="btn btn-ghost btn-sm" disabled title="external：mb 未安装，不可升级">升级</button>`;
 }
+function configButton(i) {
+  return i.ownership === 'managed'
+    ? `<button class="btn btn-ghost btn-sm" data-config="${esc(i.name)}">配置</button>`
+    : `<button class="btn btn-ghost btn-sm" disabled title="external：mb 未安装，不可改配置">配置</button>`;
+}
 async function submitUpgrade(name, image, dryRun, force, resultEl) {
   resultEl.innerHTML = '<span class="muted">提交中…</span>';
   let resp;
@@ -555,6 +561,74 @@ function openUpgrade(name, curImage) {
   const res = m.body.querySelector('#up-result');
   m.body.querySelector('#up-dry').onclick = () => { if (img()) submitUpgrade(name, img(), true, false, res); };
   m.body.querySelector('#up-go').onclick = () => { if (img()) submitUpgrade(name, img(), false, false, res); };
+}
+
+function collectKv() {
+  const kv = {};
+  document.querySelectorAll('#cfg-rows .crow').forEach(row => {
+    const k = row.querySelector('.ck').value.trim();
+    const v = row.querySelector('.cv').value.trim();
+    if (k) kv[k] = v;
+  });
+  return kv;
+}
+
+function cfgRow(k, v) {
+  return `<div class="crow prow"><input class="ck pk" placeholder="key（如 proxy.maxNameLength）" value="${esc(k || '')}">` +
+         `<span>=</span><input class="cv pv" placeholder="value" value="${esc(v || '')}">` +
+         `<button class="btn btn-ghost btn-sm cdel">删</button></div>`;
+}
+
+async function openConfig(name) {
+  const m = openModal('配置 · ' + name,
+    '<div id="cfg-top" class="muted">加载中…</div>' +
+    '<div style="margin:10px 0 4px;font-weight:600">覆盖配置（点状键 = 值）</div>' +
+    '<div id="cfg-rows"></div>' +
+    '<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="cfg-add">+ 添加</button></div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-ghost btn-sm" id="cfg-dry">预演</button>' +
+    '<button class="btn btn-primary btn-sm" id="cfg-go">应用</button></div>' +
+    '<div id="cfg-result" style="margin-top:12px"></div>');
+  const rows = m.body.querySelector('#cfg-rows');
+  const res = m.body.querySelector('#cfg-result');
+  const addRow = (k, v) => {
+    rows.insertAdjacentHTML('beforeend', cfgRow(k, v));
+    const row = rows.lastElementChild;
+    row.querySelector('.cdel').onclick = () => row.remove();
+  };
+  m.body.querySelector('#cfg-add').onclick = () => addRow('', '');
+
+  let data;
+  try { data = await getJSON('api/config?instance=' + encodeURIComponent(name)); }
+  catch (e) { m.body.querySelector('#cfg-top').innerHTML = '<span class="conn bad">读取失败：' + esc(e.message) + '</span>'; return; }
+  const cur = data.current;
+  m.body.querySelector('#cfg-top').innerHTML = cur
+    ? '<details class="cfg-view"><summary>当前生效配置（只读）</summary><pre>' +
+      esc(typeof cur === 'string' ? cur : JSON.stringify(cur, null, 2)) + '</pre></details>'
+    : '<div class="muted">无法读取当前配置（可能尚未生成）</div>';
+  const ov = data.overrides || {};
+  Object.keys(ov).forEach(k => addRow(k, ov[k]));
+  if (!Object.keys(ov).length) addRow('', '');
+
+  const submit = async (dryRun) => {
+    res.innerHTML = '<span class="muted">提交中…</span>';
+    let resp;
+    try { resp = await postJSON('api/config/set', { instance: name, kv: collectKv(), dry_run: dryRun }); }
+    catch (e) { res.innerHTML = '<span class="conn bad">提交失败：' + esc(e.message) + '</span>'; return; }
+    const { status, data: d } = resp;
+    if (status === 200) { res.innerHTML = logPanel(d.task, false); return; }
+    if (status === 202) {
+      await pollTask(d.task_id, res, () => {
+        res.innerHTML += '<div class="conn ok" style="margin-top:8px">已提交配置变更 · operator 滚动重启相关 pod</div>' +
+          '<button class="btn btn-ghost btn-sm" id="cfg-refresh" style="margin-top:6px">🔄 刷新</button>';
+        const b = document.getElementById('cfg-refresh');
+        if (b) b.onclick = () => { closeModal(); renderMilvus(); };
+      });
+      return;
+    }
+    res.innerHTML = '<span class="conn bad">失败（HTTP ' + status + '）：' + esc((d && d.reason) || '未知错误') + '</span>';
+  };
+  m.body.querySelector('#cfg-dry').onclick = () => submit(true);
+  m.body.querySelector('#cfg-go').onclick = () => submit(false);
 }
 
 function statusPill(i) {
