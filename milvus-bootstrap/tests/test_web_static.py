@@ -237,3 +237,15 @@ def test_overview_resources_present(client):
     assert "setInterval" not in js               # no-polling: no timers anywhere
     css = client.get("/assets/web.css").text
     assert ".resbar" in css
+
+
+def test_pod_logs_ui_present(client):
+    js = client.get("/assets/web.js").text
+    assert "function openLogs" in js
+    assert "api/logs" in js and "data-log-pod" in js and "log-view" in js
+    assert "最后 100 条" in js
+    # openPods table wires a log button; still no timers anywhere (single-shot)
+    assert "data-log-pod" in js.split("function openPods", 1)[1].split("function ", 1)[0]
+    assert "setInterval" not in js
+    css = client.get("/assets/web.css").text
+    assert ".logview" in css
