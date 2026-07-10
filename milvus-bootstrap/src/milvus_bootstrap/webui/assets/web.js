@@ -343,9 +343,6 @@ function renderInstall() {
   document.getElementById('inst-apply').onclick = () => submitInstall(false, false);
 }
 
-// Honest, no-poll delete: submit + hand off to operator; verify by refreshing
-// the list (card gone = deleted; still there = not done / failed). Same on-demand
-// model as the upgrade flow — no auto-poll, no false "删除成功".
 // Honest, transparent delete: 预演 shows planned steps; 确认删除 streams the mb-side
 // steps, then hands off (card gone on refresh = deleted). No k8s polling.
 function openDelete(name, onDone) {

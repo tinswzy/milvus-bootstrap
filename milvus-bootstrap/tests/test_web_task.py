@@ -26,15 +26,15 @@ def test_api_task_unknown_404():
 def test_api_delete_dry_run_returns_planned_task(tmp_path, monkeypatch):
     monkeypatch.setenv("MB_HOME", str(tmp_path))
     monkeypatch.setenv("MB_ADAPTER", "fake")
+    from milvus_bootstrap.core.models import InstallSpec
     from milvus_bootstrap.server.app import _core
-    # pick any managed instance if present; otherwise assert the 200/{task} shape on unknown is a ValueError->400
     with TestClient(app) as client:
-        insts = _core().state.list_instances()
-        if insts:
-            name = insts[0].name
-            r = client.post("/api/delete", json={"instance": name, "dry_run": True})
-            assert r.status_code == 200
-            assert "task" in r.json() and "steps" in r.json()["task"]
-        else:
-            r = client.post("/api/delete", json={"instance": "nope", "dry_run": True})
-            assert r.status_code == 400
+        _core().install(InstallSpec(kind="etcd", name="del-dry"), dry_run=False)
+        r = client.post("/api/delete", json={"instance": "del-dry", "dry_run": True})
+        assert r.status_code == 200
+        body = r.json()
+        assert "task" in body and body["task"]["dry_run"] is True
+        assert isinstance(body["task"]["steps"], list) and len(body["task"]["steps"]) >= 1
+        # dry-run must NOT actually delete the instance
+        names = [i["name"] for i in client.get("/api/instances").json()["instances"]]
+        assert "del-dry" in names
