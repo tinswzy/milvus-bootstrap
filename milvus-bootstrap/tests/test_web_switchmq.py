@@ -59,3 +59,29 @@ def test_api_switch_mq_unknown_400(tmp_path, monkeypatch):
     with TestClient(app) as client:
         r = client.post("/api/switch-mq", json={"instance": "nope", "target_wal": "kafka"})
         assert r.status_code == 400
+
+
+def test_api_switch_mq_targets_shape(tmp_path, monkeypatch):
+    monkeypatch.setenv("MB_HOME", str(tmp_path))
+    monkeypatch.setenv("MB_ADAPTER", "fake")
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server.app import _core
+    with TestClient(app) as client:
+        _core().install(InstallSpec(kind="milvus", name="sw-mv",
+                                    params={"mq": "kafka", "image": "milvusdb/milvus:v2.6.18"}), dry_run=False)
+        r = client.get("/api/switch-mq/targets", params={"instance": "sw-mv"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["current_mq"] == "kafka" and body["current_wal"] == "kafka"
+        ts = {t["id"]: t for t in body["targets"]}
+        assert ts["kafka"]["selectable"] is False        # same as current
+        assert ts["pulsar"]["selectable"] is True
+        assert "current" in ts["kafka"] and "reason" in ts["kafka"]
+
+
+def test_api_switch_mq_targets_unknown_400(tmp_path, monkeypatch):
+    monkeypatch.setenv("MB_HOME", str(tmp_path))
+    monkeypatch.setenv("MB_ADAPTER", "fake")
+    with TestClient(app) as client:
+        r = client.get("/api/switch-mq/targets", params={"instance": "nope"})
+        assert r.status_code == 400

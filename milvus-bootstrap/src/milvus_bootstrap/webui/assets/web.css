@@ -597,3 +597,12 @@ select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
 
 /* per-instance resource total row in Pods modal */
 .restot td { font-weight:600; border-top:2px solid var(--border); }
+
+/* switch-mq target options */
+.sw-opt { display:inline-flex; flex-direction:column; gap:2px; min-width:190px; vertical-align:top;
+  border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin:0 8px 8px 0; cursor:pointer; }
+.sw-opt .t { font-weight:600; }
+.sw-opt .r { font-size:11.5px; color:var(--muted); margin-top:2px; }
+.sw-opt.sel { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+.sw-opt.dis { opacity:.5; cursor:not-allowed; background:var(--surface-2); }
+.sw-opt.cur { border-style:dashed; }

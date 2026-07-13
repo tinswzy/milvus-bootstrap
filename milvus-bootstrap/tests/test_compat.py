@@ -216,3 +216,34 @@ def test_gate_install_kafka_minio_old_not_blocked():
                               "versions": {"milvus": "2.6.18",
                                            "minio": "RELEASE.2024-06-01T00-00-00Z"}})
     assert all(f.level != "FAIL" for f in out)
+
+
+def test_switch_mq_targets_same_wal_not_selectable():
+    from milvus_bootstrap.core import compat
+    ts = {t["id"]: t for t in compat.switch_mq_targets("kafka", "2.6.0", "standalone")}
+    assert ts["kafka"]["selectable"] is False and "相同" in ts["kafka"]["reason"]
+    assert ts["kafka"]["current"] is True
+    assert ts["pulsar"]["selectable"] is True and ts["pulsar"]["current"] is False
+
+
+def test_switch_mq_targets_rocksmq_cluster_blocked():
+    from milvus_bootstrap.core import compat
+    ts = {t["id"]: t for t in compat.switch_mq_targets("kafka", "2.6.0", "cluster")}
+    assert ts["rocksmq"]["selectable"] is False and "standalone" in ts["rocksmq"]["reason"]
+
+
+def test_switch_mq_targets_woodpecker_service_reserved():
+    from milvus_bootstrap.core import compat
+    # milvus 2.x: blocked by min_milvus (needs 3.0)
+    lo = {t["id"]: t for t in compat.switch_mq_targets("kafka", "2.6.0", "standalone")}
+    assert lo["woodpecker-service"]["selectable"] is False
+    # milvus 3.0: version ok, but reserved-off (external woodpecker not supported yet)
+    hi = {t["id"]: t for t in compat.switch_mq_targets("kafka", "3.0.0", "standalone")}
+    assert hi["woodpecker-service"]["selectable"] is False
+    assert "规划中" in hi["woodpecker-service"]["reason"] or "external" in hi["woodpecker-service"]["reason"]
+
+
+def test_operator_supports_ext_woodpecker_reserved_false():
+    from milvus_bootstrap.core import compat
+    assert compat._operator_supports_ext_woodpecker("1.3.6") is False
+    assert compat._operator_supports_ext_woodpecker("") is False

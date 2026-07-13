@@ -220,12 +220,13 @@ def test_log_panel_css_and_readme(client):
 
 def test_switch_mq_ui_present(client):
     js = client.get("/assets/web.js").text
-    assert "function openSwitchMq" in js and "function submitSwitchMq" in js and "function switchMqButton" in js
-    assert "api/switch-mq" in js and "api/mq-options" in js and "data-switch" in js
+    assert "function submitSwitchMq" in js and "function switchMqButton" in js
+    assert "api/switch-mq" in js and "data-switch" in js
+    # modal retired: openSwitchMq gone; card navigates to the dedicated page
+    assert "function openSwitchMq" not in js
+    assert "switch-mq.html?instance=" in js
     body = js.split("function submitSwitchMq", 1)[1].split("\nfunction ", 1)[0]
     assert "pollTask(" in body and "409" in body and "已提交 MQ 切换" in body   # stream + gate + honest handoff
-    ob = js.split("function openSwitchMq", 1)[1].split("\nfunction ", 1)[0]
-    assert "确认切换 MQ" in ob                     # D4 second confirmation
 
 
 def test_overview_resources_present(client):
@@ -273,3 +274,15 @@ def test_instance_resources_ui_present(client):
     assert "setInterval" not in js
     css = client.get("/assets/web.css").text
     assert ".restot" in css
+
+
+def test_switch_mq_page_present(client):
+    html = client.get("/switch-mq.html").text
+    assert 'id="sw-targets"' in html and 'id="sw-ack"' in html and "renderSwitchMq()" in html
+    js = client.get("/assets/web.js").text
+    assert "function renderSwitchMq" in js
+    assert "api/switch-mq/targets" in js and "sw-opt" in js and "data-wal" in js
+    assert "location.reload()" in js.split("function submitSwitchMq", 1)[1].split("\nfunction ", 1)[0]
+    assert "setInterval" not in js
+    css = client.get("/assets/web.css").text
+    assert ".sw-opt" in css
