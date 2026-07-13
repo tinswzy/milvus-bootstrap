@@ -11,17 +11,39 @@
     <header class="topbar" id="topbar"></header>
     <div class="content doc">
       <div class="page-head"><div class="h-l"><h1>切换消息队列</h1>
-        <p>把某个 Milvus 实例切换到另一种 MQ。不可选的目标会灰置并说明原因（版本 / 模式 / 同类 / 规划中）。</p></div></div>
+        <p>把某个 Milvus 实例的 MQ 切换到另一种类型。目标下拉里不可选项已灰置并注明原因。带护栏三步：选目标 → 预演 → 切换。</p></div></div>
       <div id="err" class="callout co-err" style="display:none;margin-bottom:14px"></div>
-      <div class="card"><div class="card-head"><h3>实例与当前 MQ</h3></div><div class="card-pad">
-        <div class="f-row"><label>实例</label><select id="sw-inst" class="f-in"></select></div>
-        <div id="sw-current" class="muted" style="margin-top:8px">—</div></div></div>
-      <div class="card"><div class="card-head"><h3>目标 MQ</h3><span class="sub">灰置 = 不可选（下方看原因）</span></div>
-        <div class="card-pad"><div id="sw-targets">加载中…</div></div></div>
-      <div class="card co-warn" style="margin:0 0 14px"><div class="card-pad">
-        <div><b>WAL 数据不可跨 MQ 迁移。</b>切换等价于在空集群上更换后端，存量流式数据无法原地迁移。</div>
+      <div class="card card-pad" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
+        <span class="muted">切换实例</span>
+        <select id="sw-inst" class="f-in" style="min-width:220px"></select>
+        <span class="muted" style="margin-left:auto;font-size:12px">目标 MQ 类型不可与当前相同</span>
+      </div>
+      <div class="card" style="margin-bottom:16px"><div class="card-head"><h3>实例拓扑与切换目标</h3>
+        <span class="sub">浅框 = 当前数据流 · 深框 = 切换目标</span></div>
+        <div class="card-pad"><div class="mq-topo">
+          <div class="box box-mv"><div class="bt"><span class="lo">M</span><div>
+            <div class="nm" id="sw-mv-name">—</div><div class="role">向量数据库内核</div></div></div>
+            <div class="mvmeta"><span class="badge b-accent" id="sw-mv-mode">—</span></div></div>
+          <div class="flow-h"></div>
+          <div class="mq-zone">
+            <div class="box"><div class="bt"><span class="lo" id="sw-cur-logo">📨</span><div>
+              <div class="nm" id="sw-cur-name">—</div><div class="role">当前 MQ · ACTIVE</div></div></div></div>
+            <div class="flow-switch"><span class="lbl">切换 ⟶</span></div>
+            <div class="box box-dark"><div class="bt"><span class="lo" id="sw-tgt-logo">🎯</span><div>
+              <div class="nm" id="sw-tgt-name">选择目标</div><div class="role">目标 MQ</div></div></div>
+              <select id="sw-target" class="f-in" style="margin-top:10px;width:100%"></select>
+              <div class="r" id="sw-tgt-reason"></div></div>
+          </div>
+        </div></div></div>
+      <div class="callout co-err" style="margin-bottom:16px"><b>WAL 数据不可跨 MQ 迁移。</b>
+        切换等价于在空集群上更换后端，存量流式数据无法原地迁移；执行后 MQ 后端固定，不可热回退。
         <label style="display:flex;gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" id="sw-ack">
-          <span>我已知悉：切换后需重建 collection 并重新导入</span></label></div></div>
+          <span>我已知悉：切换后需重建 collection 并重新导入</span></label></div>
+      <div class="card card-pad" style="margin-bottom:16px"><div class="stepper" id="sw-stepper">
+        <div class="st active" data-s="1"><div class="dot">1</div><div class="tx"><b>选目标 &amp; 确认</b><span>选可切换的目标 MQ 并勾选护栏</span></div><div class="bar"></div></div>
+        <div class="st" data-s="2"><div class="dot">2</div><div class="tx"><b>预演</b><span>dry-run 查看切换计划步骤</span></div><div class="bar"></div></div>
+        <div class="st" data-s="3"><div class="dot">3</div><div class="tx"><b>切换执行</b><span>改配置 → 切流 → 下线旧 MQ</span></div></div>
+      </div></div>
       <div class="card"><div class="card-head"><h3>执行</h3></div><div class="card-pad">
         <button class="btn btn-ghost" id="sw-dry" disabled>预演（dry-run）</button>
         <button class="btn btn-primary" id="sw-go" disabled>切换</button>

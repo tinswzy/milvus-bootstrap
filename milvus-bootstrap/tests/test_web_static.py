@@ -278,14 +278,14 @@ def test_instance_resources_ui_present(client):
 
 def test_switch_mq_page_present(client):
     html = client.get("/switch-mq.html").text
-    assert 'id="sw-targets"' in html and 'id="sw-ack"' in html and "renderSwitchMq()" in html
+    assert 'class="mq-topo"' in html and 'id="sw-target"' in html and 'id="sw-stepper"' in html
+    assert 'id="sw-ack"' in html and "renderSwitchMq()" in html
+    assert 'id="sw-targets"' not in html          # old .sw-opt card list removed
     js = client.get("/assets/web.js").text
     assert "function renderSwitchMq" in js
-    assert "api/switch-mq/targets" in js and "sw-opt" in js and "data-wal" in js
+    assert "api/switch-mq/targets" in js and "setStep" in js and "getElementById('sw-target')" in js
     assert "location.reload()" in js.split("function submitSwitchMq", 1)[1].split("\nfunction ", 1)[0]
     assert "setInterval" not in js
-    css = client.get("/assets/web.css").text
-    assert ".sw-opt" in css
 
 
 def test_switch_mq_topology_css(client):
