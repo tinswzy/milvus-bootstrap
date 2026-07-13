@@ -273,3 +273,15 @@ def test_instance_resources_ui_present(client):
     assert "setInterval" not in js
     css = client.get("/assets/web.css").text
     assert ".restot" in css
+
+
+def test_switch_mq_page_present(client):
+    html = client.get("/switch-mq.html").text
+    assert 'id="sw-targets"' in html and 'id="sw-ack"' in html and "renderSwitchMq()" in html
+    js = client.get("/assets/web.js").text
+    assert "function renderSwitchMq" in js
+    assert "api/switch-mq/targets" in js and "sw-opt" in js and "data-wal" in js
+    assert "location.reload()" in js.split("function submitSwitchMq", 1)[1].split("\nfunction ", 1)[0]
+    assert "setInterval" not in js
+    css = client.get("/assets/web.css").text
+    assert ".sw-opt" in css

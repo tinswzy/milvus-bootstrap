@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>切换 MQ · Milvus Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/web.css">
+</head><body>
+<div class="app">
+  <aside class="rail" id="rail"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content doc">
+      <div class="page-head"><div class="h-l"><h1>切换消息队列</h1>
+        <p>把某个 Milvus 实例切换到另一种 MQ。不可选的目标会灰置并说明原因（版本 / 模式 / 同类 / 规划中）。</p></div></div>
+      <div id="err" class="callout co-err" style="display:none;margin-bottom:14px"></div>
+      <div class="card"><div class="card-head"><h3>实例与当前 MQ</h3></div><div class="card-pad">
+        <div class="f-row"><label>实例</label><select id="sw-inst" class="f-in"></select></div>
+        <div id="sw-current" class="muted" style="margin-top:8px">—</div></div></div>
+      <div class="card"><div class="card-head"><h3>目标 MQ</h3><span class="sub">灰置 = 不可选（下方看原因）</span></div>
+        <div class="card-pad"><div id="sw-targets">加载中…</div></div></div>
+      <div class="card co-warn" style="margin:0 0 14px"><div class="card-pad">
+        <div><b>WAL 数据不可跨 MQ 迁移。</b>切换等价于在空集群上更换后端，存量流式数据无法原地迁移。</div>
+        <label style="display:flex;gap:8px;margin-top:10px;cursor:pointer"><input type="checkbox" id="sw-ack">
+          <span>我已知悉：切换后需重建 collection 并重新导入</span></label></div></div>
+      <div class="card"><div class="card-head"><h3>执行</h3></div><div class="card-pad">
+        <button class="btn btn-ghost" id="sw-dry" disabled>预演（dry-run）</button>
+        <button class="btn btn-primary" id="sw-go" disabled>切换</button>
+        <div id="sw-result" style="margin-top:12px"></div></div></div>
+    </div>
+  </div>
+</div>
+<script src="assets/web.js"></script>
+<script>renderSwitchMq();</script>
+</body></html>

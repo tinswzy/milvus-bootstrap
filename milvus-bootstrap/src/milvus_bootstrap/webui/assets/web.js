@@ -31,7 +31,7 @@ function shell(active) {
     NAV.map(n => `<a class="${n.id === active ? 'active' : ''}" href="${n.href}">${svgIco(NAV_ICON[n.id] || '', 17)}<span>${esc(n.label)}</span></a>`).join('') +
     '</nav>';
   const top = document.getElementById('topbar');
-  if (top) top.innerHTML = `<div class="crumbs">Milvus Admin <span class="sep">/</span> <b>${esc({ compat: '版本依赖', install: '安装向导', milvus: 'Milvus 实例', deps: 'Dependencies' }[active] || 'Overview')}</b></div>`;
+  if (top) top.innerHTML = `<div class="crumbs">Milvus Admin <span class="sep">/</span> <b>${esc({ compat: '版本依赖', install: '安装向导', milvus: 'Milvus 实例', deps: 'Dependencies', 'switch-mq': '切换 MQ' }[active] || 'Overview')}</b></div>`;
 }
 
 async function getJSON(url) {
@@ -390,6 +390,67 @@ function renderInstall() {
     document.getElementById('inst-params').appendChild(paramRow('', ''));
   document.getElementById('inst-dryrun').onclick = () => submitInstall(true, false);
   document.getElementById('inst-apply').onclick = () => submitInstall(false, false);
+}
+
+async function renderSwitchMq() {
+  shell('switch-mq');
+  const params = new URLSearchParams(location.search);
+  let selInst = params.get('instance') || '';
+  let selectedWal = null;
+  const sel = document.getElementById('sw-inst');
+  const cur = document.getElementById('sw-current');
+  const tgt = document.getElementById('sw-targets');
+  const ack = document.getElementById('sw-ack');
+  const dry = document.getElementById('sw-dry');
+  const go = document.getElementById('sw-go');
+  const res = document.getElementById('sw-result');
+
+  const insts = await loadInstances();
+  const milvus = insts.filter(i => i.kind === 'milvus' && i.ownership === 'managed');
+  if (!milvus.length) { cur.innerHTML = '<span class="muted">无 managed milvus 实例</span>'; tgt.innerHTML = ''; return; }
+  sel.innerHTML = milvus.map(i => `<option value="${esc(i.name)}">${esc(i.name)} (${esc(i.namespace)})</option>`).join('');
+  if (!selInst || !milvus.some(i => i.name === selInst)) selInst = milvus[0].name;
+  sel.value = selInst;
+
+  const syncButtons = () => {
+    dry.disabled = !selectedWal;
+    go.disabled = !(selectedWal && ack.checked);
+  };
+
+  const load = async (name) => {
+    selectedWal = null; res.innerHTML = ''; ack.checked = false; syncButtons();
+    tgt.innerHTML = '<span class="muted">加载中…</span>';
+    let d;
+    try { d = await getJSON('api/switch-mq/targets?instance=' + encodeURIComponent(name)); }
+    catch (e) { tgt.innerHTML = '<span class="conn bad">加载失败：' + esc(e.message) + '</span>'; return; }
+    cur.innerHTML = `当前 MQ：<b>${esc(d.current_mq || '—')}</b> ` +
+      `<span class="muted">wal=${esc(d.current_wal || '—')} · milvus ${esc(d.milvus_version || '—')} · ${esc(d.mode || '—')}</span>`;
+    tgt.innerHTML = (d.targets || []).map(t => {
+      const cls = 'sw-opt' + (t.current ? ' cur' : '') + (t.selectable ? '' : ' dis');
+      const note = t.note ? `<div class="r">${esc(t.note)}</div>` : '';
+      const reason = t.selectable ? '' : `<div class="r">${esc(t.reason || '不可选')}</div>`;
+      return `<div class="${cls}" data-wal="${esc(t.wal)}" data-ok="${t.selectable ? 1 : 0}">` +
+        `<div class="t">${esc(t.label)}${t.current ? ' · 当前' : ''}</div>${note}${reason}</div>`;
+    }).join('') || '<span class="muted">无可用 MQ 选项</span>';
+    tgt.querySelectorAll('.sw-opt').forEach(elm => {
+      if (elm.getAttribute('data-ok') !== '1') return;
+      elm.onclick = () => {
+        tgt.querySelectorAll('.sw-opt').forEach(x => x.classList.remove('sel'));
+        elm.classList.add('sel'); selectedWal = elm.getAttribute('data-wal'); syncButtons();
+      };
+    });
+  };
+
+  sel.onchange = () => { selInst = sel.value; load(selInst); };
+  ack.onchange = syncButtons;
+  dry.onclick = () => { if (selectedWal) submitSwitchMq(selInst, selectedWal, true, false, res); };
+  go.onclick = () => {
+    if (!selectedWal) return;
+    if (confirm('确认切换 ' + selInst + ' 的 MQ 到 ' + selectedWal +
+                '？这会更改 WAL 并在 pod 内执行变更，存量流式数据将无法保留。'))
+      submitSwitchMq(selInst, selectedWal, false, false, res);
+  };
+  load(selInst);
 }
 
 // Honest, transparent delete: 预演 shows planned steps; 确认删除 streams the mb-side
@@ -756,7 +817,7 @@ async function submitSwitchMq(name, targetWal, dryRun, force, el) {
       el.innerHTML += '<div class="conn ok" style="margin-top:8px">已提交 MQ 切换 · operator 处理中</div>' +
         '<button class="btn btn-ghost btn-sm" id="mq-refresh" style="margin-top:6px">🔄 刷新</button>';
       const b = document.getElementById('mq-refresh');
-      if (b) b.onclick = () => { closeModal(); renderMilvus(); };
+      if (b) b.onclick = () => { location.reload(); };
     });
     return;
   }
