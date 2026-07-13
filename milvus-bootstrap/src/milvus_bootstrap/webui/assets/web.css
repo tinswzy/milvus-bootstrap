@@ -594,3 +594,6 @@ select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
 .logview { max-height:420px; overflow:auto; background:var(--surface-2); border:1px solid var(--border);
   border-radius:8px; padding:10px 12px; margin:0; font-size:12px; line-height:1.5;
   white-space:pre-wrap; word-break:break-all; }
+
+/* per-instance resource total row in Pods modal */
+.restot td { font-weight:600; border-top:2px solid var(--border); }
