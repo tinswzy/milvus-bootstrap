@@ -82,6 +82,12 @@ async function renderCompat() {
 
 function fmtCpu(m) { return (m == null) ? '—' : (m / 1000).toFixed(1) + ' 核'; }
 function fmtGiB(b) { return (b == null) ? '—' : (b / 1073741824).toFixed(1) + ' GiB'; }
+function resLine(r) {
+  if (!r || !r.pods) return '';
+  const lim = (m, f) => m > 0 ? f(m) : '—';
+  return `<div class="mvmeta muted" style="font-size:12px">资源 · CPU 请求 ${esc(fmtCpu(r.cpu_req_m))}/上限 ${esc(lim(r.cpu_lim_m, fmtCpu))}` +
+         ` · 内存 请求 ${esc(fmtGiB(r.mem_req_b))}/上限 ${esc(lim(r.mem_lim_b, fmtGiB))}</div>`;
+}
 function resBar(label, used, total, fmt) {
   const pct = total > 0 ? Math.round(100 * used / total) : 0;
   const cls = pct >= 95 ? ' crit' : (pct >= 85 ? ' hot' : '');
@@ -476,6 +482,7 @@ async function renderMilvus() {
             `<div class="bt"><span class="lo">M</span><div><div class="nm">${esc(i.name)}</div><div class="role">向量数据库内核 · MixCoord</div></div></div>` +
             `<div class="id"><span class="d" style="background:#3fb950"></span>${esc(i.name)} · ${imageCell(i)}</div>` +
             `<div class="mvmeta"><span class="badge b-accent"><span class="d"></span>MQ: ${esc(d.mq || '—')}</span></div>` +
+            `${resLine(i.res)}` +
             `<div class="mv-actions">${upgradeButton(i)}${configButton(i)}${podsButton(i)}${switchMqButton(i)}${delButton(i)}</div>` +
           `</div>` +
           `<div class="flow-h col4"></div>` +
@@ -527,12 +534,29 @@ async function openPods(name) {
   try { d = await getJSON('api/pods?instance=' + encodeURIComponent(name)); }
   catch (e) { el.innerHTML = '<div class="conn bad">加载失败：' + esc(e.message) + '</div>'; return; }
   const pods = d.pods || [];
+  const rd = d.resources || { pods: [], total: {}, metrics_available: false };
+  const rmap = {};
+  (rd.pods || []).forEach(x => { rmap[x.pod] = x; });
+  const mc = rd.metrics_available;
+  const fc = m => (m ? esc(fmtCpu(m)) : '—');
+  const fg = b => (b ? esc(fmtGiB(b)) : '—');
   el.innerHTML = pods.length
-    ? '<table class="tbl"><thead><tr><th>Pod</th><th>状态</th><th>Ready</th><th>重启</th><th>龄</th><th>日志</th></tr></thead><tbody>' +
-      pods.map(p => `<tr><td class="mono">${esc(p.pod)}</td>` +
-        `<td>${badge(p.phase === 'Running' ? 'PASS' : 'WARN', p.phase)}</td>` +
-        `<td>${esc(p.ready)}</td><td>${esc(String(p.restarts))}</td><td>${esc(ageOf(p.created))}</td>` +
-        `<td><button class="btn btn-ghost btn-sm" data-log-pod="${esc(p.pod)}" data-log-ns="${esc(d.namespace)}">日志</button></td></tr>`).join('') +
+    ? '<table class="tbl"><thead><tr><th>Pod</th><th>状态</th><th>Ready</th><th>重启</th><th>龄</th>' +
+      '<th>CPU请求</th><th>CPU上限</th><th>内存请求</th><th>内存上限</th>' +
+      (mc ? '<th>CPU用量</th><th>内存用量</th>' : '') + '<th>日志</th></tr></thead><tbody>' +
+      pods.map(p => {
+        const r = rmap[p.pod] || {};
+        const usage = mc ? `<td>${fc(r.cpu_usage_m)}</td><td>${fg(r.mem_usage_b)}</td>` : '';
+        return `<tr><td class="mono">${esc(p.pod)}</td>` +
+          `<td>${badge(p.phase === 'Running' ? 'PASS' : 'WARN', p.phase)}</td>` +
+          `<td>${esc(p.ready)}</td><td>${esc(String(p.restarts))}</td><td>${esc(ageOf(p.created))}</td>` +
+          `<td>${fc(r.cpu_req_m)}</td><td>${fc(r.cpu_lim_m)}</td><td>${fg(r.mem_req_b)}</td><td>${fg(r.mem_lim_b)}</td>` +
+          usage +
+          `<td><button class="btn btn-ghost btn-sm" data-log-pod="${esc(p.pod)}" data-log-ns="${esc(d.namespace)}">日志</button></td></tr>`;
+      }).join('') +
+      (rd.total && rd.total.pods ? '<tr class="restot"><td colspan="5">合计（' + esc(String(rd.total.pods)) + ' pod）</td>' +
+        `<td>${fc(rd.total.cpu_req_m)}</td><td>${fc(rd.total.cpu_lim_m)}</td><td>${fg(rd.total.mem_req_b)}</td><td>${fg(rd.total.mem_lim_b)}</td>` +
+        (mc ? `<td>${fc(rd.total.cpu_usage_m)}</td><td>${fg(rd.total.mem_usage_b)}</td>` : '') + '<td></td></tr>' : '') +
       '</tbody></table>'
     : `<div class="muted">ns:${esc(d.namespace)} 下未找到该实例的 pod（或未连接集群）</div>`;
   el.querySelectorAll('[data-log-pod]').forEach(b => {

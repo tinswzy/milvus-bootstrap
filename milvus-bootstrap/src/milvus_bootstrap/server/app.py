@@ -90,6 +90,17 @@ def api_instances() -> dict[str, Any]:
         except Exception:
             return None
 
+    from ..core import resources as resources_mod
+    milvus_list = [{"name": inst.name, "namespace": inst.namespace}
+                   for inst in core.state.list_instances()
+                   if (inst.spec_snapshot or {}).get("kind") == "milvus"]
+    insts_res = {}
+    if is_k8s and milvus_list:
+        try:
+            insts_res = resources_mod.instances_totals(milvus_list)
+        except Exception:  # noqa: BLE001
+            insts_res = {}
+
     out = []
     seen = set()
     managed_names: dict[tuple, list] = {}
@@ -115,6 +126,7 @@ def api_instances() -> dict[str, Any]:
                "image": image, "image_id": img_id or None, "status": status, "deps": deps}
         if kind == "milvus":
             row.update(probe.rollout_of(pods, i.name, ns, params.get("image", "")))
+            row["res"] = insts_res.get(i.name)
         else:
             row.update({"rolling": False, "pods_upgraded": 0, "pods_total": 0})
         out.append(row)
@@ -149,12 +161,21 @@ def api_pods(instance: str) -> dict[str, Any]:
         raise ValueError(f"未找到实例：{instance}")
     desired = ((inst.spec_snapshot or {}).get("params", {}) or {}).get("image", "")
     pods: list[dict] = []
+    resources_out = {"metrics_available": False,
+                     "total": {"cpu_req_m": 0, "cpu_lim_m": 0, "mem_req_b": 0, "mem_lim_b": 0, "pods": 0},
+                     "pods": []}
     if getattr(core.adapter, "name", "") == "k8s":
+        from ..core import resources as resources_mod
         try:
             pods = probe.pods_of(instance, inst.namespace)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pods = []
-    return {"instance": instance, "namespace": inst.namespace, "desired_image": desired, "pods": pods}
+        try:
+            resources_out = resources_mod.instance_resources(instance, inst.namespace)
+        except Exception:  # noqa: BLE001
+            pass
+    return {"instance": instance, "namespace": inst.namespace, "desired_image": desired,
+            "pods": pods, "resources": resources_out}
 
 
 @app.get("/api/compat-rules")

@@ -263,3 +263,13 @@ def test_config_view_pretty_yaml(client):
     assert "cfg-file" in js and "JSON.stringify(cur" not in js   # per-file <pre>, not JSON blob
     css = client.get("/assets/web.css").text
     assert ".cfg-fn" in css
+
+
+def test_instance_resources_ui_present(client):
+    js = client.get("/assets/web.js").text
+    assert "function resLine" in js and "resLine(i.res)" in js   # card resource line
+    body = js.split("async function openPods", 1)[1].split("\nfunction ", 1)[0]
+    assert "CPU请求" in body and "合计" in body and "rmap" in body   # Pods resource columns + total
+    assert "setInterval" not in js
+    css = client.get("/assets/web.css").text
+    assert ".restot" in css
