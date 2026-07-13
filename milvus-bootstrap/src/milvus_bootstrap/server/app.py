@@ -451,6 +451,23 @@ def api_logs(pod: str, namespace: str = "default") -> dict[str, Any]:
     return {"pod": pod, "namespace": namespace, "logs": logs}
 
 
+@app.get("/api/switch-mq/targets")
+def api_switch_mq_targets(instance: str) -> dict[str, Any]:
+    inst = _core().state.get_instance(instance)
+    if inst is None:
+        raise ValueError(f"未找到实例：{instance}")
+    params = (inst.spec_snapshot or {}).get("params", {}) or {}
+    from ..core import compat, probe
+    version = probe._tag(params.get("image", "")) or ""
+    mode = params.get("mode", "standalone")
+    cur_mq = params.get("mq", "")
+    cur_opt = compat.get_option(cur_mq)
+    current_wal = cur_opt.wal if cur_opt else cur_mq
+    targets = compat.switch_mq_targets(current_wal, version, mode, operator_version="")  # op_ver reserved
+    return {"instance": instance, "current_mq": cur_mq, "current_wal": current_wal,
+            "milvus_version": version, "mode": mode, "targets": targets}
+
+
 # --- WebUI static frontend (registered LAST so /api/* and /status win) ---
 import pathlib
 from fastapi.staticfiles import StaticFiles
