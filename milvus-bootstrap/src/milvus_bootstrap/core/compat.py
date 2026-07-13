@@ -218,6 +218,30 @@ def mq_options(milvus_version: str, mode: str = "standalone") -> list[dict]:
     return out
 
 
+def _operator_supports_ext_woodpecker(operator_version: str) -> bool:
+    # Reserved: external woodpecker-service switching needs a milvus-operator version that
+    # supports it. mb does not support this switch yet -> always False for now.
+    return False
+
+
+def switch_mq_targets(current_wal: str, milvus_version: str, mode: str = "standalone",
+                      operator_version: str = "") -> list[dict]:
+    """Per-MQ selectability for switching THIS instance's MQ. Builds on mq_options()."""
+    out = []
+    for o in mq_options(milvus_version, mode):        # supported/reason from min_milvus + standalone_only
+        selectable, reason = o["supported"], o["reason"]
+        if o["wal"] == current_wal:
+            selectable, reason = False, "与当前 MQ 相同，无需切换"
+        elif o["id"] == "woodpecker-service" and not _operator_supports_ext_woodpecker(operator_version):
+            selectable = False
+            reason = reason or ("暂不支持切换到 Woodpecker 独立服务"
+                                "（需 milvus≥3.0 且 milvus-operator 支持 external woodpecker，规划中）")
+        out.append({"id": o["id"], "wal": o["wal"], "label": o["label"], "dep_kind": o["dep_kind"],
+                    "note": o["note"], "current": o["wal"] == current_wal,
+                    "selectable": selectable, "reason": reason})
+    return out
+
+
 def check(mq_id: str, milvus_version: str, mode: str = "standalone") -> MqOption:
     """Validate a chosen MQ against the version; raise if not selectable."""
     o = get_option(mq_id)
