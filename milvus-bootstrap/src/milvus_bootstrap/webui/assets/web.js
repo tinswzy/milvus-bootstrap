@@ -435,6 +435,7 @@ async function renderSwitchMq() {
   const load = async (name) => {
     selectedWal = null; res.innerHTML = ''; ack.checked = false;
     tgtLogo.textContent = '🎯'; tgtName.textContent = '选择目标'; tgtReason.textContent = '';
+    noteByWal = {}; tgtSel.innerHTML = '<option value="">选择目标…</option>';   // clear stale targets (also on fetch error)
     setStep(1); syncButtons();
     let d;
     try { d = await getJSON('api/switch-mq/targets?instance=' + encodeURIComponent(name)); }
