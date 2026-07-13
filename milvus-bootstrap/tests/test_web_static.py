@@ -286,3 +286,10 @@ def test_switch_mq_page_present(client):
     assert "setInterval" not in js
     css = client.get("/assets/web.css").text
     assert ".sw-opt" in css
+
+
+def test_switch_mq_topology_css(client):
+    css = client.get("/assets/web.css").text
+    assert ".flow-switch" in css and ".box-dark" in css and ".mq-topo" in css
+    assert "@keyframes swflow" in css
+    assert "prefers-reduced-motion" in css        # animation guarded
