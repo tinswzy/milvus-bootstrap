@@ -398,57 +398,85 @@ async function renderSwitchMq() {
   let selInst = params.get('instance') || '';
   let selectedWal = null;
   const sel = document.getElementById('sw-inst');
-  const cur = document.getElementById('sw-current');
-  const tgt = document.getElementById('sw-targets');
+  const tgtSel = document.getElementById('sw-target');
   const ack = document.getElementById('sw-ack');
   const dry = document.getElementById('sw-dry');
   const go = document.getElementById('sw-go');
   const res = document.getElementById('sw-result');
+  const curLogo = document.getElementById('sw-cur-logo');
+  const curName = document.getElementById('sw-cur-name');
+  const tgtLogo = document.getElementById('sw-tgt-logo');
+  const tgtName = document.getElementById('sw-tgt-name');
+  const tgtReason = document.getElementById('sw-tgt-reason');
+  const mvName = document.getElementById('sw-mv-name');
+  const mvMode = document.getElementById('sw-mv-mode');
 
   const insts = await loadInstances();
   const milvus = insts.filter(i => i.kind === 'milvus' && i.ownership === 'managed');
-  if (!milvus.length) { cur.innerHTML = '<span class="muted">无 managed milvus 实例</span>'; tgt.innerHTML = ''; return; }
+  if (!milvus.length) { mvName.textContent = '无 managed milvus 实例'; return; }
   sel.innerHTML = milvus.map(i => `<option value="${esc(i.name)}">${esc(i.name)} (${esc(i.namespace)})</option>`).join('');
   if (!selInst || !milvus.some(i => i.name === selInst)) selInst = milvus[0].name;
   sel.value = selInst;
 
+  const setStep = (n) => {
+    document.querySelectorAll('#sw-stepper .st').forEach(st => {
+      const s = Number(st.getAttribute('data-s'));
+      st.classList.toggle('active', s === n);
+      st.classList.toggle('done', s < n);
+    });
+  };
   const syncButtons = () => {
     dry.disabled = !selectedWal;
     go.disabled = !(selectedWal && ack.checked);
   };
+  const advance = () => { setStep(selectedWal && ack.checked ? 2 : 1); syncButtons(); };
 
+  let noteByWal = {};
   const load = async (name) => {
-    selectedWal = null; res.innerHTML = ''; ack.checked = false; syncButtons();
-    tgt.innerHTML = '<span class="muted">加载中…</span>';
+    selectedWal = null; res.innerHTML = ''; ack.checked = false;
+    tgtLogo.textContent = '🎯'; tgtName.textContent = '选择目标'; tgtReason.textContent = '';
+    noteByWal = {}; tgtSel.innerHTML = '<option value="">选择目标…</option>';   // clear stale targets (also on fetch error)
+    setStep(1); syncButtons();
     let d;
     try { d = await getJSON('api/switch-mq/targets?instance=' + encodeURIComponent(name)); }
-    catch (e) { tgt.innerHTML = '<span class="conn bad">加载失败：' + esc(e.message) + '</span>'; return; }
-    cur.innerHTML = `当前 MQ：<b>${esc(d.current_mq || '—')}</b> ` +
-      `<span class="muted">wal=${esc(d.current_wal || '—')} · milvus ${esc(d.milvus_version || '—')} · ${esc(d.mode || '—')}</span>`;
-    tgt.innerHTML = (d.targets || []).map(t => {
-      const cls = 'sw-opt' + (t.current ? ' cur' : '') + (t.selectable ? '' : ' dis');
-      const note = t.note ? `<div class="r">${esc(t.note)}</div>` : '';
-      const reason = t.selectable ? '' : `<div class="r">${esc(t.reason || '不可选')}</div>`;
-      return `<div class="${cls}" data-wal="${esc(t.wal)}" data-ok="${t.selectable ? 1 : 0}">` +
-        `<div class="t">${esc(t.label)}${t.current ? ' · 当前' : ''}</div>${note}${reason}</div>`;
-    }).join('') || '<span class="muted">无可用 MQ 选项</span>';
-    tgt.querySelectorAll('.sw-opt').forEach(elm => {
-      if (elm.getAttribute('data-ok') !== '1') return;
-      elm.onclick = () => {
-        tgt.querySelectorAll('.sw-opt').forEach(x => x.classList.remove('sel'));
-        elm.classList.add('sel'); selectedWal = elm.getAttribute('data-wal'); syncButtons();
-      };
+    catch (e) { mvName.textContent = '加载失败：' + e.message; return; }
+    mvName.textContent = name;
+    mvMode.textContent = `${d.mode || '—'} · milvus ${d.milvus_version || '—'}`;
+    curLogo.textContent = mqLogo(d.current_wal);
+    curName.textContent = d.current_mq || '—';
+    noteByWal = {};
+    const opts = ['<option value="">选择目标…</option>'];
+    (d.targets || []).forEach(t => {
+      noteByWal[t.wal] = t.note || '';
+      const dis = t.selectable ? '' : ' disabled';
+      const tail = t.current ? '（当前）' : (t.selectable ? '' : ' · ' + (t.reason || '不可选'));
+      opts.push(`<option value="${esc(t.wal)}"${dis}>${esc(t.label)}${esc(tail)}</option>`);
     });
+    tgtSel.innerHTML = opts.join('');
   };
 
+  tgtSel.onchange = () => {
+    const wal = tgtSel.value;
+    selectedWal = wal || null;
+    if (wal) {
+      tgtLogo.textContent = mqLogo(wal);
+      tgtName.textContent = tgtSel.options[tgtSel.selectedIndex].textContent;
+      tgtReason.textContent = noteByWal[wal] || '';
+    } else {
+      tgtLogo.textContent = '🎯'; tgtName.textContent = '选择目标'; tgtReason.textContent = '';
+    }
+    advance();
+  };
+  ack.onchange = advance;
   sel.onchange = () => { selInst = sel.value; load(selInst); };
-  ack.onchange = syncButtons;
   dry.onclick = () => { if (selectedWal) submitSwitchMq(selInst, selectedWal, true, false, res); };
   go.onclick = () => {
     if (!selectedWal) return;
     if (confirm('确认切换 ' + selInst + ' 的 MQ 到 ' + selectedWal +
-                '？这会更改 WAL 并在 pod 内执行变更，存量流式数据将无法保留。'))
+                '？这会更改 WAL 并在 pod 内执行变更，存量流式数据将无法保留。')) {
+      setStep(3);
       submitSwitchMq(selInst, selectedWal, false, false, res);
+    }
   };
   load(selInst);
 }
