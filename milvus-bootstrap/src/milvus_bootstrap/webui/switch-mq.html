@@ -20,20 +20,20 @@
       </div>
       <div class="card" style="margin-bottom:16px"><div class="card-head"><h3>实例拓扑与切换目标</h3>
         <span class="sub">浅框 = 当前数据流 · 深框 = 切换目标</span></div>
-        <div class="card-pad"><div class="mq-topo">
-          <div class="box box-mv"><div class="bt"><span class="lo">M</span><div>
+        <div class="card-pad"><div class="sw-fork">
+          <div class="box box-mv sw-mv"><div class="bt"><span class="lo">M</span><div>
             <div class="nm" id="sw-mv-name">—</div><div class="role">向量数据库内核</div></div></div>
             <div class="mvmeta"><span class="badge b-accent" id="sw-mv-mode">—</span></div></div>
-          <div class="flow-h"></div>
-          <div class="mq-zone">
-            <div class="box"><div class="bt"><span class="lo" id="sw-cur-logo">📨</span><div>
-              <div class="nm" id="sw-cur-name">—</div><div class="role">当前 MQ · ACTIVE</div></div></div></div>
-            <div class="flow-switch"><span class="lbl">切换 ⟶</span></div>
-            <div class="box box-dark"><div class="bt"><span class="lo" id="sw-tgt-logo">🎯</span><div>
-              <div class="nm" id="sw-tgt-name">选择目标</div><div class="role">目标 MQ</div></div></div>
-              <select id="sw-target" class="f-in" style="margin-top:10px;width:100%"></select>
-              <div class="r" id="sw-tgt-reason"></div></div>
-          </div>
+          <div class="sw-conn"></div>
+          <div class="sw-block"><span class="ic">⇄</span><span class="t">切换</span></div>
+          <div class="sw-line solid" data-lbl="当前"></div>
+          <div class="box sw-cur"><div class="bt"><span class="lo" id="sw-cur-logo">📨</span><div>
+            <div class="nm" id="sw-cur-name">—</div><div class="role">当前 MQ · ACTIVE</div></div></div></div>
+          <div class="sw-line dashed" data-lbl="切换目标"></div>
+          <div class="box box-dark sw-tgt"><div class="bt"><span class="lo" id="sw-tgt-logo">🎯</span><div>
+            <div class="nm" id="sw-tgt-name">选择目标</div><div class="role">目标 MQ</div></div></div>
+            <select id="sw-target" class="f-in" style="margin-top:10px;width:100%"></select>
+            <div class="r" id="sw-tgt-reason"></div></div>
         </div></div></div>
       <div class="callout co-err" style="margin-bottom:16px"><b>WAL 数据不可跨 MQ 迁移。</b>
         切换等价于在空集群上更换后端，存量流式数据无法原地迁移；执行后 MQ 后端固定，不可热回退。
