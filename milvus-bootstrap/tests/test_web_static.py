@@ -278,8 +278,8 @@ def test_instance_resources_ui_present(client):
 
 def test_switch_mq_page_present(client):
     html = client.get("/switch-mq.html").text
-    assert 'class="mq-topo"' in html and 'id="sw-target"' in html and 'id="sw-stepper"' in html
-    assert 'id="sw-ack"' in html and "renderSwitchMq()" in html
+    assert 'class="sw-fork"' in html and 'id="sw-target"' in html and 'id="sw-stepper"' in html
+    assert 'sw-block' in html and 'id="sw-ack"' in html and "renderSwitchMq()" in html
     assert 'id="sw-targets"' not in html          # old .sw-opt card list removed
     js = client.get("/assets/web.js").text
     assert "function renderSwitchMq" in js
@@ -290,6 +290,7 @@ def test_switch_mq_page_present(client):
 
 def test_switch_mq_topology_css(client):
     css = client.get("/assets/web.css").text
-    assert ".flow-switch" in css and ".box-dark" in css and ".mq-topo" in css
+    assert ".sw-fork" in css and ".box-dark" in css and ".sw-block" in css
+    assert ".sw-line.solid" in css and ".sw-line.dashed" in css   # solid=current, dashed=target
     assert "@keyframes swflow" in css
     assert "prefers-reduced-motion" in css        # animation guarded
