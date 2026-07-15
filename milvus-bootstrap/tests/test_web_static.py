@@ -293,3 +293,11 @@ def test_switch_mq_topology_css(client):
     assert ".sw-tri" in css and ".box-dark" in css and ".tri-hub" in css
     assert ".tri-arm.l" in css and ".tri-arm.r" in css   # solid=current(left), dashed=target(right)
     assert "prefers-reduced-motion" in css        # animation guarded
+
+
+def test_switch_mq_grouped_dropdown(client):
+    js = client.get("/assets/web.js").text
+    body = js.split("async function renderSwitchMq", 1)[1].split("\nasync function ", 1)[0]
+    assert "optgroup" in body and "data-inst" in body           # grouped by type, instances carried
+    assert "无可复用实例" in body and "嵌入，无独立实例" in body   # empty-external + embedded copy
+    assert "setInterval" not in js
