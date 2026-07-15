@@ -311,11 +311,14 @@ class SwitchMqReq(BaseModel):
     target_wal: str
     dry_run: bool = True
     force: bool = False
+    target_name: str = ""
+    target_ns: str = ""
 
 
 @app.post("/switch-mq")
 def switch_mq(req: SwitchMqReq) -> dict[str, Any]:
-    return _core().switch_mq(req.instance, req.target_wal, dry_run=req.dry_run, force=req.force).model_dump()
+    return _core().switch_mq(req.instance, req.target_wal, target_name=req.target_name,
+                             target_ns=req.target_ns, dry_run=req.dry_run, force=req.force).model_dump()
 
 
 class MqOptionsReq(BaseModel):
@@ -410,6 +413,8 @@ class SwitchMqApiReq(BaseModel):
     target_wal: str
     dry_run: bool = True
     force: bool = False
+    target_name: str = ""
+    target_ns: str = ""
 
 
 @app.post("/api/switch-mq")
@@ -417,11 +422,13 @@ def api_switch_mq(req: SwitchMqApiReq) -> Any:
     if _core().state.get_instance(req.instance) is None:
         raise ValueError(f"未找到实例：{req.instance}")
     if req.dry_run:
-        task = _core().switch_mq(req.instance, req.target_wal, dry_run=True, force=req.force)
+        task = _core().switch_mq(req.instance, req.target_wal, target_name=req.target_name,
+                                 target_ns=req.target_ns, dry_run=True, force=req.force)
         return {"task": task.model_dump(mode="json")}
-    # apply: sync gate pre-check (CompatError -> 409 via handler), then submit
-    _core().switch_mq(req.instance, req.target_wal, dry_run=True, force=req.force)
-    tid = runner.submit(lambda: _core().switch_mq(req.instance, req.target_wal, dry_run=False, force=req.force))
+    _core().switch_mq(req.instance, req.target_wal, target_name=req.target_name,
+                      target_ns=req.target_ns, dry_run=True, force=req.force)   # sync gate pre-check
+    tid = runner.submit(lambda: _core().switch_mq(req.instance, req.target_wal, target_name=req.target_name,
+                                                  target_ns=req.target_ns, dry_run=False, force=req.force))
     return JSONResponse({"task_id": tid, "state": "running"}, status_code=202)
 
 
