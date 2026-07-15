@@ -118,5 +118,10 @@ def test_api_switch_mq_passes_target_instance(tmp_path, monkeypatch):
         r = client.post("/api/switch-mq", json={"instance": "mq-mv", "target_wal": "pulsar",
                                                 "target_name": "pulsar-dev", "target_ns": "default", "dry_run": True})
         assert r.status_code == 200
-        names = [s["name"] for s in r.json()["task"]["steps"]]
+        steps = r.json()["task"]["steps"]
+        names = [s["name"] for s in steps]
         assert "wal-alter" in names and "verify-mq-type" in names
+        # forwarding proof: the chosen instance's endpoint (pulsar-dev-broker.default.svc:6650)
+        # is injected into the rendered CR — fails if target_name/target_ns weren't threaded through
+        apply_plan = next(s["plan"] for s in steps if s["name"] == "apply-cr")
+        assert "pulsar-dev" in apply_plan and ":6650" in apply_plan
