@@ -105,3 +105,23 @@ def test_api_switch_mq_targets_lists_instances(tmp_path, monkeypatch):
         ep = [x["endpoint"] for x in ts["kafka"]["instances"] if x["name"] == "kafka-dev"][0]
         assert ep.startswith("kafka-dev.") and ":9092" in ep
         assert ts["rocksmq"]["embedded"] is True and ts["rocksmq"]["instances"] == []
+
+
+def test_api_switch_mq_passes_target_instance(tmp_path, monkeypatch):
+    monkeypatch.setenv("MB_HOME", str(tmp_path))
+    monkeypatch.setenv("MB_ADAPTER", "fake")
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server.app import _core
+    with TestClient(app) as client:
+        _core().install(InstallSpec(kind="milvus", name="mq-mv",
+                                    params={"mq": "kafka", "image": "milvusdb/milvus:v2.6.18"}), dry_run=False)
+        r = client.post("/api/switch-mq", json={"instance": "mq-mv", "target_wal": "pulsar",
+                                                "target_name": "pulsar-dev", "target_ns": "default", "dry_run": True})
+        assert r.status_code == 200
+        steps = r.json()["task"]["steps"]
+        names = [s["name"] for s in steps]
+        assert "wal-alter" in names and "verify-mq-type" in names
+        # forwarding proof: the chosen instance's endpoint (pulsar-dev-broker.default.svc:6650)
+        # is injected into the rendered CR — fails if target_name/target_ns weren't threaded through
+        apply_plan = next(s["plan"] for s in steps if s["name"] == "apply-cr")
+        assert "pulsar-dev" in apply_plan and ":6650" in apply_plan

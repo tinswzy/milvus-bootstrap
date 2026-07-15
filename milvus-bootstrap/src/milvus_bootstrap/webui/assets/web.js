@@ -397,6 +397,8 @@ async function renderSwitchMq() {
   const params = new URLSearchParams(location.search);
   let selInst = params.get('instance') || '';
   let selectedWal = null;
+  let selectedInst = '';
+  let selectedNs = '';
   const sel = document.getElementById('sw-inst');
   const tgtSel = document.getElementById('sw-target');
   const ack = document.getElementById('sw-ack');
@@ -433,7 +435,7 @@ async function renderSwitchMq() {
 
   let noteByWal = {};
   const load = async (name) => {
-    selectedWal = null; res.innerHTML = ''; ack.checked = false;
+    selectedWal = null; selectedInst = ''; selectedNs = ''; res.innerHTML = ''; ack.checked = false;
     tgtLogo.textContent = '🎯'; tgtName.textContent = '选择目标'; tgtReason.textContent = '';
     noteByWal = {}; tgtSel.innerHTML = '<option value="">选择目标…</option>';   // clear stale targets (also on fetch error)
     setStep(1); syncButtons();
@@ -470,24 +472,26 @@ async function renderSwitchMq() {
     selectedWal = wal || null;
     if (wal) {
       const opt = tgtSel.options[tgtSel.selectedIndex];
-      const inst = opt.getAttribute('data-inst') || '';
+      selectedInst = opt.getAttribute('data-inst') || '';
+      selectedNs = opt.getAttribute('data-ns') || '';
       tgtLogo.textContent = mqLogo(wal);
-      tgtName.textContent = inst ? `${wal} · ${inst}` : wal;
+      tgtName.textContent = selectedInst ? `${wal} · ${selectedInst}` : wal;
       tgtReason.textContent = noteByWal[wal] || '';
     } else {
+      selectedInst = ''; selectedNs = '';
       tgtLogo.textContent = '🎯'; tgtName.textContent = '选择目标'; tgtReason.textContent = '';
     }
     advance();
   };
   ack.onchange = advance;
   sel.onchange = () => { selInst = sel.value; load(selInst); };
-  dry.onclick = () => { if (selectedWal) submitSwitchMq(selInst, selectedWal, true, false, res); };
+  dry.onclick = () => { if (selectedWal) submitSwitchMq(selInst, selectedWal, true, false, res, selectedInst, selectedNs); };
   go.onclick = () => {
     if (!selectedWal) return;
     if (confirm('确认切换 ' + selInst + ' 的 MQ 到 ' + selectedWal +
                 '？这会更改 WAL 并在 pod 内执行变更，存量流式数据将无法保留。')) {
       setStep(3);
-      submitSwitchMq(selInst, selectedWal, false, false, res);
+      submitSwitchMq(selInst, selectedWal, false, false, res, selectedInst, selectedNs);
     }
   };
   load(selInst);
@@ -845,16 +849,19 @@ async function openConfig(name) {
   m.body.querySelector('#cfg-go').onclick = () => submit(false);
 }
 
-async function submitSwitchMq(name, targetWal, dryRun, force, el) {
+async function submitSwitchMq(name, targetWal, dryRun, force, el, targetName = '', targetNs = '') {
   el.innerHTML = '<span class="muted">提交中…</span>';
   let resp;
-  try { resp = await postJSON('api/switch-mq', { instance: name, target_wal: targetWal, dry_run: dryRun, force: !!force }); }
+  try { resp = await postJSON('api/switch-mq', { instance: name, target_wal: targetWal, dry_run: dryRun, force: !!force, target_name: targetName, target_ns: targetNs }); }
   catch (e) { el.innerHTML = '<span class="conn bad">提交失败：' + esc(e.message) + '</span>'; return; }
   const { status, data } = resp;
   if (status === 200) { el.innerHTML = logPanel(data.task, false); return; }
   if (status === 202) {
     await pollTask(data.task_id, el, () => {
       el.innerHTML += '<div class="conn ok" style="margin-top:8px">已提交 MQ 切换 · operator 处理中</div>' +
+        '<div class="muted" style="margin:6px 0;font-size:12px">旧 MQ 未自动清理 —— 清理是可选人工操作。' +
+        '若旧 MQ 仍被其他实例使用或为 external，请勿删除；确认独占后可去 ' +
+        '<a href="deps.html">Dependencies</a> 页手动处理。</div>' +
         '<button class="btn btn-ghost btn-sm" id="mq-refresh" style="margin-top:6px">🔄 刷新</button>';
       const b = document.getElementById('mq-refresh');
       if (b) b.onclick = () => { location.reload(); };
@@ -865,7 +872,7 @@ async function submitSwitchMq(name, targetWal, dryRun, force, el) {
     el.innerHTML = `<div class="conn bad">被兼容门禁拦截：${esc((data && data.reason) || '兼容门禁')}</div>` +
       `<button class="btn btn-primary btn-sm" id="mq-force" style="margin-top:8px">强制切换 --force</button>`;
     const b = document.getElementById('mq-force');
-    if (b) b.onclick = () => { if (confirm('确认跳过兼容门禁强制切换 MQ？')) submitSwitchMq(name, targetWal, dryRun, true, el); };
+    if (b) b.onclick = () => { if (confirm('确认跳过兼容门禁强制切换 MQ？')) submitSwitchMq(name, targetWal, dryRun, true, el, targetName, targetNs); };
     return;
   }
   el.innerHTML = '<span class="conn bad">失败（HTTP ' + status + '）：' + esc((data && data.reason) || '未知错误') + '</span>';

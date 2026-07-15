@@ -16,7 +16,7 @@ from .engines import (
     OwnershipEngine,
     Provisioner,
 )
-from .models import Candidate, InstallSpec, Task
+from .models import Candidate, InstallSpec, Task, TaskStatus
 from .platform.base import PlatformAdapter
 from .profile import load_profiles
 from .registry import build_registry
@@ -76,7 +76,8 @@ class Core:
             raise KeyError(f"未发现可接管的 {kind}/{name}")
         return self.ownership.adopt(cands[0], dry_run=dry_run)
 
-    def switch_mq(self, instance_id: str, target_wal: str, dry_run: bool = True, force: bool = False) -> Task:
+    def switch_mq(self, instance_id: str, target_wal: str, target_name: str = "",
+                  target_ns: str = "", dry_run: bool = True, force: bool = False) -> Task:
         inst = self.state.get_instance(instance_id)
         if inst is None:
             raise KeyError(f"未找到实例 {instance_id}")
@@ -90,9 +91,21 @@ class Core:
         cur_opt = compat.get_option(cur_mq)
         current_wal = cur_opt.wal if cur_opt else cur_mq
         compat.gate("switch-mq", {"current_wal": current_wal, "target_wal": target_wal}, force=force)
-        steps = self.registry.get("milvus").plan_switch_mq_steps(spec, self.adapter, target_wal)
+        driver = self.registry.get("milvus")
+        spec2 = spec.model_copy(deep=True)
+        spec2.params = dict(spec2.params)
+        spec2.params["mq"] = driver._wal_to_mq_id(target_wal)
+        _ep = {"kafka": (f"{target_name}.{target_ns or spec.namespace}.svc:9092", "kafkaBrokers"),
+               "pulsar": (f"{target_name}-broker.{target_ns or spec.namespace}.svc:6650", "pulsarEndpoint")}
+        if target_wal in _ep and target_name:
+            endpoint, param = _ep[target_wal]
+            spec2.params[param] = endpoint
+        steps = driver.plan_switch_mq_steps(spec2, self.adapter, target_wal)
         task = self.engine.run(type="switch-mq", target=instance_id, steps=steps, dry_run=dry_run)
         self.state.put_task(task)
+        if not dry_run and task.status == TaskStatus.succeeded:
+            inst.spec_snapshot = spec2.model_dump(mode="json")
+            self.state.put_instance(inst)
         return task
 
     def mq_options(self, milvus_version: str, mode: str = "standalone") -> list[dict]:

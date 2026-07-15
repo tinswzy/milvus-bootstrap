@@ -301,3 +301,13 @@ def test_switch_mq_grouped_dropdown(client):
     assert "optgroup" in body and "data-inst" in body           # grouped by type, instances carried
     assert "无可复用实例" in body and "嵌入，无独立实例" in body   # empty-external + embedded copy
     assert "setInterval" not in js
+
+
+def test_switch_mq_passes_instance_and_cleanup_hint(client):
+    js = client.get("/assets/web.js").text
+    body = js.split("async function submitSwitchMq", 1)[1].split("\nasync function ", 1)[0]
+    assert "target_name" in body and "target_ns" in body           # forwarded to POST
+    assert "旧 MQ" in body and "deps.html" in body                 # cleanup hint + Dependencies link
+    rbody = js.split("async function renderSwitchMq", 1)[1].split("\nasync function ", 1)[0]
+    assert "selectedInst" in rbody                                 # captured chosen instance
+    assert "setInterval" not in js
