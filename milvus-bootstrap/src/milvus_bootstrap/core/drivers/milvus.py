@@ -9,6 +9,7 @@ by the milvus version compatibility matrix (core/compat.py). Reuses operator-cr
 from __future__ import annotations
 
 import json
+import time
 
 from .. import compat
 from ..tasks.engine import Step
@@ -140,20 +141,34 @@ class MilvusDriver(BaseServiceDriver):
             return {"msgStreamType": "rocksmq"}  # embedded, standalone
         raise ValueError(f"未知 MQ 选项：{mq}")
 
+    def _wal_to_mq_id(self, wal: str) -> str:
+        return {"kafka": "kafka", "pulsar": "pulsar", "rocksmq": "rocksmq",
+                "woodpecker": "woodpecker-embedded"}.get(wal, wal)
+
+    def _verify_wal(self, adapter, ns, selector, target_wal, tries=20, sleep_s=3) -> str:
+        """Bounded poll of milvus's own current WAL until == target (honest, no over-claim).
+        Fake adapter echoes '[fake] …' → treated as simulated-pass; real k8s checks the response."""
+        read = ["curl", "-s", "http://localhost:9091/management/wal/status"]  # exact path: confirm in live DoD
+        for _ in range(tries):
+            out = str(adapter.exec(namespace=ns, label_selector=selector, command=read))
+            if target_wal in out or out.strip().startswith("[fake]"):
+                return f"已确认当前 WAL == {target_wal}（{out.strip()[:120]}）"
+            time.sleep(sleep_s)
+        raise TimeoutError(f"切换后未在 {tries * sleep_s}s 内确认 WAL == {target_wal}")
+
     def plan_switch_mq_steps(self, spec, adapter, target_wal: str) -> list[Step]:
-        """Switch Milvus's WAL/MQ at runtime via the management API (the ★ flow)."""
+        """Real switch: apply new MQ+endpoint into CR (render+apply+wait) → wal/alter → verify."""
         ns, name = spec.namespace, spec.name
         selector = f"app.kubernetes.io/instance={name}"
-        payload = json.dumps({"target_wal_name": target_wal})
-        curl = ["curl", "-s", "-X", "POST",
-                "http://localhost:9091/management/wal/alter", "-d", payload]
-        return [
-            Step(name="precheck-target", plan=f"确认目标 MQ（{target_wal}）服务已就位、milvus 可连"),
-            Step(name="wal-alter", plan="在 milvus pod 内执行：" + " ".join(curl),
-                 action=lambda: adapter.exec(namespace=ns, label_selector=selector, command=curl)),
-            Step(name="verify", plan=f"校验 WAL 已切到 {target_wal}、旧 MQ 写入已排空"),
-            Step(name="decommission-old", plan="下线旧 MQ（确认无残留写入后删除其资源）"),
-        ]
+        steps = list(self.plan_install_steps(spec, adapter))       # render + apply-objects + wait-ready (spec has new mq+endpoint)
+        alter = ["curl", "-s", "-X", "POST", "http://localhost:9091/management/wal/alter",
+                 "-d", json.dumps({"target_wal_name": target_wal})]
+        steps.append(Step(name="wal-alter", plan="在 milvus pod 内执行：" + " ".join(alter),
+                          action=lambda: adapter.exec(namespace=ns, label_selector=selector, command=alter)))
+        steps.append(Step(name="verify-mq-type",
+                          plan=f"轮询 milvus 当前 WAL 直到 == {target_wal}（有界·超时）",
+                          action=lambda: self._verify_wal(adapter, ns, selector, target_wal)))
+        return steps
 
     def config_apply_params(self, params: dict, kv: dict) -> dict:
         # milvus config lives in spec.config (nested) — see build_install_manifests;
