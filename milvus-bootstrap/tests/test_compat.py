@@ -247,3 +247,10 @@ def test_operator_supports_ext_woodpecker_reserved_false():
     from milvus_bootstrap.core import compat
     assert compat._operator_supports_ext_woodpecker("1.3.6") is False
     assert compat._operator_supports_ext_woodpecker("") is False
+
+
+def test_switch_mq_targets_embedded_flag():
+    from milvus_bootstrap.core import compat
+    ts = {t["id"]: t for t in compat.switch_mq_targets("pulsar", "2.6.0", "standalone")}
+    assert ts["kafka"]["embedded"] is False and ts["pulsar"]["embedded"] is False
+    assert ts["rocksmq"]["embedded"] is True and ts["woodpecker-embedded"]["embedded"] is True
