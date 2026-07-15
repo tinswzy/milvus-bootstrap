@@ -448,9 +448,19 @@ async function renderSwitchMq() {
     const opts = ['<option value="">选择目标…</option>'];
     (d.targets || []).forEach(t => {
       noteByWal[t.wal] = t.note || '';
-      const dis = t.selectable ? '' : ' disabled';
-      const tail = t.current ? '（当前）' : (t.selectable ? '' : ' · ' + (t.reason || '不可选'));
-      opts.push(`<option value="${esc(t.wal)}"${dis}>${esc(t.label)}${esc(tail)}</option>`);
+      const glabel = t.selectable ? esc(t.label) : `${esc(t.label)} · ${esc(t.reason || '不可选')}`;
+      const gdis = t.selectable ? '' : ' disabled';
+      let inner;
+      if (t.embedded) {
+        inner = `<option value="${esc(t.wal)}" data-inst="" data-ns="">（嵌入，无独立实例）</option>`;
+      } else if ((t.instances || []).length) {
+        inner = t.instances.map(x =>
+          `<option value="${esc(t.wal)}" data-inst="${esc(x.name)}" data-ns="${esc(x.namespace)}">` +
+          `${esc(x.name)} (${esc(x.namespace)})</option>`).join('');
+      } else {
+        inner = '<option disabled>（无可复用实例，需先安装）</option>';
+      }
+      opts.push(`<optgroup label="${glabel}"${gdis}>${inner}</optgroup>`);
     });
     tgtSel.innerHTML = opts.join('');
   };
@@ -459,8 +469,10 @@ async function renderSwitchMq() {
     const wal = tgtSel.value;
     selectedWal = wal || null;
     if (wal) {
+      const opt = tgtSel.options[tgtSel.selectedIndex];
+      const inst = opt.getAttribute('data-inst') || '';
       tgtLogo.textContent = mqLogo(wal);
-      tgtName.textContent = tgtSel.options[tgtSel.selectedIndex].textContent;
+      tgtName.textContent = inst ? `${wal} · ${inst}` : wal;
       tgtReason.textContent = noteByWal[wal] || '';
     } else {
       tgtLogo.textContent = '🎯'; tgtName.textContent = '选择目标'; tgtReason.textContent = '';

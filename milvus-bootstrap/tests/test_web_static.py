@@ -278,8 +278,8 @@ def test_instance_resources_ui_present(client):
 
 def test_switch_mq_page_present(client):
     html = client.get("/switch-mq.html").text
-    assert 'class="sw-fork"' in html and 'id="sw-target"' in html and 'id="sw-stepper"' in html
-    assert 'sw-block' in html and 'id="sw-ack"' in html and "renderSwitchMq()" in html
+    assert 'class="sw-tri"' in html and 'id="sw-target"' in html and 'id="sw-stepper"' in html
+    assert 'tri-hub' in html and 'id="sw-ack"' in html and "renderSwitchMq()" in html
     assert 'id="sw-targets"' not in html          # old .sw-opt card list removed
     js = client.get("/assets/web.js").text
     assert "function renderSwitchMq" in js
@@ -290,7 +290,14 @@ def test_switch_mq_page_present(client):
 
 def test_switch_mq_topology_css(client):
     css = client.get("/assets/web.css").text
-    assert ".sw-fork" in css and ".box-dark" in css and ".sw-block" in css
-    assert ".sw-line.solid" in css and ".sw-line.dashed" in css   # solid=current, dashed=target
-    assert "@keyframes swflow" in css
+    assert ".sw-tri" in css and ".box-dark" in css and ".tri-hub" in css
+    assert ".tri-arm.l" in css and ".tri-arm.r" in css   # solid=current(left), dashed=target(right)
     assert "prefers-reduced-motion" in css        # animation guarded
+
+
+def test_switch_mq_grouped_dropdown(client):
+    js = client.get("/assets/web.js").text
+    body = js.split("async function renderSwitchMq", 1)[1].split("\nasync function ", 1)[0]
+    assert "optgroup" in body and "data-inst" in body           # grouped by type, instances carried
+    assert "无可复用实例" in body and "嵌入，无独立实例" in body   # empty-external + embedded copy
+    assert "setInterval" not in js

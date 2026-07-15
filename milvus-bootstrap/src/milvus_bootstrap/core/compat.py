@@ -238,6 +238,7 @@ def switch_mq_targets(current_wal: str, milvus_version: str, mode: str = "standa
                                 "（需 milvus≥3.0 且 milvus-operator 支持 external woodpecker，规划中）")
         out.append({"id": o["id"], "wal": o["wal"], "label": o["label"], "dep_kind": o["dep_kind"],
                     "note": o["note"], "current": o["wal"] == current_wal,
+                    "embedded": o["dep_kind"] is None,
                     "selectable": selectable, "reason": reason})
     return out
 

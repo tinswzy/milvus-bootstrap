@@ -464,6 +464,22 @@ def api_switch_mq_targets(instance: str) -> dict[str, Any]:
     cur_opt = compat.get_option(cur_mq)
     current_wal = cur_opt.wal if cur_opt else cur_mq
     targets = compat.switch_mq_targets(current_wal, version, mode, operator_version="")  # op_ver reserved
+
+    def _dep_endpoint(kind, dep_name, dep_ns):
+        return {"kafka": f"{dep_name}.{dep_ns}.svc:9092",
+                "pulsar": f"{dep_name}-broker.{dep_ns}.svc:6650",
+                "woodpecker": f"{dep_name}.{dep_ns}.svc:9000"}.get(kind, f"{dep_name}.{dep_ns}.svc")
+
+    by_kind: dict[str, list] = {}
+    for si in _core().state.list_instances():
+        k = (si.spec_snapshot or {}).get("kind", "")
+        by_kind.setdefault(k, []).append(si)
+    for t in targets:
+        dep = t.get("dep_kind")
+        t["instances"] = ([] if not dep else
+                          [{"name": si.name, "namespace": si.namespace,
+                            "endpoint": _dep_endpoint(dep, si.name, si.namespace)}
+                           for si in by_kind.get(dep, [])])
     return {"instance": instance, "current_mq": cur_mq, "current_wal": current_wal,
             "milvus_version": version, "mode": mode, "targets": targets}
 

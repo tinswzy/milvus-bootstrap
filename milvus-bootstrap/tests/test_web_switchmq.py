@@ -85,3 +85,23 @@ def test_api_switch_mq_targets_unknown_400(tmp_path, monkeypatch):
     with TestClient(app) as client:
         r = client.get("/api/switch-mq/targets", params={"instance": "nope"})
         assert r.status_code == 400
+
+
+def test_api_switch_mq_targets_lists_instances(tmp_path, monkeypatch):
+    monkeypatch.setenv("MB_HOME", str(tmp_path))
+    monkeypatch.setenv("MB_ADAPTER", "fake")
+    from milvus_bootstrap.core.models import InstallSpec
+    from milvus_bootstrap.server.app import _core
+    with TestClient(app) as client:
+        _core().install(InstallSpec(kind="kafka", name="kafka-dev"), dry_run=False)
+        _core().install(InstallSpec(kind="milvus", name="sw-mv",
+                                    params={"mq": "pulsar", "image": "milvusdb/milvus:v2.6.18"}), dry_run=False)
+        r = client.get("/api/switch-mq/targets", params={"instance": "sw-mv"})
+        assert r.status_code == 200
+        ts = {t["id"]: t for t in r.json()["targets"]}
+        assert ts["kafka"]["embedded"] is False
+        names = [x["name"] for x in ts["kafka"]["instances"]]
+        assert "kafka-dev" in names
+        ep = [x["endpoint"] for x in ts["kafka"]["instances"] if x["name"] == "kafka-dev"][0]
+        assert ep.startswith("kafka-dev.") and ":9092" in ep
+        assert ts["rocksmq"]["embedded"] is True and ts["rocksmq"]["instances"] == []

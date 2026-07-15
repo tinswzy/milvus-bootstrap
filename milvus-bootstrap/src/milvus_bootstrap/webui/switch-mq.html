@@ -20,16 +20,15 @@
       </div>
       <div class="card" style="margin-bottom:16px"><div class="card-head"><h3>实例拓扑与切换目标</h3>
         <span class="sub">浅框 = 当前数据流 · 深框 = 切换目标</span></div>
-        <div class="card-pad"><div class="sw-fork">
+        <div class="card-pad"><div class="sw-tri">
           <div class="box box-mv sw-mv"><div class="bt"><span class="lo">M</span><div>
             <div class="nm" id="sw-mv-name">—</div><div class="role">向量数据库内核</div></div></div>
             <div class="mvmeta"><span class="badge b-accent" id="sw-mv-mode">—</span></div></div>
-          <div class="sw-conn"></div>
-          <div class="sw-block"><span class="ic">⇄</span><span class="t">切换</span></div>
-          <div class="sw-line solid" data-lbl="当前"></div>
+          <div class="tri-v"></div>
+          <div class="tri-fork"><span class="tri-hub">⇄ 切换</span>
+            <i class="tri-bus"></i><i class="tri-arm l" data-lbl="当前"></i><i class="tri-arm r" data-lbl="目标"></i></div>
           <div class="box sw-cur"><div class="bt"><span class="lo" id="sw-cur-logo">📨</span><div>
             <div class="nm" id="sw-cur-name">—</div><div class="role">当前 MQ · ACTIVE</div></div></div></div>
-          <div class="sw-line dashed" data-lbl="切换目标"></div>
           <div class="box box-dark sw-tgt"><div class="bt"><span class="lo" id="sw-tgt-logo">🎯</span><div>
             <div class="nm" id="sw-tgt-name">选择目标</div><div class="role">目标 MQ</div></div></div>
             <select id="sw-target" class="f-in" style="margin-top:10px;width:100%"></select>
