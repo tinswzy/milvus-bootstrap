@@ -161,6 +161,11 @@ class MilvusDriver(BaseServiceDriver):
         ns, name = spec.namespace, spec.name
         selector = f"app.kubernetes.io/instance={name}"
         steps = list(self.plan_install_steps(spec, adapter))       # render + apply-objects + wait-ready (spec has new mq+endpoint)
+        # CRITICAL: strip the install steps' compensate. plan_install_steps' apply-cr rolls back via
+        # delete_cr — correct for a fresh install, but here the Milvus CR PRE-EXISTS. A later step
+        # failing (e.g. verify-mq-type TimeoutError) must NOT roll back by deleting the running instance.
+        for s in steps:
+            s.compensate = None
         alter = ["curl", "-s", "-X", "POST", "http://localhost:9091/management/wal/alter",
                  "-d", json.dumps({"target_wal_name": target_wal})]
         steps.append(Step(name="wal-alter", plan="在 milvus pod 内执行：" + " ".join(alter),

@@ -88,3 +88,13 @@ def test_switch_mq_embedded_no_endpoint(core_with_milvus_kafka) -> None:
     snap = c.state.get_instance("milvus-dev").spec_snapshot
     assert snap["params"]["mq"] == "rocksmq"
     assert "pulsarEndpoint" not in snap["params"]                  # embedded switch injects no endpoint
+
+
+def test_switch_mq_steps_have_no_destructive_compensate(core_with_milvus_kafka) -> None:
+    """CRITICAL: the switch reuses install steps, but a failed step (e.g. verify-mq-type timeout)
+    must NOT roll back by deleting the PRE-EXISTING Milvus CR. So no switch step may carry a compensate."""
+    from milvus_bootstrap.core.models import InstallSpec
+    c = core_with_milvus_kafka
+    spec = InstallSpec.model_validate(c.state.get_instance("milvus-dev").spec_snapshot)
+    steps = c.registry.get("milvus").plan_switch_mq_steps(spec, c.adapter, "pulsar")
+    assert steps and all(s.compensate is None for s in steps)
