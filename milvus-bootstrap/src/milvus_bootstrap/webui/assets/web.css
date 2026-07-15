@@ -607,32 +607,28 @@ select.f-in { appearance:none; -webkit-appearance:none; cursor:pointer;
 .sw-opt.dis { opacity:.5; cursor:not-allowed; background:var(--surface-2); }
 .sw-opt.cur { border-style:dashed; }
 
-/* switch-mq topology (prototype-style MQ link) */
-/* switch-mq fork topology: Milvus ─→ [⇄ 切换] ─solid→ 当前MQ / ─dashed→ 目标MQ */
-.sw-fork { display:grid; grid-template-columns:auto 30px auto 76px minmax(220px,1fr);
-  grid-template-rows:auto auto; align-items:center; row-gap:16px; }
-.sw-fork .sw-mv { grid-row:1 / 3; grid-column:1; align-self:center; }
-.sw-conn { grid-row:1 / 3; grid-column:2; align-self:center; position:relative; height:2px; background:var(--accent); }
-.sw-conn::after { content:''; position:absolute; right:-2px; top:-4px;
-  border-left:7px solid var(--accent); border-top:5px solid transparent; border-bottom:5px solid transparent; }
-.sw-block { grid-row:1 / 3; grid-column:3; justify-self:center; margin:0 10px;
-  display:flex; flex-direction:column; align-items:center; gap:2px;
-  border:1.5px solid var(--warn); border-radius:10px; padding:8px 13px; background:var(--surface-2); }
-.sw-block .ic { font-size:20px; line-height:1; color:var(--warn); }
-.sw-block .t { font-size:11px; font-weight:600; color:var(--warn); }
+/* switch-mq triangle topology: Milvus(top) → [⇄切换] → solid↙当前 / dashed↘目标 */
+.sw-tri { display:grid; grid-template-columns:1fr 1fr; justify-items:center; align-items:start; }
+.sw-tri .sw-mv { grid-row:1; grid-column:1 / 3; }
+.tri-v { grid-row:2; grid-column:1 / 3; width:2px; height:22px; background:var(--accent); }
+.tri-fork { grid-row:3; grid-column:1 / 3; position:relative; width:100%; height:36px; }
+.tri-hub { position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:2; white-space:nowrap;
+  font-size:11px; font-weight:600; color:var(--warn); background:var(--surface-2);
+  border:1.5px solid var(--warn); border-radius:8px; padding:2px 9px; }
+.tri-bus { position:absolute; top:18px; left:25%; right:25%; height:2px; background:var(--line-2); }
+.tri-arm { position:absolute; top:18px; width:2px; height:18px; }
+.tri-arm.l { left:25%; background:var(--accent); }
+.tri-arm.r { left:75%; background-image:linear-gradient(180deg,var(--warn) 55%,transparent 0);
+  background-size:2px 9px; background-repeat:repeat-y; animation:swflowv .8s linear infinite; }
+.tri-arm::after { content:''; position:absolute; bottom:-2px; left:-4px;
+  border-left:5px solid transparent; border-right:5px solid transparent; }
+.tri-arm.l::after { border-top:7px solid var(--accent); } .tri-arm.r::after { border-top:7px solid var(--warn); }
+.tri-arm::before { content:attr(data-lbl); position:absolute; top:-1px; left:8px; font-size:10px; font-weight:600; white-space:nowrap; }
+.tri-arm.l::before { color:var(--accent); } .tri-arm.r::before { color:var(--warn); }
 .box.box-dark { background:var(--surface-3); border:1.5px solid var(--accent); min-width:220px; cursor:default; }
 .box.box-dark:hover { transform:none; box-shadow:none; }
 .box-dark .r { font-size:11.5px; color:var(--muted); margin-top:6px; }
-.sw-cur { grid-row:1; grid-column:5; } .sw-tgt { grid-row:2; grid-column:5; }
-.sw-line { grid-column:4; position:relative; height:2px; align-self:center; }
-.sw-line.solid { grid-row:1; background:var(--accent); }
-.sw-line.dashed { grid-row:2; background-image:linear-gradient(90deg,var(--warn) 55%,transparent 0);
-  background-size:11px 2px; background-repeat:repeat-x; animation:swflow .8s linear infinite; }
-.sw-line::after { content:''; position:absolute; right:-2px; top:-4px;
-  border-top:5px solid transparent; border-bottom:5px solid transparent; }
-.sw-line.solid::after { border-left:7px solid var(--accent); } .sw-line.dashed::after { border-left:7px solid var(--warn); }
-.sw-line::before { content:attr(data-lbl); position:absolute; top:-18px; left:50%; transform:translateX(-50%);
-  font-size:10px; white-space:nowrap; background:var(--surface); padding:0 6px; font-weight:600; }
-.sw-line.solid::before { color:var(--accent); } .sw-line.dashed::before { color:var(--warn); }
-@keyframes swflow { to { background-position:11px 0; } }
-@media (prefers-reduced-motion: reduce) { .sw-line.dashed, .flow-h, .flow-v { animation:none; } }
+.sw-cur { grid-row:4; grid-column:1; align-self:start; justify-self:center; }
+.sw-tgt { grid-row:4; grid-column:2; align-self:start; justify-self:center; }
+@keyframes swflowv { to { background-position:0 9px; } }
+@media (prefers-reduced-motion: reduce) { .tri-arm.r, .flow-h, .flow-v { animation:none; } }
