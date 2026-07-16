@@ -148,8 +148,10 @@ def test_gate_switch_mq_pulsar_target_below_2619_ok():
 
 
 def test_gate_switch_mq_kafka_unknown_version_ok():
-    """无版本信息（未知/master/dev）→ 不拦（视为最新）。"""
+    """无版本信息（缺省）/ 非 semver tag（master/dev）→ 不拦（视为最新）。"""
     assert _c.gate("switch-mq", {"current_wal": "pulsar", "target_wal": "kafka"}) == []
+    assert _c.gate("switch-mq", {"current_wal": "pulsar", "target_wal": "kafka",
+                                 "milvus_version": "milvusdb/milvus:master"}) == []
 
 
 def test_gate_install_incompatible_mq_blocks():
