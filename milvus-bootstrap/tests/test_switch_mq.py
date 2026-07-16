@@ -139,3 +139,43 @@ def test_mq_conn_conf_embedded_empty_and_no_msgstreamtype(core: Core) -> None:
     assert d._mq_conn_conf("woodpecker", "") == {}
     # 关键不变式：连接配置绝不含 msgStreamType（那是 wal/alter 运行时的事）
     assert "msgStreamType" not in d._mq_conn_conf("kafka", "k.default.svc:9092")
+
+
+def test_verify_wal_reads_etcd_prefix(core: Core, monkeypatch) -> None:
+    """verify 应 exec 进 etcd pod 跑 etcdctl 读 WAL 元数据前缀，命中 target 即通过。"""
+    d = core.registry.get("milvus")
+    calls = {}
+
+    class _AD:
+        def exec(self, namespace, label_selector, command):
+            calls["ns"] = namespace
+            calls["sel"] = label_selector
+            calls["cmd"] = command
+            return "streamingcoord/wal ... walName:kafka ..."   # 命中 target
+    out = d._verify_wal(_AD(), "default", "app.kubernetes.io/instance=etcd",
+                        "milvus-dev", "kafka", tries=3, sleep_s=0)
+    assert "kafka" in out
+    assert "etcdctl" in calls["cmd"][0] or "etcdctl" in " ".join(calls["cmd"])
+    assert "milvus-dev" in " ".join(calls["cmd"])               # 读实例 rootPath 前缀
+    assert calls["sel"] == "app.kubernetes.io/instance=etcd"    # 进 etcd pod，不是 milvus pod
+
+
+def test_verify_wal_times_out_when_absent(core: Core) -> None:
+    d = core.registry.get("milvus")
+
+    class _AD:
+        def exec(self, namespace, label_selector, command):
+            return "streamingcoord/wal ... walName:pulsar ..."  # 从不出现 kafka
+    with pytest.raises(TimeoutError):
+        d._verify_wal(_AD(), "default", "app.kubernetes.io/instance=etcd",
+                      "milvus-dev", "kafka", tries=2, sleep_s=0)
+
+
+def test_verify_wal_fake_tolerance(core: Core) -> None:
+    d = core.registry.get("milvus")
+
+    class _AD:
+        def exec(self, namespace, label_selector, command):
+            return "[fake] etcdctl get ..."
+    assert "kafka" in d._verify_wal(_AD(), "default", "app.kubernetes.io/instance=etcd",
+                                    "milvus-dev", "kafka", tries=1, sleep_s=0)
