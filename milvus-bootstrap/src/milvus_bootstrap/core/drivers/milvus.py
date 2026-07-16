@@ -16,9 +16,10 @@ from ..tasks.engine import Step
 from .base import BaseServiceDriver
 
 WOODPECKER_SERVICE_PORT = 18080  # woodpecker LogStore gRPC port
-# milvus 把运行时 WAL 类型持久化在 etcd 的 meta rootPath 下（wal/alter 更新）。
-# 读此前缀、子串匹配目标 WAL 名即可确认切换完成。确切前缀以 Task 4 live DoD 在 throwaway 上钉死。
-MILVUS_WAL_META_PREFIX = "streamingcoord"
+# milvus 把当前 MQ/WAL 类型以纯字符串（"pulsar"/"kafka"/…）持久化在 etcd 的 <rootPath>/config/mqtype，
+# wal/alter 切换成功后会更新它。读此 key、值 == 目标 WAL 名即确认切换完成。
+# （Task 4 live DoD 在真集群钉死：milvus007/config/mqtype=pulsar、mv-tw 切后=kafka；etcd 无认证。）
+MILVUS_MQTYPE_ETCD_KEY = "config/mqtype"
 
 
 def _dotted_to_nested(flat: dict) -> dict:
@@ -165,11 +166,11 @@ class MilvusDriver(BaseServiceDriver):
                     tries=20, sleep_s=3) -> str:
         """有界轮询 milvus 持久化在 etcd 的 WAL 类型直到命中 target（honest，不谎报）。
 
-        exec 进 etcd pod 跑 etcdctl 读实例 rootPath 下的 WAL 元数据前缀，子串匹配目标 WAL 名。
+        exec 进 etcd pod 跑 etcdctl 读实例 <rootPath>/config/mqtype，值 == 目标 WAL 名即通过。
         fake adapter 回显 '[fake] …' → 视为模拟通过；真 k8s 读 etcd 实值。
         """
-        key = f"{root}/{MILVUS_WAL_META_PREFIX}"
-        read = ["etcdctl", "get", "--prefix", key]   # 认证/端点若需，Task 4 live DoD 补
+        key = f"{root}/{MILVUS_MQTYPE_ETCD_KEY}"
+        read = ["etcdctl", "get", key]               # etcd v3 默认、无认证（Task 4 真集群确认）
         for _ in range(tries):
             out = str(adapter.exec(namespace=etcd_ns, label_selector=etcd_selector, command=read))
             if target_wal in out or out.strip().startswith("[fake]"):
@@ -199,7 +200,7 @@ class MilvusDriver(BaseServiceDriver):
         steps.append(Step(name="wal-alter", plan="在 milvus pod 内执行：" + " ".join(alter),
                           action=lambda: adapter.exec(namespace=ns, label_selector=selector, command=alter)))
         steps.append(Step(name="verify-mq-type",
-                          plan=f"读 etcd（{etcd_selector}）{root}/{MILVUS_WAL_META_PREFIX} 直到 WAL == {target_wal}（有界·超时）",
+                          plan=f"读 etcd（{etcd_selector}）{root}/{MILVUS_MQTYPE_ETCD_KEY} 直到值 == {target_wal}（有界·超时）",
                           action=lambda: self._verify_wal(adapter, etcd_ns, etcd_selector, root, target_wal)))
         return steps
 

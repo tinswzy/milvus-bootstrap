@@ -141,8 +141,9 @@ def test_mq_conn_conf_embedded_empty_and_no_msgstreamtype(core: Core) -> None:
     assert "msgStreamType" not in d._mq_conn_conf("kafka", "k.default.svc:9092")
 
 
-def test_verify_wal_reads_etcd_prefix(core: Core, monkeypatch) -> None:
-    """verify 应 exec 进 etcd pod 跑 etcdctl 读 WAL 元数据前缀，命中 target 即通过。"""
+def test_verify_wal_reads_etcd_mqtype_key(core: Core) -> None:
+    """verify 应 exec 进 etcd pod 跑 etcdctl 读 <root>/config/mqtype，值命中 target 即通过。
+    真集群该 key 输出两行：'<root>/config/mqtype\\n<mqname>'（Task 4 live DoD 钉死）。"""
     d = core.registry.get("milvus")
     calls = {}
 
@@ -151,13 +152,13 @@ def test_verify_wal_reads_etcd_prefix(core: Core, monkeypatch) -> None:
             calls["ns"] = namespace
             calls["sel"] = label_selector
             calls["cmd"] = command
-            return "streamingcoord/wal ... walName:kafka ..."   # 命中 target
+            return "milvus-dev/config/mqtype\nkafka"            # etcdctl get 的真实输出形态
     out = d._verify_wal(_AD(), "default", "app.kubernetes.io/instance=etcd",
                         "milvus-dev", "kafka", tries=3, sleep_s=0)
     assert "kafka" in out
-    assert "etcdctl" in calls["cmd"][0] or "etcdctl" in " ".join(calls["cmd"])
-    assert "milvus-dev" in " ".join(calls["cmd"])               # 读实例 rootPath 前缀
-    assert calls["sel"] == "app.kubernetes.io/instance=etcd"    # 进 etcd pod，不是 milvus pod
+    assert "etcdctl" in " ".join(calls["cmd"])
+    assert "milvus-dev/config/mqtype" in " ".join(calls["cmd"])  # 读确切 mqtype key
+    assert calls["sel"] == "app.kubernetes.io/instance=etcd"     # 进 etcd pod，不是 milvus pod
 
 
 def test_verify_wal_times_out_when_absent(core: Core) -> None:
@@ -165,7 +166,7 @@ def test_verify_wal_times_out_when_absent(core: Core) -> None:
 
     class _AD:
         def exec(self, namespace, label_selector, command):
-            return "streamingcoord/wal ... walName:pulsar ..."  # 从不出现 kafka
+            return "milvus-dev/config/mqtype\npulsar"           # 值一直是 pulsar，从不出现 kafka
     with pytest.raises(TimeoutError):
         d._verify_wal(_AD(), "default", "app.kubernetes.io/instance=etcd",
                       "milvus-dev", "kafka", tries=2, sleep_s=0)
