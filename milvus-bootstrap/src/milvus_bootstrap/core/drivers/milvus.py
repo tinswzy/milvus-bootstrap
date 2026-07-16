@@ -141,6 +141,19 @@ class MilvusDriver(BaseServiceDriver):
             return {"msgStreamType": "rocksmq"}  # embedded, standalone
         raise ValueError(f"未知 MQ 选项：{mq}")
 
+    def _mq_conn_conf(self, target_wal: str, endpoint: str) -> dict:
+        """目标 MQ 的原生 milvus 连接配置（dotted key，注入 _conf → spec.config）。
+
+        只加连接、绝不含 msgStreamType —— 让源/目标 MQ 连接在 milvus user.yaml 里并存，
+        msgStreamType 保持源；运行时切由 wal/alter 完成。切换流程专用（区别于装机的 _mq_deps）。
+        """
+        if target_wal == "kafka":
+            return {"kafka.brokerList": endpoint}                 # 字符串 host:port
+        if target_wal == "pulsar":
+            host, _, port = endpoint.partition(":")
+            return {"pulsar.address": f"pulsar://{host}", "pulsar.port": int(port or 6650)}
+        return {}   # rocksmq / woodpecker-embedded：内嵌，无外部连接
+
     def _wal_to_mq_id(self, wal: str) -> str:
         return {"kafka": "kafka", "pulsar": "pulsar", "rocksmq": "rocksmq",
                 "woodpecker": "woodpecker-embedded"}.get(wal, wal)

@@ -98,3 +98,24 @@ def test_switch_mq_steps_have_no_destructive_compensate(core_with_milvus_kafka) 
     spec = InstallSpec.model_validate(c.state.get_instance("milvus-dev").spec_snapshot)
     steps = c.registry.get("milvus").plan_switch_mq_steps(spec, c.adapter, "pulsar")
     assert steps and all(s.compensate is None for s in steps)
+
+
+def test_mq_conn_conf_kafka(core: Core) -> None:
+    d = core.registry.get("milvus")
+    assert d._mq_conn_conf("kafka", "kafka-dev.default.svc:9092") == {
+        "kafka.brokerList": "kafka-dev.default.svc:9092"}
+
+
+def test_mq_conn_conf_pulsar_splits_host_port(core: Core) -> None:
+    d = core.registry.get("milvus")
+    conf = d._mq_conn_conf("pulsar", "pulsar-dev-broker.default.svc:6650")
+    assert conf == {"pulsar.address": "pulsar://pulsar-dev-broker.default.svc",
+                    "pulsar.port": 6650}
+
+
+def test_mq_conn_conf_embedded_empty_and_no_msgstreamtype(core: Core) -> None:
+    d = core.registry.get("milvus")
+    assert d._mq_conn_conf("rocksmq", "") == {}
+    assert d._mq_conn_conf("woodpecker", "") == {}
+    # 关键不变式：连接配置绝不含 msgStreamType（那是 wal/alter 运行时的事）
+    assert "msgStreamType" not in d._mq_conn_conf("kafka", "k.default.svc:9092")
