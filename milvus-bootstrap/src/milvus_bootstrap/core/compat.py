@@ -273,6 +273,13 @@ def gate(op: str, ctx: dict, force: bool = False) -> list[Finding]:
         if cur and tgt and cur == tgt:
             _block(Finding("FAIL", "milvus", "switch-mq 同类切换",
                            f"目标 MQ({tgt}) 与当前相同，无意义"))
+        # milvus <2.6.19 有 kafka 负数起始点位 uint64 解码 bug（unmarshalMessageID 用 DecodeUint64），
+        # 切到 kafka 后 milvus reopen WAL 会 CrashLoopBackOff。2.6.19 改 DecodeInt64 修复。
+        ver = ctx.get("milvus_version", "")
+        if tgt == "kafka" and ver and not _ge(ver, "2.6.19"):
+            _block(Finding("FAIL", "milvus", "switch-mq kafka 版本门",
+                           f"切换到 kafka 需 milvus ≥ 2.6.19（当前 {ver}）："
+                           "2.6.18 及更早有 kafka 负数起始点位解析 bug，切换后实例会 CrashLoopBackOff"))
         return warns
 
     if op in ("install", "upgrade"):

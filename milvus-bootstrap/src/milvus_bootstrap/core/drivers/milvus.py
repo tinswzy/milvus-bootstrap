@@ -16,6 +16,10 @@ from ..tasks.engine import Step
 from .base import BaseServiceDriver
 
 WOODPECKER_SERVICE_PORT = 18080  # woodpecker LogStore gRPC port
+# milvus 把当前 MQ/WAL 类型以纯字符串（"pulsar"/"kafka"/…）持久化在 etcd 的 <rootPath>/config/mqtype，
+# wal/alter 切换成功后会更新它。读此 key、值 == 目标 WAL 名即确认切换完成。
+# （Task 4 live DoD 在真集群钉死：milvus007/config/mqtype=pulsar、mv-tw 切后=kafka；etcd 无认证。）
+MILVUS_MQTYPE_ETCD_KEY = "config/mqtype"
 
 
 def _dotted_to_nested(flat: dict) -> dict:
@@ -141,25 +145,50 @@ class MilvusDriver(BaseServiceDriver):
             return {"msgStreamType": "rocksmq"}  # embedded, standalone
         raise ValueError(f"未知 MQ 选项：{mq}")
 
+    def _mq_conn_conf(self, target_wal: str, endpoint: str) -> dict:
+        """目标 MQ 的原生 milvus 连接配置（dotted key，注入 _conf → spec.config）。
+
+        只加连接、绝不含 msgStreamType —— 让源/目标 MQ 连接在 milvus user.yaml 里并存，
+        msgStreamType 保持源；运行时切由 wal/alter 完成。切换流程专用（区别于装机的 _mq_deps）。
+        """
+        if target_wal == "kafka":
+            return {"kafka.brokerList": endpoint}                 # 字符串 host:port
+        if target_wal == "pulsar":
+            host, _, port = endpoint.partition(":")
+            return {"pulsar.address": f"pulsar://{host}", "pulsar.port": int(port or 6650)}
+        return {}   # rocksmq / woodpecker-embedded：内嵌，无外部连接
+
     def _wal_to_mq_id(self, wal: str) -> str:
         return {"kafka": "kafka", "pulsar": "pulsar", "rocksmq": "rocksmq",
                 "woodpecker": "woodpecker-embedded"}.get(wal, wal)
 
-    def _verify_wal(self, adapter, ns, selector, target_wal, tries=20, sleep_s=3) -> str:
-        """Bounded poll of milvus's own current WAL until == target (honest, no over-claim).
-        Fake adapter echoes '[fake] …' → treated as simulated-pass; real k8s checks the response."""
-        read = ["curl", "-s", "http://localhost:9091/management/wal/status"]  # exact path: confirm in live DoD
+    def _verify_wal(self, adapter, etcd_ns, etcd_selector, root, target_wal,
+                    tries=20, sleep_s=3) -> str:
+        """有界轮询 milvus 持久化在 etcd 的 WAL 类型直到命中 target（honest，不谎报）。
+
+        exec 进 etcd pod 跑 etcdctl 读实例 <rootPath>/config/mqtype，值 == 目标 WAL 名即通过。
+        fake adapter 回显 '[fake] …' → 视为模拟通过；真 k8s 读 etcd 实值。
+        """
+        key = f"{root}/{MILVUS_MQTYPE_ETCD_KEY}"
+        read = ["etcdctl", "get", key]               # etcd v3 默认、无认证（Task 4 真集群确认）
         for _ in range(tries):
-            out = str(adapter.exec(namespace=ns, label_selector=selector, command=read))
+            out = str(adapter.exec(namespace=etcd_ns, label_selector=etcd_selector, command=read))
             if target_wal in out or out.strip().startswith("[fake]"):
-                return f"已确认当前 WAL == {target_wal}（{out.strip()[:120]}）"
+                return f"已确认 etcd WAL 类型 == {target_wal}（{out.strip()[:120]}）"
             time.sleep(sleep_s)
-        raise TimeoutError(f"切换后未在 {tries * sleep_s}s 内确认 WAL == {target_wal}")
+        raise TimeoutError(f"切换后未在 {tries * sleep_s}s 内确认 etcd WAL 类型 == {target_wal}")
 
     def plan_switch_mq_steps(self, spec, adapter, target_wal: str) -> list[Step]:
         """Real switch: apply new MQ+endpoint into CR (render+apply+wait) → wal/alter → verify."""
         ns, name = spec.namespace, spec.name
         selector = f"app.kubernetes.io/instance={name}"
+        # verify 读 etcd：从实例的 etcdEndpoints/rootPath 派生 etcd pod selector 与 meta rootPath
+        etcd_eps = _as_list(spec.params.get("etcdEndpoints"), [f"etcd.{ns}.svc:2379"])
+        etcd_host = etcd_eps[0].split(":")[0]                       # e.g. etcd.default.svc
+        parts = etcd_host.split(".")
+        etcd_selector = f"app.kubernetes.io/instance={parts[0]}"
+        etcd_ns = parts[1] if len(parts) > 1 else ns
+        root = spec.params.get("etcdRootPath") or name
         steps = list(self.plan_install_steps(spec, adapter))       # render + apply-objects + wait-ready (spec has new mq+endpoint)
         # CRITICAL: strip the install steps' compensate. plan_install_steps' apply-cr rolls back via
         # delete_cr — correct for a fresh install, but here the Milvus CR PRE-EXISTS. A later step
@@ -171,8 +200,8 @@ class MilvusDriver(BaseServiceDriver):
         steps.append(Step(name="wal-alter", plan="在 milvus pod 内执行：" + " ".join(alter),
                           action=lambda: adapter.exec(namespace=ns, label_selector=selector, command=alter)))
         steps.append(Step(name="verify-mq-type",
-                          plan=f"轮询 milvus 当前 WAL 直到 == {target_wal}（有界·超时）",
-                          action=lambda: self._verify_wal(adapter, ns, selector, target_wal)))
+                          plan=f"读 etcd（{etcd_selector}）{root}/{MILVUS_MQTYPE_ETCD_KEY} 直到值 == {target_wal}（有界·超时）",
+                          action=lambda: self._verify_wal(adapter, etcd_ns, etcd_selector, root, target_wal)))
         return steps
 
     def config_apply_params(self, params: dict, kv: dict) -> dict:

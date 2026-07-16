@@ -121,7 +121,7 @@ def test_api_switch_mq_passes_target_instance(tmp_path, monkeypatch):
         steps = r.json()["task"]["steps"]
         names = [s["name"] for s in steps]
         assert "wal-alter" in names and "verify-mq-type" in names
-        # forwarding proof: the chosen instance's endpoint (pulsar-dev-broker.default.svc:6650)
-        # is injected into the rendered CR — fails if target_name/target_ns weren't threaded through
+        # forwarding proof: 目标实例端点被注入渲染的 CR，且未翻 msgStreamType（源是 kafka）
         apply_plan = next(s["plan"] for s in steps if s["name"] == "apply-cr")
-        assert "pulsar-dev" in apply_plan and ":6650" in apply_plan
+        assert "pulsar://pulsar-dev-broker.default.svc" in apply_plan and "6650" in apply_plan
+        assert "msgStreamType: kafka" in apply_plan          # 源类型保持，未翻成 pulsar

@@ -98,3 +98,85 @@ def test_switch_mq_steps_have_no_destructive_compensate(core_with_milvus_kafka) 
     spec = InstallSpec.model_validate(c.state.get_instance("milvus-dev").spec_snapshot)
     steps = c.registry.get("milvus").plan_switch_mq_steps(spec, c.adapter, "pulsar")
     assert steps and all(s.compensate is None for s in steps)
+
+
+def test_switch_apply_cr_injects_target_conn_keeps_source_msgstreamtype(core_with_milvus_kafka) -> None:
+    """kafka(源)→pulsar(目标)：apply-cr 渲染的 CR 必须注入 pulsar 连接、且 msgStreamType 仍是 kafka。
+    这是本次纠正的核心——绝不能翻成 pulsar（③a 的翻类型 bug 会让 milvus 读旧 checkpoint 崩）。"""
+    c = core_with_milvus_kafka
+    task = c.switch_mq("milvus-dev", "pulsar", target_name="pulsar-dev", target_ns="default", dry_run=True)
+    apply_plan = next(s.plan for s in task.steps if s.name == "apply-cr")
+    assert "msgStreamType: kafka" in apply_plan          # 源类型保持，未翻
+    assert "msgStreamType: pulsar" not in apply_plan     # 绝未翻成目标
+    assert "pulsar://pulsar-dev-broker.default.svc" in apply_plan   # 目标连接已注入
+    assert "6650" in apply_plan
+
+
+def test_switch_apply_cr_kafka_target_injects_brokerlist(core: Core) -> None:
+    """源 woodpecker→目标 kafka：注入 kafka.brokerList，msgStreamType 不变成 kafka。"""
+    task = core.switch_mq("milvus-dev", "kafka", target_name="kafka-dev", target_ns="default", dry_run=True)
+    apply_plan = next(s.plan for s in task.steps if s.name == "apply-cr")
+    assert "brokerList: kafka-dev.default.svc:9092" in apply_plan
+    assert "msgStreamType: kafka" not in apply_plan      # 源是 woodpecker，未翻成 kafka
+
+
+def test_mq_conn_conf_kafka(core: Core) -> None:
+    d = core.registry.get("milvus")
+    assert d._mq_conn_conf("kafka", "kafka-dev.default.svc:9092") == {
+        "kafka.brokerList": "kafka-dev.default.svc:9092"}
+
+
+def test_mq_conn_conf_pulsar_splits_host_port(core: Core) -> None:
+    d = core.registry.get("milvus")
+    conf = d._mq_conn_conf("pulsar", "pulsar-dev-broker.default.svc:6650")
+    assert conf == {"pulsar.address": "pulsar://pulsar-dev-broker.default.svc",
+                    "pulsar.port": 6650}
+
+
+def test_mq_conn_conf_embedded_empty_and_no_msgstreamtype(core: Core) -> None:
+    d = core.registry.get("milvus")
+    assert d._mq_conn_conf("rocksmq", "") == {}
+    assert d._mq_conn_conf("woodpecker", "") == {}
+    # 关键不变式：连接配置绝不含 msgStreamType（那是 wal/alter 运行时的事）
+    assert "msgStreamType" not in d._mq_conn_conf("kafka", "k.default.svc:9092")
+
+
+def test_verify_wal_reads_etcd_mqtype_key(core: Core) -> None:
+    """verify 应 exec 进 etcd pod 跑 etcdctl 读 <root>/config/mqtype，值命中 target 即通过。
+    真集群该 key 输出两行：'<root>/config/mqtype\\n<mqname>'（Task 4 live DoD 钉死）。"""
+    d = core.registry.get("milvus")
+    calls = {}
+
+    class _AD:
+        def exec(self, namespace, label_selector, command):
+            calls["ns"] = namespace
+            calls["sel"] = label_selector
+            calls["cmd"] = command
+            return "milvus-dev/config/mqtype\nkafka"            # etcdctl get 的真实输出形态
+    out = d._verify_wal(_AD(), "default", "app.kubernetes.io/instance=etcd",
+                        "milvus-dev", "kafka", tries=3, sleep_s=0)
+    assert "kafka" in out
+    assert "etcdctl" in " ".join(calls["cmd"])
+    assert "milvus-dev/config/mqtype" in " ".join(calls["cmd"])  # 读确切 mqtype key
+    assert calls["sel"] == "app.kubernetes.io/instance=etcd"     # 进 etcd pod，不是 milvus pod
+
+
+def test_verify_wal_times_out_when_absent(core: Core) -> None:
+    d = core.registry.get("milvus")
+
+    class _AD:
+        def exec(self, namespace, label_selector, command):
+            return "milvus-dev/config/mqtype\npulsar"           # 值一直是 pulsar，从不出现 kafka
+    with pytest.raises(TimeoutError):
+        d._verify_wal(_AD(), "default", "app.kubernetes.io/instance=etcd",
+                      "milvus-dev", "kafka", tries=2, sleep_s=0)
+
+
+def test_verify_wal_fake_tolerance(core: Core) -> None:
+    d = core.registry.get("milvus")
+
+    class _AD:
+        def exec(self, namespace, label_selector, command):
+            return "[fake] etcdctl get ..."
+    assert "kafka" in d._verify_wal(_AD(), "default", "app.kubernetes.io/instance=etcd",
+                                    "milvus-dev", "kafka", tries=1, sleep_s=0)
