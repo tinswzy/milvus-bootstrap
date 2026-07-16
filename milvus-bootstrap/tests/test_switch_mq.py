@@ -100,6 +100,26 @@ def test_switch_mq_steps_have_no_destructive_compensate(core_with_milvus_kafka) 
     assert steps and all(s.compensate is None for s in steps)
 
 
+def test_switch_apply_cr_injects_target_conn_keeps_source_msgstreamtype(core_with_milvus_kafka) -> None:
+    """kafka(源)→pulsar(目标)：apply-cr 渲染的 CR 必须注入 pulsar 连接、且 msgStreamType 仍是 kafka。
+    这是本次纠正的核心——绝不能翻成 pulsar（③a 的翻类型 bug 会让 milvus 读旧 checkpoint 崩）。"""
+    c = core_with_milvus_kafka
+    task = c.switch_mq("milvus-dev", "pulsar", target_name="pulsar-dev", target_ns="default", dry_run=True)
+    apply_plan = next(s.plan for s in task.steps if s.name == "apply-cr")
+    assert "msgStreamType: kafka" in apply_plan          # 源类型保持，未翻
+    assert "msgStreamType: pulsar" not in apply_plan     # 绝未翻成目标
+    assert "pulsar://pulsar-dev-broker.default.svc" in apply_plan   # 目标连接已注入
+    assert "6650" in apply_plan
+
+
+def test_switch_apply_cr_kafka_target_injects_brokerlist(core: Core) -> None:
+    """源 woodpecker→目标 kafka：注入 kafka.brokerList，msgStreamType 不变成 kafka。"""
+    task = core.switch_mq("milvus-dev", "kafka", target_name="kafka-dev", target_ns="default", dry_run=True)
+    apply_plan = next(s.plan for s in task.steps if s.name == "apply-cr")
+    assert "brokerList: kafka-dev.default.svc:9092" in apply_plan
+    assert "msgStreamType: kafka" not in apply_plan      # 源是 woodpecker，未翻成 kafka
+
+
 def test_mq_conn_conf_kafka(core: Core) -> None:
     d = core.registry.get("milvus")
     assert d._mq_conn_conf("kafka", "kafka-dev.default.svc:9092") == {

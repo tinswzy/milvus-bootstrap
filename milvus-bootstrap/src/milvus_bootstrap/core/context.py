@@ -92,19 +92,37 @@ class Core:
         current_wal = cur_opt.wal if cur_opt else cur_mq
         compat.gate("switch-mq", {"current_wal": current_wal, "target_wal": target_wal}, force=force)
         driver = self.registry.get("milvus")
+        tns = target_ns or spec.namespace
+
+        def _endpoint(wal: str) -> str:
+            if wal == "kafka":
+                return f"{target_name}.{tns}.svc:9092"
+            if wal == "pulsar":
+                return f"{target_name}-broker.{tns}.svc:6650"
+            return ""
+
+        # 应用态：保持当前 mq（不翻 msgStreamType），只把目标 MQ 连接注入 spec.config（_conf）。
+        # 源/目标连接并存 → 重启后两 MQ client 都可建 → wal/alter 运行时切，milvus 不会读旧 checkpoint 崩。
         spec2 = spec.model_copy(deep=True)
         spec2.params = dict(spec2.params)
-        spec2.params["mq"] = driver._wal_to_mq_id(target_wal)
-        _ep = {"kafka": (f"{target_name}.{target_ns or spec.namespace}.svc:9092", "kafkaBrokers"),
-               "pulsar": (f"{target_name}-broker.{target_ns or spec.namespace}.svc:6650", "pulsarEndpoint")}
-        if target_wal in _ep and target_name:
-            endpoint, param = _ep[target_wal]
-            spec2.params[param] = endpoint
+        endpoint = _endpoint(target_wal)
+        if target_wal in ("kafka", "pulsar") and target_name:
+            spec2.params["_conf"] = {**spec2.params.get("_conf", {}),
+                                     **driver._mq_conn_conf(target_wal, endpoint)}
         steps = driver.plan_switch_mq_steps(spec2, self.adapter, target_wal)
         task = self.engine.run(type="switch-mq", target=instance_id, steps=steps, dry_run=dry_run)
         self.state.put_task(task)
         if not dry_run and task.status == TaskStatus.succeeded:
-            inst.spec_snapshot = spec2.model_dump(mode="json")
+            # 成功后 snapshot 记「目标态」作为 UI/未来渲染真相（活 CR 的 msgStreamType 不二次 patch——
+            # milvus 重启以 etcd WAL 元数据为准）。用目标态 spec，而非并存态 spec2。
+            snap = spec.model_copy(deep=True)
+            snap.params = dict(snap.params)
+            snap.params["mq"] = driver._wal_to_mq_id(target_wal)
+            if target_wal == "kafka" and target_name:
+                snap.params["kafkaBrokers"] = endpoint
+            elif target_wal == "pulsar" and target_name:
+                snap.params["pulsarEndpoint"] = endpoint
+            inst.spec_snapshot = snap.model_dump(mode="json")
             self.state.put_instance(inst)
         return task
 
