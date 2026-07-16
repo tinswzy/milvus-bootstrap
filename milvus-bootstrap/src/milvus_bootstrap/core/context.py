@@ -90,7 +90,8 @@ class Core:
         cur_mq = spec.params.get("mq", "")
         cur_opt = compat.get_option(cur_mq)
         current_wal = cur_opt.wal if cur_opt else cur_mq
-        compat.gate("switch-mq", {"current_wal": current_wal, "target_wal": target_wal}, force=force)
+        compat.gate("switch-mq", {"current_wal": current_wal, "target_wal": target_wal,
+                                  "milvus_version": spec.params.get("image", "")}, force=force)
         driver = self.registry.get("milvus")
         tns = target_ns or spec.namespace
 

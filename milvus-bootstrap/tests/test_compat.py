@@ -122,6 +122,36 @@ def test_gate_switch_mq_different_ok():
     assert _c.gate("switch-mq", {"current_wal": "kafka", "target_wal": "pulsar"}) == []
 
 
+def test_gate_switch_mq_kafka_below_2619_blocks():
+    """切换到 kafka 在 milvus <2.6.19 上会 CrashLoop（kafka 负数点位 uint64 解码 bug）→ 拦下。"""
+    with pytest.raises(_c.CompatError):
+        _c.gate("switch-mq", {"current_wal": "pulsar", "target_wal": "kafka",
+                              "milvus_version": "milvusdb/milvus:v2.6.18"})
+
+
+def test_gate_switch_mq_kafka_2619_ok():
+    """2.6.19 已修 → 允许。"""
+    assert _c.gate("switch-mq", {"current_wal": "pulsar", "target_wal": "kafka",
+                                 "milvus_version": "milvusdb/milvus:v2.6.19"}) == []
+
+
+def test_gate_switch_mq_kafka_below_2619_force_warns():
+    out = _c.gate("switch-mq", {"current_wal": "pulsar", "target_wal": "kafka",
+                                "milvus_version": "v2.6.18"}, force=True)
+    assert out and out[0].level == "WARN"
+
+
+def test_gate_switch_mq_pulsar_target_below_2619_ok():
+    """bug 是 kafka 目标特有的；切到 pulsar 不受版本门限制。"""
+    assert _c.gate("switch-mq", {"current_wal": "kafka", "target_wal": "pulsar",
+                                 "milvus_version": "v2.6.18"}) == []
+
+
+def test_gate_switch_mq_kafka_unknown_version_ok():
+    """无版本信息（未知/master/dev）→ 不拦（视为最新）。"""
+    assert _c.gate("switch-mq", {"current_wal": "pulsar", "target_wal": "kafka"}) == []
+
+
 def test_gate_install_incompatible_mq_blocks():
     with pytest.raises(_c.CompatError):
         _c.gate("install", {"mq": "woodpecker-service", "image": "v2.6.3", "mode": "standalone"})
